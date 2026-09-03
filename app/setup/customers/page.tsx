@@ -15,11 +15,12 @@ import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
 import { useToast } from '@/hooks/use-toast';
 import { formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
+import { useToaster } from '@/components/util/CustomToast';
 
 
 export default function CustomersPage() {
   const sessionShop = sessionStorage.getItem("selectedShop")
-  const {toast} = useToast()
+  const toast = useToaster()
   const {selectedShop} = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -120,10 +121,10 @@ export default function CustomersPage() {
     } catch (error: any) {
        console.error('Error saving employee:', error.response?.data?.message);
 
-       toast.warning({
-          title:  'Failed to submit',
-          description: error?.response?.data?.message || 'Please try again later',
-      })
+      //  toast.warning({
+      //     title:  'Failed to submit',
+      //     description: error?.response?.data?.message || 'Please try again later',
+      // })
     }
     finally{
       setIsLoading(false)
@@ -153,17 +154,17 @@ export default function CustomersPage() {
         await axiosInstance.delete(`/Customers/${customer?.id}`);
         await loadData();
 
-         toast.success({
-          title: 'Submitted successfully',
-          description: 'Customer deleted successfully',
-      })
+      //    toast.success({
+      //     title: 'Submitted successfully',
+      //     description: 'Customer deleted successfully',
+      // })
       } catch (error : any) {
         console.error('Error deleting customer:', error);
 
-        toast.warning({
-          title:  'Failed to submit',
-          description: error?.response?.data?.message || 'Please try again later',
-      })
+      //   toast.warning({
+      //     title:  'Failed to submit',
+      //     description: error?.response?.data?.message || 'Please try again later',
+      // })
       }
       finally{
         setIsLoading(false)
@@ -286,7 +287,7 @@ export default function CustomersPage() {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="John"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -298,7 +299,7 @@ export default function CustomersPage() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Doe"
-                className="bg-secondary border-border"
+                className="bg-white border-border"
                 required
               />
             </div>
@@ -315,7 +316,7 @@ export default function CustomersPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="john@example.com"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -329,7 +330,7 @@ export default function CustomersPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 234 567 8900"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -345,7 +346,7 @@ export default function CustomersPage() {
                 value={nationId}
                 onChange={(e) => setNationalId(e.target.value)}
                 placeholder="GHA-00-3903-00"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -360,7 +361,7 @@ export default function CustomersPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="123 Customer Street"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 // required
               />
             </div>
@@ -375,7 +376,7 @@ export default function CustomersPage() {
                 value={creditLimit}
                 onChange={(e) => setCreditLimit(formatNumberWithCommas(e.target.value))}
                 placeholder="5000"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 // required
               />
             </div>
@@ -436,7 +437,7 @@ export default function CustomersPage() {
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)}
                 placeholder="500.00"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
                 min="0.01"
               />

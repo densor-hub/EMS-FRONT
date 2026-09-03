@@ -40,7 +40,7 @@ export function Header({ title, description }: HeaderProps) {
             <Input
               type="search"
               placeholder="Search..."
-              className="w-64 pl-9 bg-secondary border-border"
+              className="w-64 pl-9 bg-white border-border"
             />
           </div> */}
 

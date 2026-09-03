@@ -112,7 +112,7 @@ export default function LoginPage() {
                     placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-secondary border-border"
+                    className="pl-10 bg-white border-border"
                     required
                   />
                 </div>
@@ -136,7 +136,7 @@ export default function LoginPage() {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 bg-secondary border-border"
+                    className="pl-10 pr-10 bg-white border-border"
                     required
                   />
                   <button

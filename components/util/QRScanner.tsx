@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
-import { useToast } from '../ui/use-toast'
+import React, { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react'
+import { useToaster } from './CustomToast'
 import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
 import { Transaction } from '@/lib/types'
 import axiosInstance from '@/lib/customAxios'
@@ -12,27 +12,33 @@ import { useAuth } from '@/lib/auth-context'
 interface QRScannerProps {
   visible: boolean
   onClose: () => void
-  onTransactionFound?: (transaction: Transaction) => void
+  onTransactionFound?: (transaction: Transaction) => void,
+  transaction: Transaction | null,
+  isLoading: boolean,
+  fetchTransaction:(decodedText: string) => void,
+  setError: Dispatch<SetStateAction<string | null>>
+  error : string | null
 }
 
 const QRScanner: React.FC<QRScannerProps> = ({
   visible,
   onClose,
-  onTransactionFound
+  onTransactionFound,
+  isLoading,
+  transaction,
+  fetchTransaction,
+  setError,
+  error
 }) => {
-  const {user, selectedShop} = useAuth()
-  const sessionShop = sessionStorage.getItem("selectedShop");
-  const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
+
+  const toast = useToaster()
+  // const [isLoading, setIsLoading] = useState(false)
   const [qrValue, setQrValue] = useState('')
-  const [transaction, setTransaction] = useState<Transaction | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [permissionDenied, setPermissionDenied] = useState(false)
   const [scannerRunning, setScannerRunning] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   const html5QrCodeRef = useRef<any>(null)
-    const [receiptData, setReceiptData] = useState<POSReceiptProps | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Safe stop scanner - non-async version for cleanup
@@ -108,59 +114,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
     onClose()
   }
 
-  // Fetch transaction by QR code value
-  const fetchTransaction = async (qrCode: string) => {
-    setIsLoading(true)
-    setError(null)
-    setTransaction(null)
-
-    try {
-      const response = await axiosInstance.get(`/Sales/Generate-Receipt/${qrCode}`)
-      
-      if (response.data) {
-        const transactionData = response.data as Transaction
-        setTransaction(transactionData)
-        toastSuccess(toast, `✅ Transaction found: ${transactionData.transactionId || transactionData.id}`)
-        
-        if (onTransactionFound) {
-          onTransactionFound(transactionData)
-           setReceiptData({
-            qrCode : "", 
-            transactionNumber : transactionData?.transactionCode || "", 
-            showQRCode: false, 
-            amount : transactionData?.totalAmount, 
-            customerName: transactionData?.customerName, 
-            date: transactionData?.transactionDate, 
-            merchantName: user?.locations?.find(x=> x.id == (selectedShop || sessionShop))?.name,
-            items: transactionData?.items?.map((x)=> {
-                    return {
-                          name : x.itemName || x.name,
-                          quantity : x.quantity,
-                          price : x.unitPrice,
-                          total : x.quantity * x.unitPrice
-                          //code : x.code
-                    }
-                })
-          });
-        }
-      } else {
-        setError('Transaction not found')
-        toastErrors(toast, 'No transaction found with this QR code.', 'Not Found')
-      }
-    } catch (error: any) {
-      console.error('Error fetching transaction:', error)
-      setError(error?.response?.data?.message 
-          ? error?.response?.data?.message 
-          : typeof(error?.response?.data) === 'string' 
-            ? error?.response?.data 
-            : 'Failed to fetch transaction')
-      
-      toastErrors(toast, "There was a technical challenge, please try again later")
-    
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  
 
   // Manual input handler
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -257,7 +211,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
               <button
                 onClick={() => {
                   safeStopScanner()
-                  handleClose()
+                 // handleClose()
                 }}
                 className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
               >
@@ -266,15 +220,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
             </div>
           )}
 
-          {/* Transaction Result */}
-          {transaction && receiptData && (<div className="absolute top-0 left-0 right-0 min-h-screen bg-gray-100 p-4 flex justify-center">
-            <POSReceipt
-              data={receiptData}
-              setData={setReceiptData}
-            />
-            </div>
-            
-          )}
+        
 
           {/* Error Display */}
           {error && !transaction && (
@@ -322,6 +268,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
           </form>
         </div>
       </div>
+      {toast.ToastComponent}
     </div>
   )
 }

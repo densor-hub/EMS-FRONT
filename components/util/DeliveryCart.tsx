@@ -3,10 +3,11 @@ import { CartProps } from "./CartTable"
 import CartTable from "./CartTable"
 import { ShoppingCart } from "lucide-react"
 import { Card, CardHeader, CardContent, CardTitle } from "../ui/card"
+import { paymentMethods } from "./AppConfig"
 
 const CartUi = (props: CartProps) => {
 
-     const totalDelivering = props?.dataSource?.reduce((sum, c) => sum + c.receivingQuantity, 0);
+     const totalDelivering = props?.dataSource?.reduce((sum, c) => sum + (c.receivingQuantity || 0), 0);
 
        const removeFromCart = useCallback((index: number) => {
          props?.setDataSource(prev => prev.filter((_, i) => i !== index));

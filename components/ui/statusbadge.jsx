@@ -14,6 +14,18 @@ const StatusBadge = ({ status, className = '', heartbeat= true }) => {
       border: 'border-emerald-300',
       dotBg: 'bg-emerald-400',
     },
+    Delivered: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      border: 'border-emerald-300',
+      dotBg: 'bg-emerald-400',
+    },
+    Success: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      border: 'border-emerald-300',
+      dotBg: 'bg-emerald-400',
+    },
     Declined: {
       bg: 'bg-rose-50',
       text: 'text-rose-700',

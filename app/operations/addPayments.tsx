@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "lucide-react";
+import { config } from "@/components/util/AppConfig";
 
 const paymentMethods  =  [
   {name :"Mobile Money" , id : 1}, 
@@ -29,12 +30,12 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
   return <div className="md:flex space-between space-x-2">
       {/* Amount Paid Input */}
                   <div className="space-y-2 md:w=[58%]">
-                    <Label htmlFor="quantity" className="text-foreground">Amount Paid <span className="text-destructive">*</span></Label> 
+                    <Label htmlFor="quantity" className="text-foreground">Amount Paid {`(${config.currency})`}<span className="text-destructive">*</span></Label> 
                     <Input
                       id="quantity"
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(formatNumberWithCommas(e.target.value))}
-                      className="bg-secondary border-border"
+                      className="bg-white border-border"
                       style={{textAlign:"right"}}
                     />
                   </div>
@@ -42,7 +43,7 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
             <div className="space-y-2 md:col-span-2" style={{minWidth:"150px"}}>
                   <Label htmlFor="item" className="text-foreground">Payment Method  <span className="text-destructive">*</span></Label>
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger className="bg-secondary border-border w-[100%]">
+                    <SelectTrigger className="bg-white border-border w-[100%]">
                       <SelectValue placeholder="Select item" />
                     </SelectTrigger>
                     <SelectContent>
@@ -66,7 +67,7 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
                         type="date"
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="pl-7 sm:pl-10 bg-secondary border-border text-xs sm:text-sm"
+                        className="pl-7 sm:pl-10 bg-white border-border text-xs sm:text-sm"
                         max={new Date().toISOString().split('T')[0]}
                         min={minDate}
                     />

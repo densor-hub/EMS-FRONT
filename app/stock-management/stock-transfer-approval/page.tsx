@@ -10,15 +10,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from "@/hooks/use-toast";
+import { useToaster } from '@/components/util/CustomToast';
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
 import { handlePrint } from "@/lib/utils";
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
 import {Item, Shop, Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import PaymentsFooter from '../../paymentFooter';
-import AddPayment from '../../addPayments';
+import PaymentsFooter from '../../operations/paymentFooter';
+import AddPayment from '../../operations/addPayments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import SkeletonLoading, { LoadingOverlay } from '@/components/SkeletonLoading';
@@ -27,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
-const TransactionUI = dynamic(() => import("@/components/util/TransactionUi"), {
+const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"), {
   loading: () => <div className="w-full p-8 text-center animate-pulse">Loading form...</div>,
   ssr: false
 });
@@ -42,7 +42,7 @@ const paymentMethods = [
 
 export default function PurcahsePage() {
    const sessionShop = sessionStorage.getItem("selectedShop");
-  const { toast } = useToast();
+  const toast  = useToaster();
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [sales, setStockTransfers] = useState<Transaction[]>([]);
@@ -107,6 +107,7 @@ export default function PurcahsePage() {
         if (response == 2 && !remarks) {
           toast.warning({
             title: 'Please enter reason for declining',
+            description:""
             // description: error?.response?.data?.message || 'Please try again later',
           });
 
@@ -146,7 +147,6 @@ export default function PurcahsePage() {
   const openTransactionDetails = async (transaction: Transaction) => {
     setSelectedTransaction(transaction);
 
-    console.log(transaction)
     const details = await fetchTransactionDetails(transaction.transactionId || transaction.id || "");
     if (details) {
       setTransactionDetails(details);
@@ -482,18 +482,18 @@ export default function PurcahsePage() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+    <div className="w-full overflow-x-hidden">
       <Header
         title="Transfers Approvals"
         description="shops Transactions"
       />
 
-      <div className="relative px-2 sm:px-4">
-        <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4">
-          <div className="space-y-2 w-full sm:w-[300px]">
+      <div className="relative">
+        <div className="flex flex-col sm:flex-row justify-between ">
+          <div className="space-y-2 w-full sm:w-[300px] p-2">
             <Label htmlFor="item" className="text-foreground">Select Shop</Label>
             <Select value={selectedShopForStockTrans} onValueChange={setselectedShopForStockTrans}>
-              <SelectTrigger className="bg-secondary border-border w-full">
+              <SelectTrigger className="bg-white border-border w-full">
                 <SelectValue placeholder="Select Supplier" />
               </SelectTrigger>
               <SelectContent>
@@ -510,20 +510,18 @@ export default function PurcahsePage() {
           </div>
         </div>
 
-        <Card className="gap-0 mt-4" style={{ padding: "0px", paddingTop: '10px' }}>
-          {!modalOpen &&
-            <CardContent className="m-0 p-0 overflow-x-auto">
-              <DataTable
-                title="All Transfers"
-                data={sales}
-                columns={columns}
-                searchKey="transactionCode"
-                addLabel="Add Purchase"
-                emptyMessage="No transaction found for the selected shop."
-                onRowClick={(row) => openTransactionDetails(row)}
-              />
-            </CardContent>}
-        </Card>
+      {!modalOpen &&
+        <CardContent className="m-0 p-0 overflow-x-auto">
+          <DataTable
+            title="All Transfers"
+            data={sales}
+            columns={columns}
+            searchKey="transactionCode"
+            addLabel="Add Purchase"
+            emptyMessage="No transaction found for the selected shop."
+            onRowClick={(row) => openTransactionDetails(row)}
+          />
+        </CardContent>}
 
         {/* Using your Modal component */}
         <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
@@ -537,7 +535,8 @@ export default function PurcahsePage() {
                 businessPartnerLable="Shop"
                 businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""} - ${shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""}`}
                 businessPartnerValue={selectedShopForStockTrans}
-                transactionActionType="stock transfer"
+                transactionActionType="TRAN"
+                instantSale={false}
               />
             </div>
           }
@@ -654,7 +653,7 @@ export default function PurcahsePage() {
           onClose={() => {
             setShowDeliveryModal(false);
           }}
-          title={`Receival from ${shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""} (Trans # - ${selectedTransaction.transactionCode})`}
+           title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails.transactionCode}`)}
           size='full'
         >
           <div className="w-full">

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Header } from '@/components/dashboard/header';
 import { DataTable } from '@/components/dashboard/data-table';
 import { Modal } from '@/components/dashboard/modal';
@@ -9,9 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dispatch, SetStateAction } from 'react';
 import { CartItem, Transaction, TransactionItem } from '@/lib/types';
-import { useToast } from "@/hooks/use-toast";
-import { getRemainingQuantity,  getOriginalRemainingQuantity, getDeliveredQuantity,  formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
+import { useToaster } from '@/components/util/CustomToast';
+import { getRemainingQuantity,  getOriginalRemainingQuantity, getDeliveredQuantity,  formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from '@/helpers/formatStrings';
 import { Plus } from 'lucide-react';
+// import { ItemStockLevelDTO } from '@/lib/types';
+// import { useAuth } from '@/lib/auth-context';
+// import axiosInstance from '@/lib/customAxios';
 
 interface iTransactionItemSelection {
     selectedItem: string;
@@ -23,10 +26,12 @@ interface iTransactionItemSelection {
     cart: CartItem[];
     setCart: Dispatch<SetStateAction<CartItem[]>>
     transactionActionType: string | undefined;
+   //  stockLevel: ItemStockLevelDTO | null;
 }
 
 const TransactionItemSelection = (props: iTransactionItemSelection) => {
-    const { toast } = useToast();
+    const toast = useToaster()
+
 
     // Get available items (items with remaining quantity > 0, factoring in cart)
     const availableItems = props?.selectedTransaction?.items?.filter(
@@ -49,27 +54,29 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
        const qtyToDeliver = parseFloat(removeCommasFromNumbers(props?.quantity)?.toString());
        
        if (qtyToDeliver > remainingQty) {
-         toast.warning({
-           title: 'Quantity exceeds remaining',
-           description: `Quantity ${qtyToDeliver} exceeds remaining quantity (${remainingQty})`,
-         });
+        toastErrors(toast,`Quantity ${qtyToDeliver} exceeds remaining quantity (${remainingQty})` )
+        //  toast.warning({
+        //    title: 'Quantity exceeds remaining',
+        //    description: ,
+        //  });
          return;
        }
    
        if (qtyToDeliver <= 0) {
-         toast.warning({
-           title: 'Invalid quantity',
-           description: 'Quantity must be greater than 0',
-         });
+         toastErrors(toast,'Quantity must be greater than 0')
+        //  toast.warning({
+        //    title: 'Invalid quantity',
+        //    description: 'Quantity must be greater than 0',
+        //  });
          return;
        }
    
-       const existingIndex = props?.cart.findIndex((c) => c.id === item.id || c.id === item.itemId);
+       const existingIndex = props?.cart.findIndex((c) => c.id === item.itemId);
    
        if (existingIndex >= 0) {
          // Update existing cart item
          const newCart = [...props?.cart];
-         const totalDelivering = newCart[existingIndex].receivingQuantity + qtyToDeliver;
+         const totalDelivering = (newCart[existingIndex]?.receivingQuantity || 0) + qtyToDeliver;
          
          if (totalDelivering > getOriginalRemainingQuantity(item, props?.isStockTransfer, props?.selectedTransaction?.supplierId || "")) {
            toast.warning({
@@ -85,10 +92,10 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
        } else {
          // Add new item to cart
          props?.setCart([...props?.cart, {
-           id: item.itemId || item.id,
+           id: item.itemId,
            name: item.name || item.itemName,
            code: item.code || '',
-           costPrice: item.costPrice || 0,
+        //    costPrice: item.costPrice || 0,
            price: item.unitPrice || 0,
            quantity: item.quantity || 0,
            deliveredQuantity: getDeliveredQuantity(item, props?.isStockTransfer, props?.selectedTransaction?.supplierId || ""),
@@ -101,7 +108,9 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
        props?.setSelectedItem("");
        props?.setQuantity("");
      }, [props?.selectedItem, props?.quantity, props?.cart, props?.selectedTransaction, props?.isStockTransfer, toast]);
-   
+
+
+     //console.log(props.transactionActionType)
     return (
         <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-1">
@@ -109,7 +118,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                 <div className="space-y-1 md:col-span-2">
                     <Label htmlFor="item" className="text-xs sm:text-sm text-foreground">Select Item</Label>
                     <Select value={props.selectedItem} onValueChange={props.setSelectedItem}>
-                        <SelectTrigger className="bg-secondary border-border w-full text-xs sm:text-sm">
+                        <SelectTrigger className="bg-white border-border w-full text-xs sm:text-sm">
                             <SelectValue placeholder="Select item" />
                         </SelectTrigger>
                         <SelectContent>
@@ -126,7 +135,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                                         props?.cart
                                     );
                                     return (
-                                        <SelectItem key={item.id || item.itemId} value={item.id || item.itemId}>
+                                        <SelectItem key={ item.itemId} value={ item.itemId}>
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{item.name || item.itemName}</span>
                                                 <span className="text-xs text-muted-foreground">
@@ -147,15 +156,15 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                     <Label htmlFor="quantityRemaining" className="text-xs sm:text-sm text-foreground">Remaining Qty</Label>
                     <Input
                         id="quantityRemaining"
-                        type="number"
-                        min="1"
-                        value={ availableItems?.some(x=> x.id == props.selectedItem) ? getRemainingQuantity(
-                                        availableItems.find(x=> x.id == props.selectedItem)!,
+                        // type="tring"
+                        // min="1"
+                        value={ formatNumberWithCommas((availableItems?.some(x=> x.itemId == props.selectedItem) ? getRemainingQuantity(
+                                        availableItems.find(x=> x.itemId == props.selectedItem)!,
                                         props?.isStockTransfer,
                                         props?.selectedTransaction?.supplierId || "",
                                         props?.cart
-                                    ): 0}
-                        className="bg-secondary border-border text-xs sm:text-sm"
+                                    ): 0)?.toString())}
+                        className="bg-secondary text-right border-border text-xs sm:text-sm"
                         readOnly={true}
                         style={{ color: "blue", fontWeight: "bold" }}
                     />
@@ -171,7 +180,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                         value={formatNumberWithCommas(props.quantity)}
                         onChange={(e) => props.setQuantity(e.target.value)}
                         placeholder="1"
-                        className="bg-secondary border-border text-xs sm:text-sm"
+                        className=" border-border text-xs sm:text-sm"
                         style={{ textAlign: "right" }}
                         disabled={false}
                     />
@@ -187,6 +196,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                     Add
                 </Button>
             </div>
+            {toast.ToastComponent}
         </>
     );
 };

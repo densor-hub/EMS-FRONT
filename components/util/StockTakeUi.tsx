@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -22,11 +22,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Search,
   Calendar,
   Clock,
   Package,
@@ -42,9 +37,10 @@ import {
 import { format } from 'date-fns';
 import axiosInstance from "@/lib/customAxios";
 import { useAuth } from "@/lib/auth-context";
-import { useToast } from "@/hooks/use-toast";
+import { useToaster } from '@/components/util/CustomToast';
 import Loading from "@/app/dashboard/loading";
 import { DataTable } from '@/components/dashboard/data-table';
+import StockFilterBar from "./StockFilterBar";
 
 // Types
 interface StockLockDownItem {
@@ -91,7 +87,7 @@ interface SubmissionFormData {
 }
 
 export default function StockTakeUI() {
-  const { toast } = useToast();
+  const toast = useToaster()
   const { user, selectedShop } = useAuth();
   
   // State
@@ -207,7 +203,7 @@ export default function StockTakeUI() {
       setLoading(false);
       setIsApplyingFilters(false);
     }
-  }, [getSelectedShop, startDate, endDate, toast]);
+  }, [getSelectedShop, startDate, endDate]);
 
   // Clear filters
   const clearFilters = useCallback(() => {
@@ -242,7 +238,7 @@ export default function StockTakeUI() {
     } finally {
       setLoadingDetail(false);
     }
-  }, [toast]);
+  }, []);
 
   // Toggle item expansion
   const toggleItemExpansion = useCallback((itemId: string) => {
@@ -340,7 +336,7 @@ export default function StockTakeUI() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedItemId, selectedRecord, submissionData, remarks, toast, fetchStockLockDownDetail]);
+  }, [selectedItemId, selectedRecord, submissionData, remarks,  fetchStockLockDownDetail]);
 
   // Handle cancel submission
   const handleCancelSubmission = useCallback(() => {
@@ -388,26 +384,6 @@ export default function StockTakeUI() {
       currentPage: Math.max(1, Math.min(page, Math.ceil(prev.totalItems / prev.itemsPerPage)))
     }));
   }, []);
-
-  const handleItemsPerPageChange = useCallback((value: string) => {
-    setPagination(prev => ({
-      ...prev,
-      itemsPerPage: parseInt(value),
-      currentPage: 1
-    }));
-  }, []);
-
-  // Get current page data
-  const currentPageData = useMemo(() => {
-    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
-    const endIndex = startIndex + pagination.itemsPerPage;
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, pagination.currentPage, pagination.itemsPerPage]);
-
-  // Total pages
-  const totalPages = useMemo(() => {
-    return Math.ceil(pagination.totalItems / pagination.itemsPerPage);
-  }, [pagination.totalItems, pagination.itemsPerPage]);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -518,107 +494,42 @@ export default function StockTakeUI() {
     );
   }
 
-  if (loading) {
-    return <Loading />;
+  if (loading || isSubmitting) {
+    return <Loading />
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50/80 via-white/80 to-gray-100/80 backdrop-blur-md p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Search and Filter Section */}
-        <Card>
-          <CardContent className="">
-            <div className="flex flex-col md:flex-row items-end gap-4">
-              {/* Search Bar */}
-              <div className="flex-1 min-w-[200px]">
-                <Label htmlFor="search" className="text-sm font-medium mb-1.5 block text-left" >
-                  Search
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Search by transaction #, location, or ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 border-2 border-grey-300"
-                  />
-                </div>
-              </div>
-
-              {/* Start Date */}
-              <div className="min-w-[150px]">
-                <Label htmlFor="startDate" className="text-sm font-medium mb-1.5 block  text-left">
-                  Start Date
-                </Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="pl-9 border-2 border-grey-300"
-                  />
-                </div>
-              </div>
-
-              {/* End Date */}
-              <div className="min-w-[150px]">
-                <Label htmlFor="endDate" className="text-sm font-medium mb-1.5 block  text-left">
-                  End Date
-                </Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="pl-9 border-2 border-grey-300"
-                  />
-                </div>
-              </div>
-
-              {/* Apply Filters Button */}
-              <Button 
-                onClick={handleDateFilter}
-                className="shrink-0 mb-[2px]"
-                disabled={isApplyingFilters}
-              >
-                {isApplyingFilters ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Applying...
-                  </>
-                ) : (
-                  'Search'
-                )}
-              </Button>
-
-              {/* Clear Filters Button */}
-              <Button 
-                onClick={clearFilters}
-                variant="outline"
-                className="shrink-0 mb-[2px]"
-              >
-                Clear
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="bg-gradient-to-br from-slate-50/80 via-white/80 to-gray-100/80 backdrop-blur-md">
+         <div className="max-w-7xl mx-auto">
+           {/* Search and Filter Section */}
+          <div className="m-2">
+            <StockFilterBar
+             searchTerm={searchTerm}
+             onSearchChange={setSearchTerm}
+             startDate={startDate}
+             onStartDateChange={setStartDate}
+             endDate={endDate}
+             onEndDateChange={setEndDate}
+             onApply={handleSearch}
+             onClear={clearFilters}
+             isApplying={isApplyingFilters}
+             searchPlaceholder="Search by transaction #, location, or ID..."
+             applyLabel="Apply Filters"
+             clearLabel="Clear All"
+           />
+          </div>
 
         {/* Results Table - Using DataTable */}
         <DataTable
           title="Stock Lockdown Records"
-          data={filteredData}
+          data={filteredData?.sort((a,b) => a?.transactionDate.localeCompare(b?.transactionDate))}
           columns={columns}
-          searchKey="transactionNumber"
           addLabel="Refresh"
           emptyMessage="No stock lockdown records found for the selected shop."
           onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
+          height="h-[calc(100vh-335px)] md:h-[calc(100vh-225px)]"
         />
       </div>
 
@@ -958,6 +869,8 @@ export default function StockTakeUI() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {toast.ToastComponent}
     </div>
   );
 }

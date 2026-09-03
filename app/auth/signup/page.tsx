@@ -198,7 +198,7 @@ export default function SignupPage() {
                       placeholder="Acme Corporation"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>
@@ -214,7 +214,7 @@ export default function SignupPage() {
                       placeholder="info@company.com"
                       value={companyEmail}
                       onChange={(e) => setCompanyEmail(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>
@@ -230,7 +230,7 @@ export default function SignupPage() {
                       placeholder="+1 234 567 8900"
                       value={companyPhone}
                       onChange={(e) => setCompanyPhone(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>
@@ -245,7 +245,7 @@ export default function SignupPage() {
                       placeholder="123 Business Ave, City, State"
                       value={companyAddress}
                       onChange={(e) => setCompanyAddress(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>
@@ -270,7 +270,7 @@ export default function SignupPage() {
                         placeholder="John"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="pl-10 bg-secondary border-border"
+                        className="pl-10 bg-white border-border"
                         required
                       />
                     </div>
@@ -282,7 +282,7 @@ export default function SignupPage() {
                       placeholder="Doe"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="bg-secondary border-border"
+                      className="bg-white border-border"
                       required
                     />
                   </div>
@@ -298,7 +298,7 @@ export default function SignupPage() {
                       placeholder="john@company.com"
                       value={userEmail}
                       onChange={(e) => setUserEmail(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>
@@ -314,7 +314,7 @@ export default function SignupPage() {
                       placeholder="Min 8 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 bg-secondary border-border"
+                      className="pl-10 pr-10 bg-white border-border"
                       required
                       minLength={8}
                     />
@@ -338,7 +338,7 @@ export default function SignupPage() {
                       placeholder="Confirm your password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10 bg-secondary border-border"
+                      className="pl-10 bg-white border-border"
                       required
                     />
                   </div>

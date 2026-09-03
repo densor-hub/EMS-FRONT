@@ -35,7 +35,7 @@ export default function SelectCompany() {
             <div>Hi {user?.firstName}, {(user?.locations?.length ?? 0) > 0?  "Select a shop to continue" : "Setup shops to continue"}</div>
             {(user?.locations?.length ?? 0) > 0? <div style={{ textAlign:'center', display:"flex", justifyContent: 'center'}}>
               <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger className="bg-secondary border-border">
+              <SelectTrigger className="bg-white border-border">
                 <SelectValue placeholder="Select a shop" />
               </SelectTrigger>
               <SelectContent>

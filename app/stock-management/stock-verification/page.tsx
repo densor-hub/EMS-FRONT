@@ -19,10 +19,7 @@ import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
 
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, Sum } from "@/helpers/formatStrings";
-
-import { useToast } from "@/hooks/use-toast";
-// import { useToast } from "@/components/ui/use-toast";
-import StockTakeUI from "@/components/util/StockTakeUi";
+import StockVerificationUi from "@/components/util/StockVerificationUi";
 
 interface SaleCompleteProps {
   transaction: Transaction;
@@ -32,21 +29,12 @@ interface SaleCompleteProps {
 
 
 export default function SalePage() {
-  const {toast} = useToast()
   const {selectedShop, user} = useAuth()
   // const [items, setItems] = useState<Item[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [purchases, setPurchases] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  // const [itemsModalOpen, setItemsModalOpen] = useState<boolean>(false);
-  // const [paymentsModalOpen, setPayemntsModalOpen] = useState<boolean>(false);
-  // const [showAddPayment, setShowAddPayment] = useState<boolean>(false);
  
-  const [amountPaid, setAmountPaid] = useState("")
-  const [date, setDate] = useState('')
   
-const printContentRef = useRef(null);
 const isLoadingRef = useRef(false);
 
 const loadData = async (): Promise<void> => {
@@ -87,15 +75,15 @@ const loadData = async (): Promise<void> => {
   return (
     <div className=" min-h-screen w-[100%] ">
       <Header 
-          title="Stock Take" 
-          description="Sumbit stock of items" 
+          title="Stock Verification" 
+          description="Verify submitted stocks" 
         />
 
       <div className="relative">
           {/* Using your Modal component */}
           <div className="absolute top-0 w-full" style={{textAlign:'center'}}>
               <div className="w-full" >
-                <StockTakeUI 
+                <StockVerificationUi 
                     // instantSale={true}
                     // setOpen={setModalOpen} 
                     // reloadSetterFunction = {setPurchases} 

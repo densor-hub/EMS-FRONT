@@ -4,7 +4,7 @@ import { Company, User } from './types';
 import { performInitialAuthCheck, getAuthState, registerAuthSetters } from './customAxios';
 import {AppInitializationSkeleton} from '@/components/SkeletonLoading';
 import { logout } from './customAxios';
-import { useToast } from '@/hooks/use-toast';
+import { useToaster } from '@/components/util/CustomToast';
 import { useRouter } from 'next/navigation';
 import SelectCompany from '@/app/select-shop/page';
 
@@ -23,7 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const {toast} = useToast()
+  const toast = useToaster()
   const router = useRouter()
   const [user, setUser] = useState<Partial<User>>({});
   const [company, setCompany] = useState<Partial<Company>>({});

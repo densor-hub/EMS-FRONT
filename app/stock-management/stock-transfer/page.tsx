@@ -1,47 +1,37 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, SetStateAction, Dispatch } from "react";
-import { Wallet, Plus, User, Calendar, Trash2, List, Package, CreditCard, Truck, RotateCcw, DollarSign, Filter } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, User, Package,Truck, RotateCcw } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
-import { handlePrint } from "@/lib/utils";
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers } from "@/helpers/formatStrings";
-import {Item, Shop, Supplier, Transaction, TransactionItem } from "@/lib/types";
+import { Shop,  Transaction, TransactionItem } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import PaymentsFooter from '../../paymentFooter';
-import AddPayment from '../../addPayments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
-import SkeletonLoading, { LoadingOverlay } from '@/components/SkeletonLoading';
+import  { LoadingOverlay } from '@/components/SkeletonLoading';
 import StatusBadge from '@/components/ui/statusbadge'
-
+import { useToaster } from '@/components/util/CustomToast';
+import { config } from '@/components/util/AppConfig';
+import { CustomSelect } from '@/components/util/CustomSelect';
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
-const TransactionUI = dynamic(() => import("@/components/util/TransactionUi"), {
-  loading: () => <div className="w-full p-8 text-center animate-pulse">Loading form...</div>,
+const SaleTransactionUi = dynamic(() => import("@/components/util/SaleTransactionUi"), {
+  loading: () => <div className="w-full p-8 text-center animate-pulse"><LoadingOverlay/></div>,
   ssr: false
 });
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 }
-];
 
 export default function PurcahsePage() {
    const sessionShop = sessionStorage.getItem("selectedShop");
-  const { toast } = useToast();
+  const  toast = useToaster();
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [sales, setStockTransfers] = useState<Transaction[]>([]);
@@ -60,13 +50,9 @@ export default function PurcahsePage() {
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
   
   // Date filters
-  const [paymentStartDate, setPaymentStartDate] = useState<string>("");
-  const [paymentEndDate, setPaymentEndDate] = useState<string>("");
   const [deliveryStartDate, setDeliveryStartDate] = useState<string>("");
   const [deliveryEndDate, setDeliveryEndDate] = useState<string>("");
   const [filterItem, setFilterItem] = useState<string>("");
-
-  const printContentRef = useRef(null);
   const isLoadingRef = useRef(false);
 
   useEffect(() => {
@@ -94,8 +80,6 @@ export default function PurcahsePage() {
     setDate("");
     setPaymentMethod("");
   };
-
-  // const handleDelete = (transaction: Transaction) => { };
 
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
@@ -126,21 +110,6 @@ export default function PurcahsePage() {
     }
   };
 
-
-  const handleDeliverySuccess = async () => {
-    setShowDeliveryModal(false);
-    // Refresh transaction details after delivery
-    if (selectedTransaction?.transactionId) {
-      await fetchTransactionDetails(selectedTransaction.transactionId);
-    }
-    // Switch to deliveries tab
-    setActiveTab("deliveries");
-    toast.success({
-      title: 'Delivery successful',
-      description: 'Items have been delivered successfully',
-    });
-  };
-
   const  getStockTransfers =  async () => {
       const stockTransfers = await axiosInstance.get(`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
       console.log(stockTransfers.data)
@@ -155,6 +124,11 @@ export default function PurcahsePage() {
     getStockTransfers();
   }, [selectedShopForStockTrans]);
 
+
+  // console.log(selectedTransaction?.supplierId  ===  (selectedShop || sessionShop))
+  // console.log()
+  // console.log((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name})}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails.transactionCode})`)
+  // console.log(shops)
   const columns = [
     {
       key: "shopsName" as keyof Transaction,
@@ -249,8 +223,8 @@ export default function PurcahsePage() {
                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.quantity?.toString() || '0')}</td>
                    <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.itemsDelivered.reduce((sum, el) => el?.quantity + sum, 0)?.toString())}</td>
                     <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.itemsReceived?.reduce((sum, el) => el?.quantity + sum, 0)?.toString())}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">GHS {formatNumberWithCommas(item.unitPrice?.toFixed(2) || '0.00')}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">GHS {formatNumberWithCommas((item.quantity * item.unitPrice)?.toFixed(2) || '0.00')}</td>
+                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right"> {formatNumberWithCommas(item.unitPrice?.toFixed(2) || '0.00')}</td>
+                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold"> {formatNumberWithCommas((item.quantity * item.unitPrice)?.toFixed(2) || '0.00')}</td>
                 </tr>
               ))}
             </tbody>
@@ -258,7 +232,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  GHS {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {config.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -333,13 +307,28 @@ export default function PurcahsePage() {
            <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
                <div className="space-y-2 w-full ">
             <Label htmlFor="item" className="text-foreground">Select Item</Label>
-            <Select value={filterItem} onValueChange={setFilterItem}>
-              <SelectTrigger className="bg-secondary border-border w-full">
+
+             <CustomSelect
+                options={transactionDetails?.items?.map((x) => ({
+                  value: x.id.toString(),
+                  label: x.name
+                  // discriptionLabel: `${config.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
+                })) || []}
+                value={filterItem}
+                onValueChange={setFilterItem}
+                placeholder="Select Item"
+                required={true}
+                searchable={true}
+                clearable={true}
+                size="md"
+              />
+            {/* <Select value={filterItem} onValueChange={setFilterItem}>
+              <SelectTrigger className="bg-white border-border w-full">
                 <SelectValue placeholder="Select Item" />
               </SelectTrigger>
               <SelectContent>
                 {transactionDetails?.items?.map((item : any)  => (
-                  <SelectItem key={item.itemId} value={item.code}>
+                  <SelectItem key={item?.itemId || item?.id} value={item.code}>
                     <div className="flex flex-col">
                       <span>{item.name}</span>
                       <span className="text-xs text-muted-foreground">{item?.code  + ", " + (item?.code?.length > 20 ? (item?.code?.slice(0, 20) + "..."): item?.code)}</span>
@@ -347,7 +336,7 @@ export default function PurcahsePage() {
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select> */}
           </div>
              
           <div  className='flex h-10 relative top-6'>
@@ -502,19 +491,19 @@ export default function PurcahsePage() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+    <div className=" w-full overflow-x-hidden">
       <Header
         title="Stock Transfers & Deliveries"
         description="shops Transactions"
       />
 
-      <div className="relative px-2 sm:px-4">
+      <div className="relative">
         <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4">
-          <div className="space-y-2 w-full sm:w-[300px]">
+          {!modalOpen &&<div className="space-y-2 w-full sm:w-[300px] m-2">
             <Label htmlFor="item" className="text-foreground">Select Shop</Label>
             <Select value={selectedShopForStockTrans} onValueChange={setselectedShopForStockTrans}>
-              <SelectTrigger className="bg-secondary border-border w-full">
-                <SelectValue placeholder="Select Supplier" />
+              <SelectTrigger className="bg-white border-border w-full">
+                <SelectValue placeholder="Select Shop to request from" />
               </SelectTrigger>
               <SelectContent>
                 {shops.map(item => (
@@ -527,9 +516,10 @@ export default function PurcahsePage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
 
-          {!modalOpen && <Button className="w-full sm:w-auto" onClick={() => {
+         <div className='m-1 lg:m-2 flex justify-center items-center'>
+           {!modalOpen && <Button className="w-[98%]  m-auto lg:m-0 relative bottom-2 lg:bottom-0 sm:w-full sm:w-auto" onClick={() => {
             if (!selectedShopForStockTrans) {
               toast.info({
                 title: 'Select shops',
@@ -540,11 +530,11 @@ export default function PurcahsePage() {
             setModalOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-2" />
-            New
+            New Request
           </Button>}
+         </div>
         </div>
 
-        <Card className="gap-0 mt-4" style={{ padding: "0px", paddingTop: '10px' }}>
           {!modalOpen &&
             <CardContent className="m-0 p-0 overflow-x-auto">
               <DataTable
@@ -555,27 +545,24 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                 emptyMessage="No transaction found for the selected shop."
                 onRowClick={(row) => openTransactionDetails(row)}
+                height="h-[calc(100vh-315px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
               />
             </CardContent>}
-        </Card>
 
         {/* Using your Modal component */}
-        <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
           {modalOpen &&
-            <div className="w-full">
-              <TransactionUI
+              <SaleTransactionUi
                 setOpen={setModalOpen}
                 reloadSetterFunction={setStockTransfers}
                 reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionShop}`}
                 submitUrl="/StockTransfer/Request"
-                businessPartnerLable="Shop"
-                businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""} - ${shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""}`}
+                businessPartnerLable="Request From "
+                businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""}`}
                 businessPartnerValue={selectedShopForStockTrans}
-                transactionActionType="stock transfer"
+                transactionActionType="TRANS"
+                instantSale={false}
               />
-            </div>
           }
-        </div>
 
         {/* Transaction Details Modal - 95vw width */}
         <Modal
@@ -591,9 +578,9 @@ export default function PurcahsePage() {
           size='full'
           // className='h-[100%]'
         >
-          <div className="space-y-4 w-full px-2 sm:px-4">
+          <div className="space-y-4 w-full px-2 sm:px-4  min-h-[480px]">
             {/* Header */}
-            <div className="border-b border-gray-200 pb-4">
+            <div className="border-b border-gray-200 pb-4 ">
               <div className="flex flex-col sm:flex-col lg:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="w-full sm:w-auto">
                   <h2 className="text-sm  sm:text-xl font-bold text-gray-800 break-words">
@@ -683,7 +670,7 @@ export default function PurcahsePage() {
           onClose={() => {
             setShowDeliveryModal(false);
           }}
-          title={`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || selectedTransaction?.supplierId))?.name || ""} (Trans # - ${selectedTransaction.transactionCode})`}
+          title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails.transactionCode}`)}
           size='full'
         >
           <div className="w-full">

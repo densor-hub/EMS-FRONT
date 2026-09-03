@@ -93,6 +93,7 @@ export const removeCommasFromNumbers = (string: string) => {
   return Number(string?.toString()?.replace(/,/g, '')) 
 }
 
+
 export const volume = (value: string) => {
   if ((Number(value) === 0 || value?.toString().trim() === "0")) {
       return Number(value)
@@ -155,7 +156,7 @@ export const Sum = (propOfArrayItemToBeSumed = "", array = []) => {
   }
 
   export const toastErrors = (toast : any, error: any, heading: string = "", showHeading : boolean = false) => {
-    console.log(error)
+    // console.log(error?.response?.data?.message)
    return   toast.warning({
         title: heading || (showHeading ?  'Failed to submit' : ""),
         description: typeof(error) === 'string' ? error : error?.response?.data?.message 
@@ -196,7 +197,7 @@ export const getOriginalRemainingQuantity = (item: TransactionItem, isStockTrans
   // Get the current cart quantity for a specific item
   const getCartQuantity = (itemId: string, cart: CartItem[]): number => {
     const cartItem = cart.find(c => c.id === itemId);
-    return cartItem ? cartItem.receivingQuantity : 0;
+    return cartItem ? cartItem?.receivingQuantity??0 : 0;
   };
 
   // Get the remaining quantity factoring in cart selections

@@ -25,7 +25,7 @@ const employeeStatuses = [
   {id : 5, name : "Terminated"}
 ]
 export default function EmployeesPage() {
-  const {toast} = useToast();
+  const toast = useToaster();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -318,7 +318,7 @@ export default function EmployeesPage() {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="John"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -330,7 +330,7 @@ export default function EmployeesPage() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Doe"
-                className="bg-secondary border-border"
+                className="bg-white border-border"
                 required
               />
             </div>
@@ -347,7 +347,7 @@ export default function EmployeesPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="john@company.com"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -361,7 +361,7 @@ export default function EmployeesPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 234 567 8900"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -384,7 +384,7 @@ export default function EmployeesPage() {
             <div className="space-y-2">
               <Label htmlFor="role" className="text-foreground">Role</Label>
               <Select value={roleId} onValueChange={setRoleId} required>
-                <SelectTrigger className="bg-secondary border-border w-full">
+                <SelectTrigger className="bg-white border-border w-full">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -406,7 +406,7 @@ export default function EmployeesPage() {
                   value={salary}
                   onChange={(e) => setSalary(formatNumberWithCommas(e.target.value))}
                   placeholder="50000"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -423,7 +423,7 @@ export default function EmployeesPage() {
                   onClick={() => {
                     dateRef.current?.showPicker()
                   }}
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
                 
@@ -434,7 +434,7 @@ export default function EmployeesPage() {
                   type="date"
                   value={hireDate}
                   onChange={(e) => setHireDate(e.target.value)}
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required = {!hireDate}
                 /> 
                
@@ -447,7 +447,7 @@ export default function EmployeesPage() {
             <div className="space-y-2 w-full" >
               <Label htmlFor="role" className="w-full" >Status</Label>
               <Select value={status} onValueChange={setStatus} required>
-                <SelectTrigger className="bg-secondary border-border w-full">
+                <SelectTrigger className="bg-white border-border w-full">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>

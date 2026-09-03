@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
   {
     label: 'POS',
-    href: '/dashboard/transactions',
+    href: '/POS',
     icon: <Receipt size={20} />,
     children: [
       { label: 'Sale', href: '/POS/sale' },
@@ -38,24 +38,24 @@ const navItems: NavItem[] = [
   },
   {
     label: 'Operations',
-    href: '/dashboard/transactions',
+    href: '/operations',
     icon: <LucideChartNetwork size={20} />,
     children: [
-      { label: 'Purchases', href: '/transactions/purchase' },
-      { label: 'Customer Sales', href: '/transactions/customer' },
-      { label: 'Disbursements', href: '/transactions/disbursements' },
+      { label: 'Purchases', href: '/operations/purchase' },
+      { label: 'Customer Sales', href: '/operations/customer' },
+      { label: 'Disbursements', href: '/operations/disbursements' },
     ],
   },
   {
     label: 'Stock Management',
-    href: '/transactions/stock',
+    href: '/stock-management/stock',
     icon: <LucideShoppingCart size={20} />,
     children: [
-      { label: 'Stock Lock', href: '/transactions/stock/stock-lock' },
-      { label: 'Stock Take', href: '/transactions/stock/stock-take' },
-      { label: 'Stock Verification', href: '/transactions/stock/stock-verification' },
-      { label: 'Stock Transfer', href: '/transactions/stock/stock-transfer' },
-      { label: 'Stock Transfer Approval', href: '/transactions/stock/stock-transfer-approval' },
+      { label: 'Stock Lock', href: '/stock-management/stock-lock' },
+      { label: 'Stock Take', href: '/stock-management/stock-take' },
+      { label: 'Stock Verification', href: '/stock-management/stock-verification' },
+      { label: 'Stock Transfer', href: '/stock-management/stock-transfer' },
+      { label: 'Stock Transfer Approval', href: '/stock-management/stock-transfer-approval' },
     ],
   },
   {

@@ -1,6 +1,5 @@
 import axiosInstance, { logout } from '../lib/customAxios';
-import { toast } from '@/hooks/use-toast';
-// import {toast} from "sonner"
+import { useToaster } from '@/components/util/CustomToast';
 
 import type {
   Company,
@@ -78,10 +77,10 @@ export const authService = {
         return response;
      } catch(error : any){
      // console.log(error.response)
-       toast.warning({
-         title: error?.response?.data?.message,
-         description: error?.message
-      })
+      //  toast.warning({
+      //    title: error?.response?.data?.message,
+      //    description: error?.message
+      // })
 
        return console.log(error?.response?.data?.message)
      }
@@ -91,17 +90,17 @@ export const authService = {
      try{
       const response = await axiosInstance.post('/auth/register', { company, adminInfo : {...adminInfo, fullname : `${adminInfo.firstName} ${adminInfo.lastName}`} });
       
-      toast.success({
-          title: "Account created successfully",
-          description: "Please log in to continue",
-        })
+      // toast.success({
+      //     title: "Account created successfully",
+      //     description: "Please log in to continue",
+      //   })
 
       return {status : response.status};
      } catch(error : any){
-       toast.warning({
-        title: error?.response?.data?.message,
-        description: error?.message,
-      })
+      //  toast.warning({
+      //   title: error?.response?.data?.message,
+      //   description: error?.message,
+      // })
 
        return console.log(error?.response?.data?.message)
      }

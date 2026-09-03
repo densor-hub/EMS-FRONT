@@ -50,6 +50,8 @@ export default function SalePage() {
                     reloadUrl=""
                    // reloadUrl={`/Sales/LocationId=${selectedShop}`}
                     submitUrl="/Sales/General"
+                    transactionActionType="SALE"
+                    
                   />
               </div>
           </div>

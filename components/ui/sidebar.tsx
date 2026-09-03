@@ -73,11 +73,23 @@ function SidebarProvider({
   // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
+
+  // Use refs to avoid unnecessary dependencies
+  const openRef = React.useRef(open)
+  openRef.current = open
+  
+  const setOpenPropRef = React.useRef(setOpenProp)
+  setOpenPropRef.current = setOpenProp
+
+  // Stable setOpen callback - no dependencies
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === 'function' ? value(open) : value
-      if (setOpenProp) {
-        setOpenProp(openState)
+      const openState = typeof value === 'function' 
+        ? (value as (prev: boolean) => boolean)(openRef.current)
+        : value
+      
+      if (setOpenPropRef.current) {
+        setOpenPropRef.current(openState)
       } else {
         _setOpen(openState)
       }
@@ -85,13 +97,13 @@ function SidebarProvider({
       // This sets the cookie to keep the sidebar state.
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
-    [setOpenProp, open],
+    [], // Empty dependencies - completely stable
   )
 
-  // Helper to toggle the sidebar.
+  // Stable toggleSidebar callback
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+  }, [isMobile, setOpen]) // setOpen is now stable
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -113,6 +125,7 @@ function SidebarProvider({
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? 'expanded' : 'collapsed'
 
+  // Memoize context value with stable references where possible
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
       state,
@@ -120,7 +133,7 @@ function SidebarProvider({
       setOpen,
       isMobile,
       openMobile,
-      setOpenMobile,
+      setOpenMobile, // This is already stable from useState
       toggleSidebar,
     }),
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
@@ -698,29 +711,54 @@ function SidebarMenuSubButton({
   )
 }
 
+// Correctly export memoized versions
+const MemoizedSidebar = React.memo(Sidebar)
+const MemoizedSidebarContent = React.memo(SidebarContent)
+const MemoizedSidebarFooter = React.memo(SidebarFooter)
+const MemoizedSidebarGroup = React.memo(SidebarGroup)
+const MemoizedSidebarGroupAction = React.memo(SidebarGroupAction)
+const MemoizedSidebarGroupContent = React.memo(SidebarGroupContent)
+const MemoizedSidebarGroupLabel = React.memo(SidebarGroupLabel)
+const MemoizedSidebarHeader = React.memo(SidebarHeader)
+const MemoizedSidebarInput = React.memo(SidebarInput)
+const MemoizedSidebarInset = React.memo(SidebarInset)
+const MemoizedSidebarMenu = React.memo(SidebarMenu)
+const MemoizedSidebarMenuAction = React.memo(SidebarMenuAction)
+const MemoizedSidebarMenuBadge = React.memo(SidebarMenuBadge)
+const MemoizedSidebarMenuButton = React.memo(SidebarMenuButton)
+const MemoizedSidebarMenuItem = React.memo(SidebarMenuItem)
+const MemoizedSidebarMenuSkeleton = React.memo(SidebarMenuSkeleton)
+const MemoizedSidebarMenuSub = React.memo(SidebarMenuSub)
+const MemoizedSidebarMenuSubButton = React.memo(SidebarMenuSubButton)
+const MemoizedSidebarMenuSubItem = React.memo(SidebarMenuSubItem)
+const MemoizedSidebarProvider = React.memo(SidebarProvider)
+const MemoizedSidebarRail = React.memo(SidebarRail)
+const MemoizedSidebarSeparator = React.memo(SidebarSeparator)
+const MemoizedSidebarTrigger = React.memo(SidebarTrigger)
+
 export {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupAction,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInput,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSkeleton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarProvider,
-  SidebarRail,
-  SidebarSeparator,
-  SidebarTrigger,
+  MemoizedSidebar as Sidebar,
+  MemoizedSidebarContent as SidebarContent,
+  MemoizedSidebarFooter as SidebarFooter,
+  MemoizedSidebarGroup as SidebarGroup,
+  MemoizedSidebarGroupAction as SidebarGroupAction,
+  MemoizedSidebarGroupContent as SidebarGroupContent,
+  MemoizedSidebarGroupLabel as SidebarGroupLabel,
+  MemoizedSidebarHeader as SidebarHeader,
+  MemoizedSidebarInput as SidebarInput,
+  MemoizedSidebarInset as SidebarInset,
+  MemoizedSidebarMenu as SidebarMenu,
+  MemoizedSidebarMenuAction as SidebarMenuAction,
+  MemoizedSidebarMenuBadge as SidebarMenuBadge,
+  MemoizedSidebarMenuButton as SidebarMenuButton,
+  MemoizedSidebarMenuItem as SidebarMenuItem,
+  MemoizedSidebarMenuSkeleton as SidebarMenuSkeleton,
+  MemoizedSidebarMenuSub as SidebarMenuSub,
+  MemoizedSidebarMenuSubButton as SidebarMenuSubButton,
+  MemoizedSidebarMenuSubItem as SidebarMenuSubItem,
+  MemoizedSidebarProvider as SidebarProvider,
+  MemoizedSidebarRail as SidebarRail,
+  MemoizedSidebarSeparator as SidebarSeparator,
+  MemoizedSidebarTrigger as SidebarTrigger,
   useSidebar,
 }

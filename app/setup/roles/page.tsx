@@ -20,7 +20,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/hooks/use-toast';
 
 export default function RolesPage() {
-  const {toast} = useToast();
+  const toast = useToaster();
   const [appRoutes, setAppRoutes] = useState<AppRoute []>([])
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -284,7 +284,7 @@ export default function RolesPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Manager"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -299,7 +299,7 @@ export default function RolesPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe what this role can do..."
-                className="pl-10 bg-secondary border-border min-h-[80px]"
+                className="pl-10 bg-white border-border min-h-[80px]"
                 required
                 
               />

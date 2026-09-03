@@ -70,7 +70,7 @@ export function Modal({
           )}
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="flex-1 overflow-y-auto py-2 px-1">
           {children}
         </div>
         

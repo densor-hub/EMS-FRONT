@@ -119,20 +119,31 @@ export interface Item {
   createdAt: string;
   size?: string,
   type?:string,
+  locked?: boolean,
   locations : string [],
   quanityInUnit : number
 }
 
 export interface CartItem {
-   id: string;
-      name: string;
-      code: string;
-      costPrice: number;
-      price: number;
-      quantity: number;
-      deliveredQuantity: number;
-      receivingQuantity: number;
-      remainingQuantity: number;
+   //genearl props
+    quantity: number;
+    price: number;
+    id: string;
+    name: string;
+    code?: string;
+
+    //delivery 
+    receivingQuantity?: number;
+    deliveredQuantity?: number;
+    remainingQuantity?: number;
+    //stock
+    totalPieces?:number;
+    availableQuantity?: number;
+    stockLevel? : ItemStockLevelDTO | undefined
+    unitOfMeasureName?: string,
+    unitOfMeasure?: string,
+    quanityInUnit? : number,
+    batchId?: string
 }
 
 export interface CouponResponse {
@@ -170,7 +181,7 @@ export interface TransactionPayment {
 
 export interface IdAndName {
   name: string;
-  id: number;
+  id: number | string;
 }
 
 
@@ -221,8 +232,9 @@ export interface TransactionItemsDelivered {
   deliveryId : string,
   quantity : number;
   deliveryDate: string;
-  ItemReversals:TransactionItemReversals[],
-  name?: string
+  itemReversals:TransactionItemReversals[];
+  name?: string;
+  status? : string
 }
 
 export interface TransactionItemReversals {

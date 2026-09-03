@@ -8,17 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { supplierService } from '@/lib/api-service';
 import type { Shop, Supplier } from '@/lib/types';
 import { Edit, Trash2, Truck, User, Mail, Phone, MapPin, Building } from 'lucide-react';
 import { MultiSelectComponent } from '@/components/ui/select';
 import axiosInstance from '@/lib/customAxios';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth-context';
+import { useToaster } from '@/components/util/CustomToast';
 
 export default function SuppliersPage() {
-  const {toast} = useToast();
-  const {user} = useAuth();
+  const sessionShop = sessionStorage.getItem("selectedShop");
+  const toast = useToaster();
+  const {user, selectedShop} = useAuth();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,7 +116,7 @@ export default function SuppliersPage() {
       if (editingSupplier) {
         await axiosInstance.put('/Suppliers', {...supplierData, id : editingSupplier.id})
       } else {
-        await axiosInstance.post('Suppliers', supplierData)
+        await axiosInstance.post(`Suppliers/${selectedShop || sessionShop}`, supplierData)
       }
       await loadSuppliers();
       setIsModalOpen(false);
@@ -273,7 +273,7 @@ export default function SuppliersPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Global Distributors Inc."
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -289,7 +289,7 @@ export default function SuppliersPage() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="John Smith"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -304,7 +304,7 @@ export default function SuppliersPage() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="John Smith"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -322,7 +322,7 @@ export default function SuppliersPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="contact@supplier.com"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -336,7 +336,7 @@ export default function SuppliersPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 234 567 8900"
-                  className="pl-10 bg-secondary border-border"
+                  className="pl-10 bg-white border-border"
                   required
                 />
               </div>
@@ -365,7 +365,7 @@ export default function SuppliersPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="500 Supplier Road, City, State"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>

@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function ShopsPage() {
   const {user} = useAuth();
-  const {toast} = useToast();
+  const toast = useToaster();
   const [shops, setShops] = useState<Shop[]>([]);
   const [employees, setEmployees] = useState<User[] | null>([])
   const [isLoading, setIsLoading] = useState(true);
@@ -258,7 +258,7 @@ export default function ShopsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Main Store"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -273,7 +273,7 @@ export default function ShopsPage() {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="123 Main Street, Downtown"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -288,7 +288,7 @@ export default function ShopsPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="a@bdc.com"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -303,7 +303,7 @@ export default function ShopsPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"
-                className="pl-10 bg-secondary border-border"
+                className="pl-10 bg-white border-border"
                 required
               />
             </div>
@@ -313,7 +313,7 @@ export default function ShopsPage() {
             <Label htmlFor="manager" className="text-foreground">Manager (Optional)</Label>
              <div className="space-y-2 md:col-span-3">
               <Select value={selectedManager} onValueChange={setSelectedManagers}>
-                <SelectTrigger className="bg-secondary border-border w-[100%]">
+                <SelectTrigger className="bg-white border-border w-[100%]">
                   <SelectValue placeholder="Select manager" />
                 </SelectTrigger>
                 <SelectContent>

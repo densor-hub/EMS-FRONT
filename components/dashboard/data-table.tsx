@@ -12,7 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronLeft, ChevronRight, Plus, Download, Filter } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 interface Column<T> {
   key: keyof T | string;
@@ -31,6 +31,7 @@ interface DataTableProps<T> {
   addLabel?: string;
   emptyMessage?: string;
   pageSize?: number;
+  height?: string
 }
 
 export function DataTable<T extends { id: string }>({
@@ -41,7 +42,8 @@ export function DataTable<T extends { id: string }>({
   onAdd,
   onRowClick,
   addLabel = 'Add New',
-  emptyMessage = 'No data found'
+  emptyMessage = 'No data found',
+  height = "h-[calc(100vh-260px)]"
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,12 +86,12 @@ export function DataTable<T extends { id: string }>({
   };
 
   return (
-    <Card className="border-border gap-0 p-0" >
+    <Card className="border-border gap-0 p-0 mx-2">
       {searchKey && (
-        <CardHeader className="border-b border-border py-2 sm:py-3 h-22 sm:h-15">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4" >
-            <CardTitle className="text-base sm:text-lg font-semibold text-foreground" >{title}</CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
+        <CardHeader className="border-b border-border pt-2 sm:pt-3 h-[70px] sm:h-15 " >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+            <CardTitle className="text-xs sm:text-lg font-semibold text-foreground " >{title}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2" >
               {searchKey && (
                 <div className="relative flex-1 sm:flex-none min-w-[140px] sm:min-w-[200px]">
                   <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
@@ -100,7 +102,7 @@ export function DataTable<T extends { id: string }>({
                       setSearch(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="pl-7 sm:pl-9 w-full sm:w-64 bg-secondary border-border text-xs sm:text-sm h-8 sm:h-10"
+                    className="pl-7 sm:pl-9 w-full sm:w-64 bg-white border-border text-xs sm:text-sm h-8 sm:h-10"
                   />
                 </div>
               )}
@@ -118,15 +120,18 @@ export function DataTable<T extends { id: string }>({
           </div>
         </CardHeader>
       )}
-      <CardContent className="p-2 " >
-        <div className="overflow-x-auto border-2 rounded">
-          <Table >
-            <TableHeader className="bg-emerald-200">
-              <TableRow className="border-border hover:bg-transparent">
+      {/* <hr/> */}
+      <CardContent className="p-0">
+        {/* Single scrollable container */}
+        <div className={`overflow-auto  ${height}`} >
+          <table className="w-full border-collapse">
+            {/* Fixed Header - using native table elements */}
+            <thead className="sticky top-0 z-10 bg-emerald-200 shadow-sm">
+              <tr className="border-border">
                 {columns?.map(column => (
-                  <TableHead
+                  <th
                     key={String(column.key)}
-                    className={`text-muted-foreground font-medium text-xs sm:text-sm py-2 sm:py-3 ${
+                    className={`text-muted-foreground font-medium text-xs sm:text-sm py-2 sm:py-3 px-2 sm:px-4 whitespace-nowrap text-left ${
                       column.sortable ? 'cursor-pointer hover:text-foreground' : ''
                     }`}
                     onClick={() => column.sortable && handleSort(String(column.key))}
@@ -137,44 +142,44 @@ export function DataTable<T extends { id: string }>({
                         <span className="text-[10px] sm:text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                       )}
                     </span>
-                  </TableHead>
+                  </th>
                 ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody style={{ margin:"0px" , padding:"0px"}}>
+              </tr>
+            </thead>
+            <tbody>
               {paginatedData.length === 0 ? (
-                <TableRow>
-                  <TableCell
+                <tr>
+                  <td
                     colSpan={columns.length}
                     className="text-center py-8 sm:py-12 text-muted-foreground text-sm sm:text-base"
                   >
                     {emptyMessage}
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ) : (
                 paginatedData.map(item => (
-                  <TableRow
+                  <tr
                     key={item.id}
-                    className={`border-border ${
+                    className={`border-b border-border ${
                       onRowClick ? 'cursor-pointer hover:bg-secondary/100' : ''
                     }`}
                     onClick={() => onRowClick?.(item)}
                   >
                     {columns.map(column => (
-                      <TableCell  style={{}}
+                      <td
                         key={String(column.key)} 
-                        className="text-left py-2 sm:py-3 px-2 sm:px-4 text-[10px] md:text-sm"
+                        className="text-left py-2 sm:py-1.5 px-2 sm:px-4 text-[10px] md:text-sm whitespace-nowrap"
                       >
                         {column.render
                           ? column.render(item)
                           : String(getValue(item, column.key) ?? '')}
-                      </TableCell>
+                      </td>
                     ))}
-                  </TableRow>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
 
         {/* Pagination */}

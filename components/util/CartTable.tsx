@@ -67,10 +67,10 @@ const CartTable = ({
     // Default widths
     const defaultWidths: Partial<Record<keyof CartItem, string>> = {
         name: '200px',
-        quantity: '100px',
-        deliveredQuantity: '100px',
-        receivingQuantity: '100px',
-        remainingQuantity: '100px'
+        quantity: '50px',
+        deliveredQuantity: '50px',
+        receivingQuantity: '50px',
+        remainingQuantity: '50px'
     };
 
     // Default renderers

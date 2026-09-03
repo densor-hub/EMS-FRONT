@@ -1,11 +1,20 @@
-// app/layout.tsx
-import { Inter } from 'next/font/google'
+import { Inter, Courier_Prime } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context';
 import Loading from '@/components/ui/loading-global';
-import { ToastProvider, ToastViewport } from '@/components/ui/toast'; // Import your Toast components
+// import { Toaster } from '@/components/ui/toaster';
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+})
+
+const courierPrime = Courier_Prime({
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-courier-prime',
+})
 
 export default function RootLayout({
   children,
@@ -13,14 +22,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={`${inter.className} ${courierPrime.variable}`}>
       <body>
         <AuthProvider>
-          <ToastProvider> {/* Wrap with ToastProvider */}
-            <Loading/>
-            {children}
-            <ToastViewport /> {/* Add ToastViewport for positioning */}
-          </ToastProvider>
+          <Loading/>
+          {children}
+          {/* <Toaster /> */}
         </AuthProvider>
       </body>
     </html>
