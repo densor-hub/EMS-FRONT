@@ -653,7 +653,7 @@ export default function PurcahsePage() {
           onClose={() => {
             setShowDeliveryModal(false);
           }}
-           title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails.transactionCode}`)}
+           title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode}`)}
           size='full'
         >
           <div className="w-full">

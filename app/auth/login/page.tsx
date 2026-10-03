@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth-context';
 import { PublicRoute } from '@/routes/public-route';
 import { Company, User } from '@/lib/types';
 import { login } from '@/lib/customAxios';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  console.log(user)
+ // console.log(user)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -62,15 +63,17 @@ export default function LoginPage() {
         }
         
     } catch (err) {
+      setIsLoading(false);
       console.log(err)
       setError('Invalid email or password. Please try again.');
     } finally {
-      setIsLoading(false);
+      
     }
   };
 
   return (
     <PublicRoute>
+     {isLoading && <LoadingOverlay/>}
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}

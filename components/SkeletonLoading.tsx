@@ -499,7 +499,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   progress = 0,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/20 dark:bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/20 dark:bg-black/40 backdrop-blur-sm">
       {/* Animated Logo/Icon */}
       <div className="relative mb-8">
         <div className="w-20 h-20 border-4 border-gray-200 dark:border-gray-700 border-t-green-500 border-r-white-400 rounded-full animate-spin" />
@@ -511,13 +511,10 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
           {message}
         </h3>
         {subMessage && (
-          <p className="text-white-600 dark:white text-sm">
-            {subMessage}
-          </p>
+          <p className="text-white-600 dark:white text-sm">{subMessage}</p>
         )}
       </div>
 
-      {/* Progress Bar */}
       {showProgress && (
         <div className="w-64 max-w-md mb-4">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -532,17 +529,6 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
           </div>
         </div>
       )}
-
-      {/* Dots Animation */}
-      {/* <div className="flex space-x-2">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-            style={{ animationDelay: `${i * 150}ms` }}
-          />
-        ))}
-      </div> */}
     </div>
   );
 };

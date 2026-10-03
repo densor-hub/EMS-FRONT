@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef} from "react";
+import { useState, useEffect, useRef, Suspense} from "react";
 import {  Plus, User} from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
@@ -234,19 +234,21 @@ export default function PurcahsePage() {
    
   ];
 
-  if (loading) {
-    return (
-      <LoadingOverlay />
-    );
-  }
+  // if (loading) {
+  //   return (
+     
+  //   );
+  // }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+    <Suspense fallback={<LoadingOverlay/>}>
+       {loading && <LoadingOverlay />}
+      <div className="min-h-screen w-full overflow-x-hidden">
       <Header
         title="Purchases from suppliers"
         // description="Suppliers Transactions"
       />
-<div className="relative" >
+      <div className="relative" >
         <div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" >
           <div className="mt-2 w-full sm:w-[300px] px-2"  >
             <Label htmlFor="item" className="text-foreground text-sm">Select Supplier</Label>
@@ -415,5 +417,7 @@ export default function PurcahsePage() {
 
       {toast.ToastComponent}
     </div>
+    </Suspense>
+    
   );
 }

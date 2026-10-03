@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { toast } from '@/components/ui/use-toast';
 import { PublicRoute } from '@/routes/public-route';
+import { useToaster } from '@/components/util/CustomToast';
 
 import {
   Building2,
@@ -31,6 +31,7 @@ import Loading from '@/app/dashboard/loading';
 type Step = 'company' | 'user';
 
 export default function SignupPage() {
+  const toast = useToaster()
   const router = useRouter();
   const [step, setStep] = useState<Step>('company');
   const [showPassword, setShowPassword] = useState(false);
@@ -390,6 +391,7 @@ export default function SignupPage() {
         </p>
       </div>
     </div>
+    {toast.ToastComponent}
     </PublicRoute>
   );
 }

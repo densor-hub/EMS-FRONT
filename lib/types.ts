@@ -17,7 +17,7 @@ export interface Shop {
   name: string;
   address : "",
   phone: string;
-  managers?: [];
+  managers?: IdAndName[];
   status: boolean;
   createdAt: string;
   locationType: number;

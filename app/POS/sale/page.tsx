@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Header } from '@/components/dashboard/header';
 import { 
   Transaction,
@@ -33,7 +33,9 @@ export default function SalePage() {
   }
 
   return (
-    <div className=" min-h-screen w-[100%] ">
+    <Suspense fallback>
+
+      <div className=" min-h-screen w-[100%] ">
       <Header 
           title="Sale" 
           description="Sell items to customers" 
@@ -57,7 +59,8 @@ export default function SalePage() {
           </div>
   </div>
 
-  </div>
+    </div>
+    </Suspense>
   );
 }
 

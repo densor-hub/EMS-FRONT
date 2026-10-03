@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, } from "react";
+import { useState, useEffect, useRef, Suspense, } from "react";
 import {  Plus, User, PhoneCall } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
@@ -228,14 +228,10 @@ export default function PurcahsePage() {
    
   ];
 
-  if (loading) {
-    return (
-      <LoadingOverlay />
-    );
-  }
-
   return (
-    <div className="min-h-screen w-full overflow-x-hidden">
+  <Suspense fallback={<LoadingOverlay/>}>
+    {loading && <LoadingOverlay/> }
+      <div className="min-h-screen w-full overflow-x-hidden">
       <Header
         title="Transactions to customers"
       />
@@ -412,5 +408,6 @@ export default function PurcahsePage() {
 
       {toast.ToastComponent}
     </div>
+  </Suspense>
   );
 }

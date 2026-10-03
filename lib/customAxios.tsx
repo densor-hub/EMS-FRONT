@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { Company, User } from './types';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7214';
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7214'
 
 let isRefreshing = false;
 
@@ -253,6 +253,36 @@ export const logout = async (): Promise<void> => {
     //   window.location.href = '/auth/login';
     // }
   }
+};
+
+// Confirm account (anonymous) — verifies the email link token
+export const confirmAccount = async (
+  token: string,
+  email: string
+): Promise<{ email: string; token: string; message: string }> => {
+
+  const response = await axiosInstance.get('/auth/account/confirm', {
+    params: { Token: token, email },
+    _skipAuthCheck: true,
+    _skipRefresh: true,
+  } as any);
+
+  return response.data;
+};
+
+// Set password (anonymous) — completes the invitation flow
+export const setPassword = async (payload: {
+  email: string;
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<{ success: boolean; message: string }> => {
+  const response = await axiosInstance.post('/auth/set-Password', payload, {
+    _skipAuthCheck: true,
+    _skipRefresh: true,
+  } as any);
+
+  return response.data;
 };
 
 export default axiosInstance;

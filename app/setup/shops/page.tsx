@@ -10,39 +10,55 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import type { Shop, User } from '@/lib/types';
-import { Edit, Trash2, Store, MapPin, Phone, User2, Code2, MessageCircle, MessageCircleDashed, ReceiptIcon, Text } from 'lucide-react';
-import Loading from '@/components/ui/loading-global';
+import { Edit, Trash2, Store, MapPin, Phone, Text } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import axiosInstance from '@/lib/customAxios';
-import { useToast } from '@/hooks/use-toast';
+import { useToaster } from '@/components/util/CustomToast';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
+import SweetAlert from '@/components/util/SweetAlert';
 
 export default function ShopsPage() {
-  const {user} = useAuth();
+  const { user } = useAuth();
   const toast = useToaster();
+
   const [shops, setShops] = useState<Shop[]>([]);
-  const [employees, setEmployees] = useState<User[] | null>([])
+  const [employees, setEmployees] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShop, setEditingShop] = useState<Shop | null>(null);
+
+  // Delete confirmation state
+  const [showAlert, setShowAlert] = useState(false);
+  const [shopToDelete, setShopToDelete] = useState<Shop | null>(null);
 
   // Form state
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [phone, setPhone] = useState('');
-  const [selectedManager, setSelectedManagers] = useState("");
+  const [email, setEmail] = useState('');
+  const [selectedManager, setSelectedManager] = useState<string>('');
   const [isActive, setIsActive] = useState(true);
-  const [email, setEmail] = useState('')
 
   useEffect(() => {
-    loadShops();
-    loadEmployees();
-  }, []);
+    if (!user) return;
+    void loadShops();
+    void loadEmployees();
+  }, [user]);
 
   const loadShops = async () => {
     try {
-      const data = await axiosInstance.get('/locations');
-      setShops(data?.data);
+      const { data } = await axiosInstance.get('/locations');
+      setShops(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading shops:', error);
     } finally {
       setIsLoading(false);
     }
@@ -50,10 +66,10 @@ export default function ShopsPage() {
 
   const loadEmployees = async () => {
     try {
-      const data = await axiosInstance.get('/employees');
-      setEmployees(data?.data);
-    } finally {
-      setIsLoading(false);
+      const { data } = await axiosInstance.get('/employees');
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading employees:', error);
     }
   };
 
@@ -61,7 +77,8 @@ export default function ShopsPage() {
     setName('');
     setLocation('');
     setPhone('');
-    setSelectedManagers("");
+    setEmail('');
+    setSelectedManager('');
     setIsActive(true);
     setEditingShop(null);
   };
@@ -72,11 +89,12 @@ export default function ShopsPage() {
       setName(shop.name);
       setLocation(shop.address);
       setPhone(shop.phone);
-      setEmail(shop.email)
-      // setManager(p => {
-      //   return [...p, {}]
-      // });
+      setEmail(shop.email ?? '');
       setIsActive(shop.status);
+      const firstManagerId = shop.managers?.[0]?.id
+        ? String(shop.managers[0].id)
+        : '';
+      setSelectedManager(firstManagerId);
     } else {
       resetForm();
     }
@@ -84,26 +102,51 @@ export default function ShopsPage() {
   };
 
   const processSubmission = async () => {
-     const shopData = {
-      code : null,
-      companyId: user?.companyId,
-      name,
-      address : location,
-      phone,
-       email,
-      status : isActive,
-      locationType : null,
-      manager: []
-    };
+    // Swagger update schema expects: { id, isMainManager }
+    const managerDto = selectedManager
+      ? [{ id: selectedManager, isMainManager: true }]
+      : [];
 
-    
+    if (editingShop) {
+      // Flat payload — matches Swagger's update schema exactly.
+      // No `dto` wrapper, no `companyId`, no `name` inside manager.
+      await axiosInstance.put('/locations/Update', {
+        id: editingShop.id,
+        code: editingShop.code ?? '',
+        name,
+        address: location,
+        phone,
+        email,
+        status: isActive,
+        locationType: 1,
+        managers: managerDto,
+      });
+    } else {
+      // Create — keep whatever shape POST /locations expects.
+      await axiosInstance.post('/locations', {
+        code: null,
+        companyId: user?.companyId,
+        name,
+        address: location,
+        phone,
+        email,
+        status: isActive,
+        locationType: null,
+        managers: managerDto,
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    // Yield one frame so the overlay paints before the request starts.
+    await new Promise((r) => setTimeout(r, 0));
+
     try {
-      if (editingShop) {
-         await axiosInstance.put('/locations/Update', {...shopData, id : editingShop.id });
-        
-      } else {
-        await axiosInstance.post('/locations', shopData);
-      }
+      await processSubmission();
       await loadShops();
       setIsModalOpen(false);
       resetForm();
@@ -111,44 +154,50 @@ export default function ShopsPage() {
       toast.success({
         title: 'Submitted successfully',
         description: 'Shop saved successfully',
-      })
-    } catch (error : any) {
-      setIsLoading(false)
-      
+      });
+    } catch (error: any) {
       toast.warning({
         title: 'Error saving shop',
-        description: error?.response?.data?.message || 'Please try again later',
-      })
-
+        description:
+          error?.response?.data?.message || 'Please try again later',
+      });
       console.error('Error saving shop:', error);
-      
+    } finally {
+      setIsSubmitting(false);
     }
-  }
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true)
-
-     await  processSubmission()
   };
 
-  const handleDelete = async (shop: Shop) => {
-    if (confirm(`Are you sure you want to delete "${shop.name}"?`)) {
-      setIsLoading(true)
-      try {
-        await axiosInstance.delete(`/locations/${shop?.id}`);
-        await loadShops();
-         toast.success({
-          title: 'Deleted successfully',
-          description: 'Shop deleted successfully',
-        })
-      } catch (error) {
-        console.error('Error deleting shop:', error);
+  // Step 1: open the confirmation dialog
+  const requestDelete = (shop: Shop) => {
+    setShopToDelete(shop);
+    setShowAlert(true);
+  };
 
-         toast.warning({
-          title: 'Failed to delete shop',
-          description: 'Please try again later',
-        })
-      }
+  // Step 2: confirmed — perform the delete
+  const confirmDelete = async () => {
+    const shop = shopToDelete;
+    setShowAlert(false);
+    setShopToDelete(null);
+    if (!shop) return;
+
+    setIsSubmitting(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    try {
+      await axiosInstance.delete(`/locations/${shop.id}`);
+      await loadShops();
+      toast.success({
+        title: 'Deleted successfully',
+        description: 'Shop deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting shop:', error);
+      toast.warning({
+        title: 'Failed to delete shop',
+        description: 'Please try again later',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -177,19 +226,24 @@ export default function ShopsPage() {
       ),
     },
     {
-      key: 'manager' as keyof Shop,
+      key: 'managers' as keyof Shop,
       label: 'Manager',
-      render: (shop: Shop) => (
-        <span className="text-muted-foreground">
-          {/* {shop?.managers[0]?.name || '-'} */}
-          </span>
-      ),
+      render: (shop: Shop) => {
+        const managerName = shop.managers?.[0]?.name ?? '-';
+        return <span className="text-muted-foreground">{managerName}</span>;
+      },
     },
     {
-      key: 'isActive' as keyof Shop,
+      key: 'status' as keyof Shop,
       label: 'Status',
       render: (shop: Shop) => (
-        <Badge className={shop.status ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}>
+        <Badge
+          className={
+            shop.status
+              ? 'bg-success/20 text-success'
+              : 'bg-muted text-muted-foreground'
+          }
+        >
           {shop.status ? 'Active' : 'Inactive'}
         </Badge>
       ),
@@ -198,6 +252,10 @@ export default function ShopsPage() {
       key: 'createdAt' as keyof Shop,
       label: 'Created',
       sortable: true,
+      render: (shop: Shop) =>
+        shop.createdAt
+          ? new Date(shop.createdAt).toLocaleDateString()
+          : '-',
     },
     {
       key: 'actions' as keyof Shop,
@@ -207,7 +265,11 @@ export default function ShopsPage() {
           <Button variant="ghost" size="icon" onClick={() => openModal(shop)}>
             <Edit className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(shop)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => requestDelete(shop)}
+          >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -215,149 +277,196 @@ export default function ShopsPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <Loading></Loading>
-    );
-  }
-
   return (
-    <div className="min-h-screen">
-      <Header title="Shops" description="Manage your shop locations" />
+    <>
+      {(isLoading || isSubmitting) && <LoadingOverlay />}
+      <div className="">
+        <Header title="Shops" description="Manage your shop locations" />
 
-      <div className="p-6">
-        <DataTable
-          title="All Shops"
-          data={shops}
-          columns={columns}
-          searchKey="name"
-          onAdd={() => openModal()}
-          addLabel="Add Shop"
-          emptyMessage="No shops found. Create your first shop to get started."
+        <div className="p-6">
+          <DataTable
+            title="All Shops"
+            data={shops}
+            columns={columns}
+            searchKey="name"
+            onAdd={() => openModal()}
+            addLabel="Add Shop"
+            emptyMessage="No shops found. Create your first shop to get started."
+          />
+        </div>
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            resetForm();
+          }}
+          title={editingShop ? 'Edit Shop' : 'Add New Shop'}
+          size="full"
+        >
+         <form onSubmit={handleSubmit} className="space-y-4">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {/* Shop Name */}
+    <div className="space-y-2">
+      <Label htmlFor="name" className="text-foreground">
+        Shop Name *
+      </Label>
+      <div className="relative">
+        <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Main Store"
+          className="pl-10 bg-white border-border"
+          required
         />
       </div>
+    </div>
 
-      {/* Add/Edit Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
+    {/* Phone */}
+    <div className="space-y-2">
+      <Label htmlFor="phone" className="text-foreground">
+        Phone Number *
+      </Label>
+      <div className="relative">
+        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+1 234 567 8900"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
+
+    {/* Email */}
+    <div className="space-y-2">
+      <Label htmlFor="email" className="text-foreground">
+        Email
+      </Label>
+      <div className="relative">
+        <Text className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="a@bdc.com"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
+
+    {/* Manager */}
+    <div className="space-y-2">
+      <Label htmlFor="manager" className="text-foreground">
+        Manager (Optional)
+      </Label>
+      <Select value={selectedManager} onValueChange={setSelectedManager}>
+        <SelectTrigger className="bg-white border-border w-full">
+          <SelectValue placeholder="Select manager" />
+        </SelectTrigger>
+        <SelectContent>
+          {employees?.map((item) => (
+            <SelectItem key={item.id} value={String(item.id)}>
+              <div className="flex flex-col">
+                <span>{`${item.firstName} ${item.lastName}`}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Address — full width, textarea */}
+    <div className="space-y-2 md:col-span-2">
+      <Label htmlFor="location" className="text-foreground">
+        Location/Address *
+      </Label>
+      <div className="relative">
+        <MapPin className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+        <textarea
+          id="location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="123 Main Street, Downtown"
+          rows={3}
+          required
+          className="w-full rounded-md border border-border bg-white pl-10 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+        />
+      </div>
+    </div>
+
+    {/* Active Status — full width */}
+    <div className="md:col-span-2 flex items-center justify-between p-4 bg-secondary rounded-lg">
+      <div>
+        <Label htmlFor="isActive" className="text-foreground">
+          Active Status
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Enable or disable this shop
+        </p>
+      </div>
+      <Switch
+        id="isActive"
+        checked={isActive}
+        onCheckedChange={setIsActive}
+      />
+    </div>
+
+    {/* Actions — full width */}
+    <div className="md:col-span-2 flex justify-end gap-3 pt-4">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => {
           setIsModalOpen(false);
           resetForm();
         }}
-        title={editingShop ? 'Edit Shop' : 'Add New Shop'}
-        // description={editingShop ? 'Update shop information' : 'Create a new shop location'}
-        size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-foreground">Shop Name *</Label>
-            <div className="relative">
-              <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Main Store"
-                className="pl-10 bg-white border-border"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="location" className="text-foreground">Location/Address</Label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="123 Main Street, Downtown"
-                className="pl-10 bg-white border-border"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone" className="text-foreground">Email</Label>
-            <div className="relative">
-              <Text  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="a@bdc.com"
-                className="pl-10 bg-white border-border"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone" className="text-foreground">Phone Number *</Label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 234 567 8900"
-                className="pl-10 bg-white border-border"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manager" className="text-foreground">Manager (Optional)</Label>
-             <div className="space-y-2 md:col-span-3">
-              <Select value={selectedManager} onValueChange={setSelectedManagers}>
-                <SelectTrigger className="bg-white border-border w-[100%]">
-                  <SelectValue placeholder="Select manager" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees?.map(item => (
-                    <SelectItem key={item.id} value={item.id}>
-                      <div className="flex flex-col">
-                        <span>{`${item.firstName} ${item.lastName}`}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-                </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
-            <div>
-              <Label htmlFor="isActive" className="text-foreground">Active Status</Label>
-              <p className="text-xs text-muted-foreground">Enable or disable this shop</p>
-            </div>
-            <Switch
-              id="isActive"
-              checked={isActive}
-              onCheckedChange={setIsActive}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsModalOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {editingShop ? 'Update Shop' : 'Create Shop'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        disabled={isSubmitting}
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
+      >
+        {editingShop ? 'Update Shop' : 'Create Shop'}
+      </Button>
     </div>
+  </div>
+</form>
+        </Modal>
+
+        <SweetAlert
+          isOpen={showAlert}
+          onClose={() => {
+            setShowAlert(false);
+            setShopToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            setShowAlert(false);
+            setShopToDelete(null);
+          }}
+          type="error"
+          title="Delete Item?"
+          message={
+            shopToDelete
+              ? `Are you sure you want to delete "${shopToDelete.name}"? This action cannot be undone.`
+              : 'This action cannot be undone.'
+          }
+          confirmText="Yes, Delete"
+          showCancelButton={true}
+          showCloseButton={false}
+        />
+
+        <>{toast.ToastComponent}</>
+      </div>
+    </>
   );
 }

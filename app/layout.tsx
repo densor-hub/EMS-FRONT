@@ -1,8 +1,10 @@
 import { Inter, Courier_Prime } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context';
-import Loading from '@/components/ui/loading-global';
+// import LoadingO from '@/components/ui/loading-global';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
 // import { Toaster } from '@/components/ui/toaster';
 import './globals.css'
+import { Suspense } from 'react';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -25,8 +27,10 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className} ${courierPrime.variable}`}>
       <body>
         <AuthProvider>
-          <Loading/>
-          {children}
+          
+          <Suspense  fallback={<LoadingOverlay/>}>
+            {children}
+          </Suspense>
           {/* <Toaster /> */}
         </AuthProvider>
       </body>

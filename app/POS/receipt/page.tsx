@@ -1,7 +1,7 @@
 // app/transactions/delivery/page.tsx
 'use client'
 
-import React, {useState} from 'react'
+import React, {Suspense, useState} from 'react'
 import QRScanner from '@/components/util/QRScanner'
 import { Header } from '@/components/dashboard/header'
 import { Transaction } from '@/lib/types'
@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 import axiosInstance from '@/lib/customAxios'
 import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
 import { useToaster } from '@/components/util/CustomToast'
+import { LoadingOverlay } from '@/components/SkeletonLoading'
 
 
 export default function DeliveryPage() {
@@ -79,7 +80,9 @@ export default function DeliveryPage() {
     }
 
   return (
-    <div className="p-4 h-full">
+   <Suspense fallback={<LoadingOverlay/>}>
+    {isLoading && <LoadingOverlay/> }
+     <div className="p-4 h-full">
       <Header title='Generate Receipt' description='POS Receipt'/>
      
      <div className='flex justify-center align-center' style={{height:"80%"}}>
@@ -113,5 +116,6 @@ export default function DeliveryPage() {
 
      </div>
     </div>
+   </Suspense>
   )
 }

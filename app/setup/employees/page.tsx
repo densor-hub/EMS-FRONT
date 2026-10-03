@@ -14,7 +14,10 @@ import type { Employee, Shop, Role } from '@/lib/types';
 import { Edit, Trash2, User, Mail, Phone, DollarSign, Calendar } from 'lucide-react';
 import axiosInstance from '@/lib/customAxios';
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
-import { useToast } from '@/hooks/use-toast';
+import { useToaster } from '@/components/util/CustomToast';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
+import { config } from '@/components/util/AppConfig';
+import { useAuth } from '@/lib/auth-context';
 
 const employeeStatuses = [
   {id : 0, name : "Deactivated"},
@@ -26,13 +29,13 @@ const employeeStatuses = [
 ]
 export default function EmployeesPage() {
   const toast = useToaster();
+  const {selectedShop} = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [firstName, setFirstName] = useState('');
@@ -68,7 +71,7 @@ export default function EmployeesPage() {
     try {
       //shops 
       const shopsData = await axiosInstance.get('/locations');
-       const rolesData = await axiosInstance.get('/positions');
+       const rolesData = await axiosInstance.get(`/positions?ForTransactions`);
       setShops(shopsData?.data);
       setRoles(rolesData?.data);
 
@@ -144,7 +147,8 @@ export default function EmployeesPage() {
       if (editingEmployee) {
         await axiosInstance.put("/employees", {...employeeData, id : editingEmployee.id});
       } else {
-        await axiosInstance.post("/employees", employeeData);
+        console.log(selectedShop)
+        await axiosInstance.post(`/employees/${selectedShop || sessionStorage?.getItem("selectedShop")}`, employeeData);
       }
       
       await loadEmployees();
@@ -181,7 +185,7 @@ export default function EmployeesPage() {
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: `${config.currency}` }).format(amount);
 
 
   // useEffect(() => {
@@ -271,17 +275,9 @@ export default function EmployeesPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  
   return (
     <div className="min-h-screen">
+      {isLoading && <LoadingOverlay/>}
       <Header title="Employees" description="Manage your workforce" />
 
       <div className="p-6">
@@ -307,189 +303,179 @@ export default function EmployeesPage() {
         description={editingEmployee ? 'Update employee information' : 'Add a new team member'}
         size="xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName" className="text-foreground">First Name</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="firstName"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="John"
-                  className="pl-10 bg-white border-border"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
-              <Input
-                id="lastName"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Doe"
-                className="bg-white border-border"
-                required
-              />
-            </div>
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+  <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-2">
+      <Label htmlFor="firstName" className="text-foreground">First Name</Label>
+      <div className="relative">
+        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="firstName"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          placeholder="John"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
+      <Input
+        id="lastName"
+        value={lastName}
+        onChange={(e) => setLastName(e.target.value)}
+        placeholder="Doe"
+        className="bg-white border-border"
+        required
+      />
+    </div>
+  </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="john@company.com"
-                  className="pl-10 bg-white border-border"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-foreground">Phone</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+1 234 567 8900"
-                  className="pl-10 bg-white border-border"
-                  required
-                />
-              </div>
-            </div>
-          </div>
+  <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-2">
+      <Label htmlFor="email" className="text-foreground">Email</Label>
+      <div className="relative">
+        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="john@company.com"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="phone" className="text-foreground">Phone</Label>
+      <div className="relative">
+        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+1 234 567 8900"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
+  </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="shop" className="text-foreground">Shop</Label>
-              <MultiSelectComponent
-                selectedItems={selectedShops}
-                items={shops.map(x=> {
-                  return {id : x.id, name: x.name, description : ""}
-                })}
-                 label=''
-                setSelectedItems={setselectedShops}
+  <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-2">
+      <Label htmlFor="shop" className="text-foreground">Shop</Label>
+      <MultiSelectComponent
+        selectedItems={selectedShops}
+        items={shops.map((x) => ({
+          id: x.id,
+          name: x.name,
+          description: '',
+        }))}
+        label=""
+        setSelectedItems={setselectedShops}
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="role" className="text-foreground">Role</Label>
+      <Select value={roleId} onValueChange={setRoleId} required>
+        <SelectTrigger className="bg-white border-border w-full">
+          <SelectValue placeholder="Select role" />
+        </SelectTrigger>
+        <SelectContent>
+          {roles.map((role) => (
+            <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  </div>
 
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role" className="text-foreground">Role</Label>
-              <Select value={roleId} onValueChange={setRoleId} required>
-                <SelectTrigger className="bg-white border-border w-full">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map(role => (
-                    <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+  {/* Salary + Hire Date row — both 50/50 */}
+  <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-2">
+      <Label htmlFor="salary" className="text-foreground">
+        Monthly Salary ({config.currency})
+      </Label>
+      <div className="relative">
+        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id="salary"
+          value={salary}
+          onChange={(e) => setSalary(formatNumberWithCommas(e.target.value))}
+          placeholder="50000"
+          className="pl-10 bg-white border-border"
+          required
+        />
+      </div>
+    </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="salary" className="text-foreground">Montly Salary</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="salary"
-                  value={salary}
-                  onChange={(e) => setSalary(formatNumberWithCommas(e.target.value))}
-                  placeholder="50000"
-                  className="pl-10 bg-white border-border"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hireDate" className="text-foreground">Hire Date</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-[20px] -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                 <Input
-                  id="hireDate"
-                  readOnly={true}
-                  value={alphaNumericDate(hireDate)}
-                  onChange={(e) => setHireDate(e.target.value)}
-                  onClick={() => {
-                    dateRef.current?.showPicker()
-                  }}
-                  className="pl-10 bg-white border-border"
-                  required
-                />
-                
-               <Input
-                  ref = {dateRef}
-                  style={{height: "0px", width: "0px", padding:"0px", margin:"0px"}}
-                  id="hireDate"
-                  type="date"
-                  value={hireDate}
-                  onChange={(e) => setHireDate(e.target.value)}
-                  className="pl-10 bg-white border-border"
-                  required = {!hireDate}
-                /> 
-               
-              </div>
-            </div>
-          </div>
+    <div className="space-y-2">
+      {/* <Label htmlFor="hireDate" className="text-foreground">Hire Date</Label>
+      <div className="relative"> */}
+      <Label htmlFor="hireDate" className="text-xs sm:text-sm w-full">Hire Date</Label>
+      <Input
+        type="date"
+        value={hireDate}
+        onChange={(e) => setHireDate(e.target.value)}
+        className="w-full text-xs sm:text-sm bg-white border-gray-300"
+        required = {!hireDate}
+      />
+    </div>
+  </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-[-20px]" >
-          {editingEmployee && <div className="flex items-center justify-between  rounded-lg w-full">
-            <div className="space-y-2 w-full" >
-              <Label htmlFor="role" className="w-full" >Status</Label>
-              <Select value={status} onValueChange={setStatus} required>
-                <SelectTrigger className="bg-white border-border w-full">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employeeStatuses.map(status => (
-                    <SelectItem key={status.id} value={status.id.toString()}>{status?.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            </div>
-            }
-            <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
-              <div>
-                <Label htmlFor="isActive" className="text-foreground">Is App User</Label>
-                <p className="text-xs text-muted-foreground">Employee can access the system</p>
-              </div>
-              <Switch
-                id="isActive"
-                checked={isAppUser}
-                onCheckedChange={setIsAppUser}
-              />
-            </div>
-        </div>
-         
+  {/* Status (when editing) + Is App User */}
+  <div className="grid grid-cols-2 gap-4">
+    {editingEmployee && (
+      <div className="space-y-2">
+        <Label htmlFor="status" className="text-foreground">Status</Label>
+        <Select value={status} onValueChange={setStatus} required>
+          <SelectTrigger className="bg-white border-border w-full">
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            {employeeStatuses.map((s) => (
+              <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    )}
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsModalOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {editingEmployee ? 'Update Employee' : 'Add Employee'}
-            </Button>
-          </div>
-        </form>
+    <div className={`flex items-center justify-between p-4 bg-secondary rounded-lg ${!editingEmployee ? 'col-span-2' : ''}`}>
+      <div>
+        <Label htmlFor="isActive" className="text-foreground">Is App User</Label>
+        <p className="text-xs text-muted-foreground">Employee can access the system</p>
+      </div>
+      <Switch
+        id="isActive"
+        checked={isAppUser}
+        onCheckedChange={setIsAppUser}
+      />
+    </div>
+  </div>
+
+  <div className="flex justify-end gap-3 pt-4">
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        setIsModalOpen(false);
+        resetForm();
+      }}
+    >
+      Cancel
+    </Button>
+    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+      {editingEmployee ? 'Update Employee' : 'Add Employee'}
+    </Button>
+  </div>
+</form>
       </Modal>
+
+      {toast.ToastComponent}
     </div>
   );
 }

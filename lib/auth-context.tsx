@@ -2,11 +2,12 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState, useRef } from 'react';
 import { Company, User } from './types';
 import { performInitialAuthCheck, getAuthState, registerAuthSetters } from './customAxios';
-import {AppInitializationSkeleton} from '@/components/SkeletonLoading';
+import {LoadingOverlay} from '@/components/SkeletonLoading';
 import { logout } from './customAxios';
 import { useToaster } from '@/components/util/CustomToast';
 import { useRouter } from 'next/navigation';
 import SelectCompany from '@/app/select-shop/page';
+import { publicPaths } from '@/components/util/AppConfig';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -41,8 +42,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     sessionStorage.clear()
     localStorage.clear()
     
+    //console.log(publicPaths.includes(window.location.pathname?.toLowerCase() || window.location.pathname.slice(1)?.toLowerCase()))
     await logout()
-    router.push("/auth/login")
+    if (!publicPaths.includes(window.location.pathname?.toLowerCase() || window.location.pathname.slice(1)?.toLowerCase())) {
+       router.push("/auth/login")
+    }
     return;
   }
   // Register setters with axios instance ONCE
@@ -63,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let isMounted = true;
 
     const initializeApp = async () => {
+      setIsLoading(true)
       try {
         // console.log('Starting app initialization...');
         
@@ -89,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (!authResult) {
-         // setIsLoading(false)
+        // setIsLoading(false)
           toast.warning({
             title: 'Failed to authenticate user',
             description:  'Logging You Out...',
@@ -120,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   
   if (isLoading && !user?.id) {
-    return <AppInitializationSkeleton />;
+    return <LoadingOverlay />;
   }
 
   return (
@@ -135,7 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       userLogOut
     }}>
-      {!(selectedShop || sessionStorage.getItem("selectedShop"))  && !(window.location.pathname  === "/" ||  window.location.pathname  === "/auth/login")?  <SelectCompany/> : children }
+      { user?.id  && !(selectedShop || sessionStorage.getItem("selectedShop")) ? <SelectCompany/> : children }
     </AuthContext.Provider>
   );
 };
