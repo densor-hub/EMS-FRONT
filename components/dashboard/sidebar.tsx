@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -10,14 +10,13 @@ import {
   Receipt,
   BarChart3,
   Settings,
-  LogOut,
   Menu,
   X,
   ChevronDown,
   LucideChartNetwork,
   LucideShoppingCart,
   SendToBackIcon,
-  PlusCircleIcon
+  PlusCircleIcon,
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,7 +57,7 @@ const navItems: NavItem[] = [
       { label: 'Stock Verification', href: '/stock-management/stock-verification' },
     ],
   },
-   {
+  {
     label: 'Transfers',
     href: '/transfers',
     icon: <SendToBackIcon size={20} />,
@@ -77,6 +76,7 @@ const navItems: NavItem[] = [
       { label: 'Request', href: '/purchases/request' },
       { label: 'Manager Check', href: '/purchases/manager-check' },
       { label: 'Receivals', href: '/purchases/receivals' },
+      { label: 'Payments', href: '/purchases/payments' },
     ],
   },
   {
@@ -84,19 +84,52 @@ const navItems: NavItem[] = [
     href: '/dashboard/setup',
     icon: <Settings size={20} />,
     children: [
-       { label: 'Shops', href: '/setup/shops' },
-        { label: 'Roles & Permissions', href: '/setup/roles' },
-        { label: 'Employees', href: '/setup/employees' },
-        { label: 'Items', href: '/setup/items' },
-        { label: 'Customers', href: '/setup/customers' },
-        { label: 'Suppliers', href: '/setup/suppliers' },
-     
+      { label: 'Shops', href: '/setup/shops' },
+      { label: 'Roles & Permissions', href: '/setup/roles' },
+      { label: 'Employees', href: '/setup/employees' },
+      { label: 'Items', href: '/setup/items' },
+      { label: 'Customers', href: '/setup/customers' },
+      { label: 'Suppliers', href: '/setup/suppliers' },
     ],
   },
   { label: 'Reports', href: '/reports', icon: <BarChart3 size={20} /> },
 ];
 
-// Recursive NavItem Component
+// ────────────────────────────────────────────────
+// Route permission filtering
+// Uses flatMap to avoid the type-predicate mismatch.
+// ────────────────────────────────────────────────
+const filterNavByRoutes = (
+  items: NavItem[],
+  allowedCodes: Set<string>
+): NavItem[] => {
+  return items.flatMap((item) => {
+    const filteredChildren = item.children
+      ? filterNavByRoutes(item.children, allowedCodes)
+      : undefined;
+
+    const hasChildren = !!filteredChildren && filteredChildren.length > 0;
+    const selfAllowed = allowedCodes.has(item.href);
+
+    if (!hasChildren && !selfAllowed) return [];
+
+    const next: NavItem = {
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+    };
+
+    if (hasChildren) {
+      next.children = filteredChildren;
+    }
+
+    return [next];
+  });
+};
+
+// ────────────────────────────────────────────────
+// Recursive NavItem component
+// ────────────────────────────────────────────────
 const NavItemRenderer = ({
   item,
   level = 0,
@@ -114,13 +147,11 @@ const NavItemRenderer = ({
   isParentActive: (item: NavItem) => boolean;
   onClose: () => void;
 }) => {
-  const {user} = useAuth()
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = expandedItems.includes(item.label);
   const isItemActive = isActive(item.href);
   const isItemParentActive = isParentActive(item);
 
-  console.log(user)
   if (hasChildren) {
     return (
       <li>
@@ -139,9 +170,7 @@ const NavItemRenderer = ({
           </span>
           <ChevronDown
             size={16}
-            className={`transition-transform ${
-              isExpanded ? 'rotate-180' : ''
-            }`}
+            className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           />
         </button>
         {isExpanded && (
@@ -184,6 +213,9 @@ const NavItemRenderer = ({
   );
 };
 
+// ────────────────────────────────────────────────
+// Sidebar
+// ────────────────────────────────────────────────
 export function Sidebar() {
   const [sessionShop, setSessionShop] = useState<string | null>(null);
   const pathname = usePathname();
@@ -193,82 +225,43 @@ export function Sidebar() {
 
   // Get sessionShop safely on client side
   useEffect(() => {
-    setSessionShop(sessionStorage.getItem("selectedShop"));
+    setSessionShop(sessionStorage.getItem('selectedShop'));
   }, []);
 
-  // Auto-expand logic when pathname changes
+  // Allowed route codes from the backend
+  const allowedCodes = useMemo(() => {
+    const codes = user?.routes?.map((x: any) => x.code) ?? [];
+    return new Set<string>(codes);
+  }, [user]);
+
+  // Filter nav items by user's allowed route codes
+  const visibleNavItems = useMemo(() => {
+    if (!user?.routes || user.routes.length === 0) return [];
+    return filterNavByRoutes(navItems, allowedCodes);
+  }, [user, allowedCodes]);
+
+  // Auto-expand parent when a child route is active
   useEffect(() => {
     const findActiveMenus = (): string[] => {
       const activeMenus: string[] = [];
 
-      // Check if path matches any top-level item exactly
-      const topLevelItem = navItems.find(item => item.href === pathname);
-      
+      // Direct match on a top-level item
+      const topLevelItem = navItems.find((item) => item.href === pathname);
       if (topLevelItem) {
-        // If it's a top-level item with children, expand it
         if (topLevelItem.children && topLevelItem.children.length > 0) {
           activeMenus.push(topLevelItem.label);
-        }
-        // If it's a top-level item with NO children (Dashboard, Reports), fallback to POS
-        else {
-          const posItem = navItems.find(item => item.label === 'POS');
-          if (posItem) {
-            activeMenus.push('POS');
-          }
         }
         return activeMenus;
       }
 
-      // Check if path is a child of any menu
-      // const findInChildren = (items: NavItem[], parentLabel?: string): boolean => {
-      //   for (const item of items) {
-      //     if (item.children) {
-      //       // Check direct children
-      //       for (const child of item.children) {
-      //         if (pathname === child.href) {
-      //           // Found a child - expand the parent
-      //           if (parentLabel && !activeMenus.includes(parentLabel)) {
-      //             activeMenus.push(parentLabel);
-      //           }
-      //           if (!activeMenus.includes(item.label)) {
-      //             activeMenus.push(item.label);
-      //           }
-      //           return true;
-      //         }
-      //         // Check nested children (grandchildren)
-      //         if (child.children) {
-      //           for (const grandchild of child.children) {
-      //             if (pathname === grandchild.href) {
-      //               // Found a grandchild - expand parent and grandparent
-      //               if (parentLabel && !activeMenus.includes(parentLabel)) {
-      //                 activeMenus.push(parentLabel);
-      //               }
-      //               if (!activeMenus.includes(item.label)) {
-      //                 activeMenus.push(item.label);
-      //               }
-      //               if (!activeMenus.includes(child.label)) {
-      //                 activeMenus.push(child.label);
-      //               }
-      //               return true;
-      //             }
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      //   return false;
-      // };
-
-      // Search through all navItems
+      // Search children / grandchildren
       for (const item of navItems) {
         if (item.children) {
-          // Check direct children first
           for (const child of item.children) {
             if (pathname === child.href) {
               activeMenus.push(item.label);
               return activeMenus;
             }
-            // Check grandchildren
             if (child.children) {
               for (const grandchild of child.children) {
                 if (pathname === grandchild.href) {
@@ -284,31 +277,21 @@ export function Sidebar() {
         }
       }
 
-      // If no menu matched, fallback to POS
-      const posItem = navItems.find(item => item.label === 'POS');
-      if (posItem) {
-        activeMenus.push('POS');
-      }
-
       return activeMenus;
     };
 
     const activeMenus = findActiveMenus();
-    setExpandedItems(prev => {
-      // Merge existing expanded items with new active ones
-      const merged = [...new Set([...prev, ...activeMenus])];
-      return merged;
-    });
+    setExpandedItems((prev) => [...new Set([...prev, ...activeMenus])]);
   }, [pathname]);
 
   const toggleExpanded = (label: string) => {
-    setExpandedItems(prev =>
-      prev.includes(label) ? prev.filter(i => i !== label) : [...prev, label]
+    setExpandedItems((prev) =>
+      prev.includes(label) ? prev.filter((i) => i !== label) : [...prev, label]
     );
   };
 
   const isActive = (href: string) => pathname === href;
-  
+
   const isParentActive = (item: NavItem) => {
     if (!item.children) return false;
     const checkChildren = (children: NavItem[]): boolean => {
@@ -323,7 +306,7 @@ export function Sidebar() {
 
   const NavContent = () => (
     <div className="flex flex-col h-screen">
-      {/* Logo/Company */}
+      {/* Logo / Company */}
       <div className="p-4 border-b border-border h-16">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
@@ -334,7 +317,7 @@ export function Sidebar() {
               {company?.name || 'Company Name'}
             </h2>
             <p className="font-semibold text-foreground truncate">
-              {user?.locations?.find(x => x.id == (selectedShop || sessionShop))?.name}
+              {user?.locations?.find((x: any) => x.id == (selectedShop || sessionShop))?.name}
             </p>
           </div>
         </div>
@@ -343,7 +326,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-1">
-          {navItems.map(item => (
+          {visibleNavItems.map((item) => (
             <NavItemRenderer
               key={item.label}
               item={item}
@@ -358,27 +341,22 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border ">
+      <div className="border-t border-border p-3">
         <Link
           href="/dashboard/settings"
+          onClick={() => setIsMobileOpen(false)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
         >
           <Settings size={20} />
           Settings
         </Link>
-        {/* <button
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-        >
-          <LogOut size={20} />
-          Logout
-        </button> */}
       </div>
     </div>
   );
 
   return (
-    <div className='bg-sidebar '>
-      {/* Mobile Toggle */}
+    <div className="bg-sidebar">
+      {/* Mobile toggle */}
       <button
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
@@ -386,7 +364,7 @@ export function Sidebar() {
         <Menu size={20} />
       </button>
 
-      {/* Mobile Overlay */}
+      {/* Mobile overlay */}
       {isMobileOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
@@ -394,7 +372,7 @@ export function Sidebar() {
         />
       )}
 
-      {/* Mobile Sidebar */}
+      {/* Mobile sidebar */}
       <aside
         className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
@@ -402,14 +380,14 @@ export function Sidebar() {
       >
         <button
           onClick={() => setIsMobileOpen(false)}
-          className="absolute top-4 right-4 p-1 rounded text-muted-foreground hover:text-foreground"
+          className="absolute top-4 right-4 p-1 rounded text-muted-foreground hover:text-foreground z-10"
         >
           <X size={20} />
         </button>
         <NavContent />
       </aside>
 
-      {/* Desktop Sidebar */}
+      {/* Desktop sidebar */}
       <aside className="hidden lg:block w-72 border-r border-sidebar-border sticky top-0">
         <NavContent />
       </aside>

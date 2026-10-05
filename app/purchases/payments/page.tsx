@@ -249,43 +249,6 @@ export default function PurcahsePage() {
         // description="Suppliers Transactions"
       />
       <div className="relative" >
-        {/* {<div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" >
-          <div className="mt-2 w-full sm:w-[300px] px-2"  >
-            <Label htmlFor="item" className="text-foreground text-sm">Select Supplier</Label>
-            <Select value={selectedSupplier} onValueChange={setselectedSupplier}>
-              <SelectTrigger className="bg-white border-border w-full">
-                <SelectValue placeholder="Select Supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers.map(item => (
-                  <SelectItem key={item.id} value={item.id.toString()}>
-                    <div className="flex flex-col">
-                      <span className="text-sm">{item.supplierCompanyName}</span>
-                      {/* <span className="text-xs">{item.firstName + " " + item?.lastName}</span> */}
-                    {/* </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {!modalOpen && <Button className="w-auto relative top-7" onClick={() => {
-            if (!selectedSupplier) {
-              toast.info({
-                title: 'Select Suppliers',
-                description: 'Please select Suppliers to add',
-              });
-              return;
-            }
-            setModalOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            New
-          </Button>} */}
-        {/* </div>} 
-        */}
-        
-
           {!modalOpen &&
             <CardContent className="m-0 p-0 overflow-x-auto">
               <DataTable
@@ -339,8 +302,8 @@ export default function PurcahsePage() {
               transactionType="purchase"
               businessPartnerName={selectedTransaction.supplierName || "Supplier"}
               paymentMethods={paymentMethods}
-              // onAddPayment={handleAddPayment}
-              onAddDelivery={() => setShowDeliveryModal(true)}
+              onAddPayment={handleAddPayment}
+              // onAddDelivery={() => setShowDeliveryModal(true)}
               loading={loading}
               showItemsCode={false}
               setActiveTab={setActiveTab}
@@ -348,7 +311,50 @@ export default function PurcahsePage() {
             />
         </Modal>
 
-      
+        {/* Add Payment Modal */}
+        <Modal
+          isOpen={showAddPaymentModal}
+          onClose={() => {
+            setShowAddPaymentModal(false);
+            reset();
+          }}
+          title="Add Payment"
+          // description={`Add payment `} //for transaction ${selectedTransaction.transactionCode}
+          size="md"
+        >
+          <div className="space-y-4">
+            <AddPayment
+              amountPaid={amountPaid}
+              setAmountPaid={setAmountPaid}
+              date={date}
+              setDate={setDate}
+              paymentMethod={paymentMethod}
+              setPaymentMethod={setPaymentMethod}
+              minDate={selectedTransaction?.transactionDate?.split("T")[0] || ""}
+              
+            />
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-gray-200">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddPaymentModal(false);
+                  reset();
+                }}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitPayment}
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Save Payment'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
         {/* Delivery Modal */}
         <Modal
           isOpen={showDeliveryModal}

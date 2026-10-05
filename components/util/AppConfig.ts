@@ -61,5 +61,5 @@ export const config : AppConfiguration = {
     transactionTypes: transactionTypes
 }
 
-export const publicPaths = ['/', 'auth', 'auth/login', 'auth/signup', '/account/confirmation']
+export const publicPaths = ['/', '/auth', '/auth/login', '/auth/signup', '/account/confirmation']
 

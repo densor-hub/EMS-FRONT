@@ -165,3 +165,12 @@
     opacity: 0;
   }
 }
+
+/* Prevent mobile auto-zoom on input focus */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}

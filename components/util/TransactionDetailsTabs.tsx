@@ -13,7 +13,6 @@ import { IdAndName, TransactionItem } from '@/lib/types';
 import TransactionItemsTable from './TransactionItemsTable';
 import { config } from './AppConfig';
 import StatusBadge from '../ui/statusbadge';
-import AddPayment from '@/app/purchases/addPayments';
 
 interface Payment {
   paymentDate: string;
@@ -33,15 +32,14 @@ interface TransactionDetails {
 
 interface TransactionDetailsTabsProps {
   transactionDetails: Partial<TransactionDetails>;
-  activeTab : 'items'| 'payments' | 'deliveries' | 'reversals' | string  ,
-  setActiveTab: Dispatch<SetStateAction<'items'| 'payments' | 'deliveries' | 'reversals' | string>>
+  activeTab: 'items' | 'payments' | 'deliveries' | 'reversals' | string;
+  setActiveTab: Dispatch<SetStateAction<'items' | 'payments' | 'deliveries' | 'reversals' | string>>;
   selectedTransaction: {
     transactionCode?: string;
     transactionDate?: string;
     supplierId?: string;
     customerName?: string;
   };
-
   transactionType: 'sale' | 'purchase';
   businessPartnerName: string;
   paymentMethods: IdAndName[] | undefined;
@@ -64,69 +62,83 @@ export function TransactionDetailsTabs({
   showItemsCode = false,
   itemsTableMinWidth = '600px',
   setActiveTab,
-  activeTab = 'items'
+  activeTab = 'items',
 }: TransactionDetailsTabsProps) {
-  //const [activeTab, setActiveTab] = useState<string>('items');
   const [paymentStartDate, setPaymentStartDate] = useState<string>('');
   const [paymentEndDate, setPaymentEndDate] = useState<string>('');
   const [deliveryStartDate, setDeliveryStartDate] = useState<string>('');
   const [deliveryEndDate, setDeliveryEndDate] = useState<string>('');
   const [filterItem, setFilterItem] = useState<string>('all');
-  const [reversalStartDate, setReversalStartDate] = useState<string>("");
-  const [reversalEndDate, setReversalEndDate] = useState<string>("");
+  const [reversalStartDate, setReversalStartDate] = useState<string>('');
+  const [reversalEndDate, setReversalEndDate] = useState<string>('');
 
   const details = transactionDetails;
   if (!details) return null;
 
   const isPurchase = transactionType === 'purchase';
 
+  // ────────────────────────────────────────────────
+  // PAYMENTS TAB
+  // ────────────────────────────────────────────────
   const renderPaymentsTab = () => {
-    const details = transactionDetails;
-    if (!details) return null;
-
     const totalPaid = details?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
     const remainingBalance = (details.totalAmount || 0) - totalPaid;
+    const totalPayments = totalPaid;
+    const totalDiscount =
+      details?.payments?.reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0) || 0;
 
-    
-    const totalPayments = details?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
-    const totalDiscount = details?.payments?.reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0) || 0;
+    const isPaymentFiltered = Boolean(paymentStartDate || paymentEndDate);
 
-    // Filter payments by date
-    const filteredPayments = details?.payments?.filter((payment: any) => {
-      if (paymentStartDate || paymentEndDate) {
-        const paymentDate = new Date(payment.paymentDate);
-        const start = new Date(paymentStartDate);
-        const end = new Date(paymentEndDate);
-        if (paymentStartDate && !paymentEndDate) return paymentDate >= start;
-        if (paymentEndDate && !paymentStartDate) return paymentDate <= end;
-        return paymentDate >= start && paymentDate <= end;
-      }
-      return true;
-    }) || [];
+    const filteredPayments =
+      details?.payments?.filter((payment: any) => {
+        if (paymentStartDate || paymentEndDate) {
+          const paymentDate = new Date(payment.paymentDate);
+          const start = new Date(paymentStartDate);
+          const end = new Date(paymentEndDate);
+          if (paymentStartDate && !paymentEndDate) return paymentDate >= start;
+          if (paymentEndDate && !paymentStartDate) return paymentDate <= end;
+          return paymentDate >= start && paymentDate <= end;
+        }
+        return true;
+      }) || [];
 
     return (
-       <div className="space-y-4">
+      <div className="space-y-4">
+        {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-[10px] sm:text-sm text-gray-600">Amount</p>
-            <p className="text-xs sm:text-sm font-bold text-primary">{formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}</p>
+            <p className="text-xs sm:text-sm font-bold text-primary">
+              {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+            </p>
           </div>
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-[10px] sm:text-sm text-gray-600">Payments</p>
-            <p className="text-xs sm:text-sm font-bold text-green-600">{formatNumberWithCommas(totalPayments.toFixed(2))}</p>
+            <p className="text-xs sm:text-sm font-bold text-green-600">
+              {formatNumberWithCommas(totalPayments.toFixed(2))}
+            </p>
           </div>
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-[10px] sm:text-sm text-gray-600">Discount</p>
-            <p className="text-xs sm:text-sm font-bold text-blue-600">{formatNumberWithCommas(totalDiscount.toFixed(2))}</p>
+            <p className="text-xs sm:text-sm font-bold text-blue-600">
+              {formatNumberWithCommas(totalDiscount.toFixed(2))}
+            </p>
           </div>
           <div className="bg-gray-50 p-3 rounded-lg">
-             {remainingBalance <= 0 ? <p className="text-[10px] sm:text-sm text-gray-600">Balance</p> : <p className="text-[10px] sm:text-sm text-gray-600">Debt</p>}
-            {remainingBalance <= 0 ? <p className="text-xs sm:text-sm font-bold text-blue-600">{formatNumberWithCommas(remainingBalance.toFixed(2))}</p> : 
-            <p className="text-xs sm:text-sm font-bold text-red-600">{formatNumberWithCommas(remainingBalance.toFixed(2))}</p> }
+            <p className="text-[10px] sm:text-sm text-gray-600">
+              {remainingBalance <= 0 ? 'Balance' : 'Debt'}
+            </p>
+            <p
+              className={`text-xs sm:text-sm font-bold ${
+                remainingBalance <= 0 ? 'text-blue-600' : 'text-red-600'
+              }`}
+            >
+              {formatNumberWithCommas(remainingBalance.toFixed(2))}
+            </p>
           </div>
         </div>
 
-        {/* Date Filter - Mobile Responsive */}
+        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <div className="space-y-1 flex-1 sm:flex-none">
@@ -155,72 +167,111 @@ export function TransactionDetailsTabs({
             variant="outline"
             size="sm"
             onClick={() => {
-              setPaymentStartDate("");
-              setPaymentEndDate("");
+              setPaymentStartDate('');
+              setPaymentEndDate('');
             }}
             className="w-full sm:w-auto text-xs sm:text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
           >
             ✕ Clear Filter
           </Button>
-          {(paymentEndDate || paymentStartDate) && (
+          {isPaymentFiltered && (
             <div className="p-2 sm:p-3 text-right text-xs sm:text-sm">
-              Filtered Total: <span className='font-bold'>
-                {formatNumberWithCommas(filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2))}
+              Filtered Total:{' '}
+              <span className="font-bold">
+                {formatNumberWithCommas(
+                  filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)
+                )}
               </span>
             </div>
           )}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead>
-              <tr className="bg-gray-100 border-b-2 border-gray-200">
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Payment Date</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Method</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">Remarks</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Amount {`${config?.currency}`}</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Discount {`${config?.currency}`}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPayments.sort((a, b) => a.paymentDate?.localeCompare(b.paymentDate)).map((payment: any, index: number) => (
-                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm">{alphaNumericDate(payment.paymentDate)}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm">
-                    <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-medium">
-                      {paymentMethods?.find(x => x.id === payment.paymentMethod)?.name || 'N/A'}
-                    </span>
+        {/* Empty state OR table */}
+        {filteredPayments.length === 0 ? (
+          <div className="text-center py-8 sm:py-12">
+            <CreditCard className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
+            <p className="text-gray-500 mt-2 text-sm sm:text-base">
+              {isPaymentFiltered
+                ? 'No payments match the current filters.'
+                : 'No payments recorded for this transaction.'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr className="bg-gray-100 border-b-2 border-gray-200">
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                    Payment Date
+                  </th>
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Method</th>
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
+                    Remarks
+                  </th>
+                  <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                    Amount {config?.currency}
+                  </th>
+                  <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                    Discount {config?.currency}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPayments
+                  .sort((a, b) => a.paymentDate?.localeCompare(b.paymentDate))
+                  .map((payment: any, index: number) => (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm">
+                        {alphaNumericDate(payment.paymentDate)}
+                      </td>
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm">
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-medium">
+                          {paymentMethods?.find((x) => x.id === payment.paymentMethod)?.name ||
+                            'N/A'}
+                        </span>
+                      </td>
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
+                        {payment.remarks || '-'}
+                      </td>
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">
+                        {formatNumberWithCommas(payment.amount.toFixed(2))}
+                      </td>
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-blue-600">
+                        {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 border-t-2 border-gray-200">
+                  <td colSpan={3} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">
+                    Total Paid
                   </td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{payment.remarks || '-'}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold"> {formatNumberWithCommas(payment.amount.toFixed(2))}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-blue-600">
-                     {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
+                  <td className="p-2 sm:p-3 text-right font-bold text-green-600 text-xs sm:text-sm">
+                    {formatNumberWithCommas(
+                      filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)
+                    )}
+                  </td>
+                  <td className="p-2 sm:p-3 text-right font-bold text-blue-600 text-xs sm:text-sm">
+                    {formatNumberWithCommas(
+                      filteredPayments
+                        .reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0)
+                        .toFixed(2)
+                    )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-50 border-t-2 border-gray-200">
-                <td colSpan={3} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total Paid</td>
-                <td className="p-2 sm:p-3 text-right font-bold text-green-600 text-xs sm:text-sm">
-                   {formatNumberWithCommas(filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2))}
-                </td>
-                <td className="p-2 sm:p-3 text-right font-bold text-blue-600 text-xs sm:text-sm">
-                  {formatNumberWithCommas(filteredPayments.reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0).toFixed(2))}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
 
-  // Render deliveries tab content
+  // ────────────────────────────────────────────────
+  // DELIVERIES TAB
+  // ────────────────────────────────────────────────
   const renderDeliveriesTab = () => {
-    const details = transactionDetails;
-    if (!details) return null;
-
     // Collect all deliveries from items
     let allDeliveries: any[] = [];
     details?.items?.forEach((item: any) => {
@@ -236,13 +287,17 @@ export function TransactionDetailsTabs({
             reversals: delivery.itemReversals || [],
             batchId: delivery?.batchId,
             itemId: item.id,
-            status: delivery?.status
+            status: delivery?.status,
           });
         });
       }
     });
 
-    // Filter deliveries by date
+    const isDeliveryFiltered = Boolean(
+      deliveryStartDate || deliveryEndDate || (filterItem && filterItem !== 'all')
+    );
+
+    // Filter by date
     allDeliveries = allDeliveries.filter((delivery) => {
       if (deliveryStartDate || deliveryEndDate) {
         const deliveryDate = new Date(delivery.deliveryDate);
@@ -255,23 +310,14 @@ export function TransactionDetailsTabs({
       return true;
     });
 
-    // Filter deliveries by item
+    // Filter by item
     if (filterItem && filterItem !== 'all') {
-      allDeliveries = allDeliveries.filter(delivery => delivery.itemId === filterItem);
-    }
-
-    if (allDeliveries.length === 0) {
-      return (
-        <div className="text-center py-8 sm:py-12">
-          <Truck className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
-          <p className="text-gray-500 mt-2 text-sm sm:text-base">No deliveries recorded for this transaction</p>
-        </div>
-      );
+      allDeliveries = allDeliveries.filter((delivery) => delivery.itemId === filterItem);
     }
 
     return (
       <div className="space-y-4">
-        {/* Date Filter - Mobile Responsive */}
+        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <div className="flex flex-row gap-2 w-full sm:w-auto">
@@ -306,7 +352,7 @@ export function TransactionDetailsTabs({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Items</SelectItem>
-                  {transactionDetails?.items?.map((item: any) => (
+                  {details?.items?.map((item: any) => (
                     <SelectItem key={item.id} value={item.id.toString()}>
                       <div className="flex flex-col">
                         <span className="text-xs sm:text-sm">{item.name}</span>
@@ -322,9 +368,9 @@ export function TransactionDetailsTabs({
             variant="outline"
             size="sm"
             onClick={() => {
-              setDeliveryStartDate("");
-              setDeliveryEndDate("");
-              setFilterItem("all");
+              setDeliveryStartDate('');
+              setDeliveryEndDate('');
+              setFilterItem('all');
             }}
             className="w-full sm:w-auto text-xs sm:text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
           >
@@ -332,52 +378,90 @@ export function TransactionDetailsTabs({
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead>
-              <tr className="bg-gray-100 border-b-2 border-gray-200">
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Item Name</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Code</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Status</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
-                  {isPurchase ? 'Receival Date' : 'Delivery Date'}
-                </th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allDeliveries.sort((a, b) => a.deliveryDate?.localeCompare(b.deliveryDate)).map((delivery, index) => (
-                <tr key={delivery.deliveryId || index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">{delivery.itemName}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">{delivery.itemCode}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600" ><StatusBadge className='p-0 h-[20px]'  status={delivery.status} heartbeat={false}/></td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">{alphaNumericDate(delivery.deliveryDate)}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">
-                    {formatNumberWithCommas(delivery.quantity?.toString() || '0')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* Empty state OR table */}
+        {allDeliveries.length === 0 ? (
+          <div className="text-center py-8 sm:py-12">
+            <Truck className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
+            <p className="text-gray-500 mt-2 text-sm sm:text-base">
+              {isDeliveryFiltered
+                ? 'No deliveries match the current filters.'
+                : 'No deliveries recorded for this transaction.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[600px]">
+                <thead>
+                  <tr className="bg-gray-100 border-b-2 border-gray-200">
+                    <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                      Item Name
+                    </th>
+                    <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Code</th>
+                    <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Status</th>
+                    <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
+                      {isPurchase ? 'Receival Date' : 'Delivery Date'}
+                    </th>
+                    <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allDeliveries
+                    .sort((a, b) => a.deliveryDate?.localeCompare(b.deliveryDate))
+                    .map((delivery, index) => (
+                      <tr
+                        key={delivery.deliveryId || index}
+                        className="border-b border-gray-100 hover:bg-gray-50"
+                      >
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">
+                          {delivery.itemName}
+                        </td>
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">
+                          {delivery.itemCode}
+                        </td>
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">
+                          <StatusBadge
+                            className="p-0 h-[20px]"
+                            status={delivery.status}
+                            heartbeat={false}
+                          />
+                        </td>
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">
+                          {alphaNumericDate(delivery.deliveryDate)}
+                        </td>
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">
+                          {formatNumberWithCommas(delivery.quantity?.toString() || '0')}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
 
-        <div className='flex flex-wrap justify-end gap-2 sm:gap-4 text-xs sm:text-sm'>
-          <p>{isPurchase ? 'Receivals' : 'Deliveries'}: <span className='font-semibold'>
-            {(new Set(allDeliveries.map(x => x?.batchId))).size}
-          </span></p>
-          <p>{isPurchase ? 'Received' : 'Delivered'} Qty: <span className='font-semibold'>
-            {allDeliveries.reduce((sum, r) => sum + r.quantity, 0)}
-          </span></p>
-        </div>
+            <div className="flex flex-wrap justify-end gap-2 sm:gap-4 text-xs sm:text-sm">
+              <p>
+                {isPurchase ? 'Receivals' : 'Deliveries'}:{' '}
+                <span className="font-semibold">
+                  {new Set(allDeliveries.map((x) => x?.batchId)).size}
+                </span>
+              </p>
+              <p>
+                {isPurchase ? 'Received' : 'Delivered'} Qty:{' '}
+                <span className="font-semibold">
+                  {allDeliveries.reduce((sum, r) => sum + r.quantity, 0)}
+                </span>
+              </p>
+            </div>
+          </>
+        )}
       </div>
     );
   };
 
-  // Render reversals tab content
+  // ────────────────────────────────────────────────
+  // REVERSALS TAB
+  // ────────────────────────────────────────────────
   const renderReversalsTab = () => {
-    const details = transactionDetails;
-    if (!details) return null;
-
     // Collect all reversals from deliveries
     let allReversals: any[] = [];
     details?.items?.forEach((item: any) => {
@@ -392,7 +476,7 @@ export function TransactionDetailsTabs({
                 quantity: reversal.quantity,
                 deliveryId: delivery.deliveryId,
                 reversalId: reversal.reversalId,
-                itemId: item.id
+                itemId: item.id,
               });
             });
           }
@@ -400,7 +484,11 @@ export function TransactionDetailsTabs({
       }
     });
 
-    // Filter reversals by date
+    const isReversalFiltered = Boolean(
+      reversalStartDate || reversalEndDate || (filterItem && filterItem !== 'all')
+    );
+
+    // Filter by date
     allReversals = allReversals.filter((reversal) => {
       if (reversalStartDate || reversalEndDate) {
         const reversalDate = new Date(reversal.reversalDate);
@@ -413,36 +501,14 @@ export function TransactionDetailsTabs({
       return true;
     });
 
-    // Filter reversals by item
+    // Filter by item
     if (filterItem && filterItem !== 'all') {
-      allReversals = allReversals.filter(reversal => reversal.itemId === filterItem);
-    }
-
-    if (allReversals.length === 0) {
-      return (
-        <div className="text-center py-8 sm:py-12">
-          <RotateCcw className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
-          <p className="text-gray-500 mt-2 text-sm sm:text-base">No reversals recorded for this transaction</p>
-        </div>
-      );
+      allReversals = allReversals.filter((reversal) => reversal.itemId === filterItem);
     }
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs sm:text-sm text-gray-600">Total Reversals</p>
-            <p className="text-base sm:text-xl font-bold">{allReversals.length}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs sm:text-sm text-gray-600">Total Items Reversed</p>
-            <p className="text-base sm:text-xl font-bold">
-              {allReversals.reduce((sum, r) => sum + r.quantity, 0)}
-            </p>
-          </div>
-        </div>
-
-        {/* Date Filter - Mobile Responsive */}
+        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <div className="flex flex-row gap-2 w-full sm:w-auto">
@@ -477,7 +543,7 @@ export function TransactionDetailsTabs({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Items</SelectItem>
-                  {transactionDetails?.items?.map((item: any) => (
+                  {details?.items?.map((item: any) => (
                     <SelectItem key={item.id} value={item.id.toString()}>
                       <div className="flex flex-col">
                         <span className="text-xs sm:text-sm">{item.name}</span>
@@ -493,9 +559,9 @@ export function TransactionDetailsTabs({
             variant="outline"
             size="sm"
             onClick={() => {
-              setReversalStartDate("");
-              setReversalEndDate("");
-              setFilterItem("all");
+              setReversalStartDate('');
+              setReversalEndDate('');
+              setFilterItem('all');
             }}
             className="w-full sm:w-auto text-xs sm:text-sm bg-yellow-500 hover:bg-yellow-600 text-white"
           >
@@ -503,30 +569,55 @@ export function TransactionDetailsTabs({
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[500px]">
-            <thead>
-              <tr className="bg-gray-100 border-b-2 border-gray-200">
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Item Name</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Code</th>
-                <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">Reversal Date</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allReversals.map((reversal, index) => (
-                <tr key={reversal.reversalId || index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">{reversal.itemName}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">{reversal.itemCode}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">{alphaNumericDate(reversal.reversalDate)}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-red-600">
-                    {formatNumberWithCommas(reversal.quantity?.toString() || '0')}
-                  </td>
+        {/* Empty state OR table */}
+        {allReversals.length === 0 ? (
+          <div className="text-center py-8 sm:py-12">
+            <RotateCcw className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
+            <p className="text-gray-500 mt-2 text-sm sm:text-base">
+              {isReversalFiltered
+                ? 'No reversals match the current filters.'
+                : 'No reversals recorded for this transaction.'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead>
+                <tr className="bg-gray-100 border-b-2 border-gray-200">
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                    Item Name
+                  </th>
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Code</th>
+                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
+                    Reversal Date
+                  </th>
+                  <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Qty</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {allReversals.map((reversal, index) => (
+                  <tr
+                    key={reversal.reversalId || index}
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">
+                      {reversal.itemName}
+                    </td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">
+                      {reversal.itemCode}
+                    </td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">
+                      {alphaNumericDate(reversal.reversalDate)}
+                    </td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-red-600">
+                      {formatNumberWithCommas(reversal.quantity?.toString() || '0')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
@@ -542,60 +633,87 @@ export function TransactionDetailsTabs({
             </h2>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
               <span className="text-xs sm:text-sm text-gray-600">
-                Transaction: <span className="font-semibold">{selectedTransaction.transactionCode}</span>
+                Transaction:{' '}
+                <span className="font-semibold">{selectedTransaction.transactionCode}</span>
               </span>
               <span className="text-xs sm:text-sm text-gray-600">
-                Date: <span className="font-semibold">{alphaNumericDate(selectedTransaction.transactionDate || '')}</span>
+                Date:{' '}
+                <span className="font-semibold">
+                  {alphaNumericDate(selectedTransaction.transactionDate || '')}
+                </span>
               </span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-           {onAddPayment != null && <Button
-              variant="outline"
-              size="sm"
-              onClick={onAddPayment}
-              className="flex-1 sm:flex-none bg-green-500 text-white hover:bg-green-600 text-xs sm:text-sm"
-            >
-              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-              Payment
-            </Button>}
-            {onAddDelivery != null && <Button
-              variant="outline"
-              size="sm"
-              onClick={onAddDelivery}
-              className="flex-1 sm:flex-none bg-purple-500 text-white hover:bg-purple-600 text-xs sm:text-sm"
-            >
-              <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-              {isPurchase ? 'Receive' : 'Delivery'}
-            </Button>}
+            {onAddPayment != null && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAddPayment}
+                className="flex-1 sm:flex-none bg-green-500 text-white hover:bg-green-600 text-xs sm:text-sm"
+              >
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                Payment
+              </Button>
+            )}
+            {onAddDelivery != null && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAddDelivery}
+                className="flex-1 sm:flex-none bg-purple-500 text-white hover:bg-purple-600 text-xs sm:text-sm"
+              >
+                <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                {isPurchase ? 'Receive' : 'Delivery'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="w-full">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full"> 
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-4 sm:mb-6 bg-emerald-200 overflow-x-auto">
-            <TabsTrigger value="items" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
+            <TabsTrigger
+              value="items"
+              className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3"
+            >
               <Package className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Items</span>
-              <span className="sm:hidden">Items</span>
+              <span>Items</span>
             </TabsTrigger>
-            <TabsTrigger value="payments" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
-              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Payments</span>
-              <span className="sm:hidden">Pay</span>
-            </TabsTrigger>
-            <TabsTrigger value="deliveries" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
-              <Truck className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:block">{isPurchase ? 'Receivals' : 'Deliveries'}</span>
-              <span className="sm:hidden">{isPurchase ? 'Rec' : 'Del'}</span>
-            </TabsTrigger>
-            <TabsTrigger value="reversals" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
-              <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Reversals</span>
-              <span className="sm:hidden">Rev</span>
-            </TabsTrigger>
+            {onAddPayment && (
+              <TabsTrigger
+                value="payments"
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3"
+              >
+                <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Payments</span>
+                <span className="sm:hidden">Pay</span>
+              </TabsTrigger>
+            )}
+            {onAddDelivery && (
+              <TabsTrigger
+                value="deliveries"
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3"
+              >
+                <Truck className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:block">
+                  {isPurchase ? 'Receivals' : 'Deliveries'}
+                </span>
+                <span className="sm:hidden">{isPurchase ? 'Rec' : 'Del'}</span>
+              </TabsTrigger>
+            )}
+            {onAddDelivery && (
+              <TabsTrigger
+                value="reversals"
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3"
+              >
+                <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Reversals</span>
+                <span className="sm:hidden">Rev</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {loading ? (
@@ -613,15 +731,21 @@ export function TransactionDetailsTabs({
                   minWidth={itemsTableMinWidth}
                 />
               </TabsContent>
-              <TabsContent value="payments" className="mt-0">
-                {renderPaymentsTab()}
-              </TabsContent>
-              <TabsContent value="deliveries" className="mt-0">
-                {renderDeliveriesTab()}
-              </TabsContent>
-              <TabsContent value="reversals" className="mt-0"> 
-                {renderReversalsTab()}
-              </TabsContent>
+              {onAddPayment && (
+                <TabsContent value="payments" className="mt-0">
+                  {renderPaymentsTab()}
+                </TabsContent>
+              )}
+              {onAddDelivery && (
+                <TabsContent value="deliveries" className="mt-0">
+                  {renderDeliveriesTab()}
+                </TabsContent>
+              )}
+              {onAddDelivery && (
+                <TabsContent value="reversals" className="mt-0">
+                  {renderReversalsTab()}
+                </TabsContent>
+              )}
             </>
           )}
         </Tabs>

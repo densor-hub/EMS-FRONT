@@ -258,7 +258,7 @@ export default function PurchasePage() {
 
       const payload = {
         transactionId: selectedTransaction?.transactionId,
-        generalStatus: action === 'approve' ? 3 : -2, // adjust to your API codes
+        status: action === 'approve' ? 3 : -2, // adjust to your API codes
         remarks: remarks.trim() || null,
       };
 
@@ -559,7 +559,7 @@ export default function PurchasePage() {
                   : sales
               }
               columns={columns}
-              searchKey="transactionCode"
+              searchKey="supplierName"
               addLabel="Add Purchase"
               emptyMessage="No transaction found for the selected supplier."
               onRowClick={(row) => openTransactionDetails(row)}
