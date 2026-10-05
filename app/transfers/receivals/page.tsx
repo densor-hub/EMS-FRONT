@@ -84,7 +84,7 @@ export default function PurcahsePage() {
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setIsLoadingDetails(true);
-      const response = await axiosInstance.get(`/Transactions/${transactionId}`);
+      const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
     } catch (error: any) {
@@ -111,8 +111,7 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
-      console.log(stockTransfers.data)
+      const stockTransfers = await axiosInstance.get(`/StockTransfer/Receivals?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&Type=1`)
       setStockTransfers(stockTransfers?.data);
   }
 
@@ -125,13 +124,9 @@ export default function PurcahsePage() {
   }, [selectedShopForStockTrans]);
 
 
-  // console.log(selectedTransaction?.supplierId  ===  (selectedShop || sessionShop))
-  // console.log()
-  // console.log((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name})}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode})`)
-  // console.log(shops)
   const columns = [
     {
-      key: "shopsName" as keyof Transaction,
+      key: "customerName" as keyof Transaction,
       label: "shops",
       sortable: true,
       render: (value: Transaction) => {
@@ -148,25 +143,25 @@ export default function PurcahsePage() {
         </div>
       },
     },
-    {
-      key: "type" as keyof Transaction,
-      label: "Type",
-      sortable: true,
-      render: (value: Transaction) => (
-        <div className="flex items-center gap-2">
-          {/* <User className="h-4 w-4 text-muted-foreground" /> */}
-          <span className="font-medium">{value?.supplierId === (selectedShop || sessionShop) ? "OUT FLOW" : "MY REQUEST"}</span>
-        </div>
-      ),
-    },
-    {
-      key: "totalAmount" as keyof Transaction,
-      label: "Total Amount",
-      sortable: true,
-      render: (value: Transaction) => (
-        <span className="font-bold text-primary">{formatNumberWithCommas(value.totalAmount?.toFixed(2))}</span>
-      ),
-    },
+    // {
+    //   key: "type" as keyof Transaction,
+    //   label: "Type",
+    //   sortable: true,
+    //   render: (value: Transaction) => (
+    //     <div className="flex items-center gap-2">
+    //       {/* <User className="h-4 w-4 text-muted-foreground" /> */}
+    //       <span className="font-medium">{value?.supplierId === (selectedShop || sessionShop) ? "OUT FLOW" : "MY REQUEST"}</span>
+    //     </div>
+    //   ),
+    // },
+    // {
+    //   key: "totalAmount" as keyof Transaction,
+    //   label: "Total Amount",
+    //   sortable: true,
+    //   render: (value: Transaction) => (
+    //     <span className="font-bold text-primary">{formatNumberWithCommas(value.totalAmount?.toFixed(2))}</span>
+    //   ),
+    // },
    
      {
       key: "transactionDate" as keyof Transaction,
@@ -506,7 +501,7 @@ export default function PurcahsePage() {
                 <SelectValue placeholder="Select Shop to request from" />
               </SelectTrigger>
               <SelectContent>
-                {shops.map(item => (
+                {shops?.map(item => (
                   <SelectItem key={item.id} value={item.id.toString()}>
                     <div className="flex flex-col">
                       <span>{item.name}</span>
@@ -540,8 +535,8 @@ export default function PurcahsePage() {
               <DataTable
                 title="All Transfers"
                 data={sales}
-                columns={columns}
-                searchKey="transactionCode"
+                columns={ columns}
+                searchKey="customerName"
                 addLabel="Add Purchase"
                 emptyMessage="No transaction found for the selected shop."
                 onRowClick={(row) => openTransactionDetails(row)}
@@ -594,7 +589,7 @@ export default function PurcahsePage() {
                 </div>
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
 
-                   <Button
+                   {/* <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setShowDeliveryModal(true)}
@@ -603,7 +598,7 @@ export default function PurcahsePage() {
                   >
                     <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                     SUPPLY
-                  </Button>
+                  </Button> */}
                  
                   <Button
                     variant="outline"
@@ -614,7 +609,7 @@ export default function PurcahsePage() {
                   >
                     <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                     RECEIVE
-                  </Button>
+                  </Button> 
                 </div>
               </div>
             </div>
@@ -681,7 +676,7 @@ export default function PurcahsePage() {
               reloadSetterFunction={setStockTransfers}
               reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionShop}`}
               submitUrl={selectedTransaction?.supplierId === (selectedShop || sessionShop)  ? "/Transactions/Delivery" : "StockTransfer/Receival"}
-              transactionActionType={"stock transfer"}
+              transactionActionType={"TRANS"}
               heading='Shops Delivery'
             />
           </div>

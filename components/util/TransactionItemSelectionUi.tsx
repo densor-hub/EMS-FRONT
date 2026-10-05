@@ -12,6 +12,7 @@ import { CartItem, Transaction, TransactionItem } from '@/lib/types';
 import { useToaster } from '@/components/util/CustomToast';
 import { getRemainingQuantity,  getOriginalRemainingQuantity, getDeliveredQuantity,  formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from '@/helpers/formatStrings';
 import { Plus } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 // import { ItemStockLevelDTO } from '@/lib/types';
 // import { useAuth } from '@/lib/auth-context';
 // import axiosInstance from '@/lib/customAxios';
@@ -31,6 +32,7 @@ interface iTransactionItemSelection {
 
 const TransactionItemSelection = (props: iTransactionItemSelection) => {
     const toast = useToaster()
+    const {selectedShop} = useAuth()
 
 
     // Get available items (items with remaining quantity > 0, factoring in cart)
@@ -109,6 +111,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
        props?.setQuantity("");
      }, [props?.selectedItem, props?.quantity, props?.cart, props?.selectedTransaction, props?.isStockTransfer, toast]);
 
+{console.log(props?.transactionActionType)}
 
      //console.log(props.transactionActionType)
     return (
@@ -173,7 +176,8 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                 {/* Quantity Input */}
                 <div className="space-y-1">
                     <Label htmlFor="quantity" className="text-xs sm:text-sm text-foreground">
-                        {props?.transactionActionType === "SALE" ? "Delivery Qty" : "Receiving Qty"}
+                        {props?.isStockTransfer && props?.selectedTransaction?.supplierId !== (selectedShop || sessionStorage.getItem("selectedShop")) 
+                    || (!props?.isStockTransfer && (props?.selectedTransaction?.transactionCode?.toUpperCase()?.startsWith("PUR") || props?.selectedTransaction?.supplierId) ) ? "Delivery Qty" : "Receiving Qty"}
                     </Label>
                     <Input
                         id="quantity"

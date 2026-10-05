@@ -14,7 +14,7 @@ import axiosInstance from "@/lib/customAxios";
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
 import { Customer,  Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import AddPayment from '../addPayments';
+import AddPayment from '@/app/purchases/addPayments';
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import POSReceipt, {POSReceiptProps} from '@/components/util/POSReceipt';
@@ -92,7 +92,7 @@ export default function PurcahsePage() {
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get(`/Transactions/${transactionId}`);
+      const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
     } catch (error: any) {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, Dispatch, SetStateAction, useRef } from 'react'
 // @ts-ignore
 import EscPosEncoder from 'esc-pos-encoder'
@@ -53,7 +54,8 @@ export interface POSReceiptProps {
   paidAmount?: number
   balance?: number
   taxAmount?: number
-  discountAmount?: number
+  discountAmount?: number,
+  uniqueCount? : number;
 }
 
 interface POSReceiptUi {
@@ -85,6 +87,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
     items = [],
     customerName = '',
     showQRCode = true,
+    uniqueCount
   } = data
 
   useEffect(() => {
@@ -670,7 +673,7 @@ const amount = safeAmount();
     )
   }
 
-  if (!qrCode && !transactionNumber && items.length === 0) {
+  if (!qrCode && !transactionNumber && items.length === 0 && !uniqueCount) {
     return (
       <div className="bg-gray-100 p-4 flex flex-col items-center justify-center">
         <div className="bg-white shadow-lg rounded-lg p-8 max-w-md w-full text-center">
@@ -687,7 +690,30 @@ const amount = safeAmount();
   return (
     <div className="bg-gray-100 flex flex-col items-center w-fit">
       {/* Receipt Preview - ADDED THE REF HERE */}
-      <div ref={receiptRef} className={ `bg-white shadow-lg rounded-lg p-4 mb-4 max-w-[${showQRCode ? config.qrCodePrinterSize : config.receiptPrinterSize}mm]` } >
+     <div className='flex'>
+       {items?.length == 0 && <div className="w-56 h-[96%] flex flex-col items-center justify-between rounded-xl  bg-card p-5">
+            {/* Label */}
+            <div className="w-full text-center">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Stocking Code
+              </p>
+            </div>
+
+            {/* Code */}
+            <div className="flex flex-1 items-center justify-center">
+              <div className="rounded-lg bg-primary/10 px-6 py-3">
+                <span className="font-mono text-3xl font-bold tracking-widest text-primary">
+                  {uniqueCount}
+                </span>
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+              Present this code to the Stocking Officer, or print the QR code and hand it over to complete your stock request.
+            </p>
+        </div>}
+       <div ref={receiptRef} className={ `bg-white shadow-lg rounded-lg p-4 mb-4 max-w-[${showQRCode ? config.qrCodePrinterSize : config.receiptPrinterSize}mm]` } >
         <div className="w-full bg-white text-black text-xs" style={{ fontFamily: 'var(--font-courier-prime), Courier New, monospace' }}>
           <div className="text-center border-b border-dashed border-gray-300 pb-2 mb-2">
             <h2 className="text-base font-bold uppercase">{merchantName}</h2>
@@ -764,6 +790,7 @@ const amount = safeAmount();
           </div>
         </div>
       </div>
+     </div>
 
       {/* Action Buttons */}
       <div className="flex gap-3">

@@ -243,7 +243,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ transaction, onClose }) => {
           <div className="divider"></div>
 
           <div className="payment-details">
-            <div>Payment Status: {transaction.status.toUpperCase()}</div>
+            <div>Payment Status: {transaction?.status?.toUpperCase()}</div>
             {transaction.notes && <div>Notes: {transaction.notes}</div>}
           </div>
 

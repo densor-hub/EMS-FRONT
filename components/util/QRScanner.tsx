@@ -2,46 +2,43 @@
 
 import React, { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react'
 import { useToaster } from './CustomToast'
-import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
+import { toastErrors } from '@/helpers/formatStrings'
 import { Transaction } from '@/lib/types'
-import axiosInstance from '@/lib/customAxios'
 import { Html5Qrcode } from 'html5-qrcode'
-import POSReceipt, {POSReceiptProps} from './POSReceipt'
-import { useAuth } from '@/lib/auth-context'
 
 interface QRScannerProps {
   visible: boolean
   onClose: () => void
-  onTransactionFound?: (transaction: Transaction) => void,
-  transaction: Transaction | null,
-  isLoading: boolean,
-  fetchTransaction:(decodedText: string) => void,
+  transaction: Transaction | null
+  isLoading: boolean
+  fetchTransaction: (decodedText: string) => void
   setError: Dispatch<SetStateAction<string | null>>
-  error : string | null
+  error: string | null
+  initialValue: string
 }
 
 const QRScanner: React.FC<QRScannerProps> = ({
   visible,
   onClose,
-  onTransactionFound,
   isLoading,
   transaction,
   fetchTransaction,
   setError,
-  error
+  error,
+  initialValue
 }) => {
-
   const toast = useToaster()
-  // const [isLoading, setIsLoading] = useState(false)
   const [qrValue, setQrValue] = useState('')
   const [scanning, setScanning] = useState(false)
   const [permissionDenied, setPermissionDenied] = useState(false)
   const [scannerRunning, setScannerRunning] = useState(false)
+
   const qrRef = useRef<HTMLDivElement>(null)
   const html5QrCodeRef = useRef<any>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const autoFetchDoneRef = useRef(false)
 
-  // Safe stop scanner - non-async version for cleanup
+  // ---- Safe stop scanner (sync wrapper around async stop) ----
   const safeStopScanner = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
@@ -54,7 +51,6 @@ const QRScanner: React.FC<QRScannerProps> = ({
       return
     }
 
-    // Use Promise.resolve to handle the async without making the function async
     Promise.resolve().then(async () => {
       try {
         await html5QrCodeRef.current.stop()
@@ -69,7 +65,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
     })
   }
 
-  // Start scanner
+  // ---- Start scanner ----
   const startScanner = async () => {
     if (scannerRunning || !qrRef.current) return
 
@@ -100,7 +96,11 @@ const QRScanner: React.FC<QRScannerProps> = ({
 
       if (err.name === 'NotAllowedError') {
         setPermissionDenied(true)
-        toastErrors(toast, 'Camera access denied. Please allow camera permission.', 'Permission Denied')
+        toastErrors(
+          toast,
+          'Camera access denied. Please allow camera permission.',
+          'Permission Denied'
+        )
       } else {
         console.error('Scanner start failed', err)
         toastErrors(toast, 'Failed to start camera', 'Camera Error')
@@ -108,39 +108,70 @@ const QRScanner: React.FC<QRScannerProps> = ({
     }
   }
 
-  // Handle close
+  // ---- Close handler ----
   const handleClose = () => {
     safeStopScanner()
     onClose()
   }
 
-  
-
-  // Manual input handler
+  // ---- Manual input submit ----
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (qrValue.trim()) {
-      await fetchTransaction(qrValue.trim())
+       await fetchTransaction(qrValue.trim())
+
     }
   }
 
-  // Effect for visibility
+  // ---- Visibility effect: only start the camera when there is NO initial value ----
   useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        startScanner()
-      }, 200)
-      return () => clearTimeout(timer)
-    } else {
+    if (!visible) {
       safeStopScanner()
+      return
+    }
+
+    // If a value was pre-supplied (e.g. clicked from backlog card),
+    // don't open the camera — the auto-fetch effect will resolve it.
+    if (initialValue) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      startScanner()
+    }, 200)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initialValue])
+
+  // ---- Reset guard + input when the modal closes ----
+  useEffect(() => {
+    if (!visible) {
+      autoFetchDoneRef.current = false
+      setQrValue('')
+      setPermissionDenied(false)
     }
   }, [visible])
 
-  // Cleanup on unmount
+  // ---- Auto-fetch once per open when initialValue is provided ----
+  useEffect(() => {
+    if (!visible) return
+    if (!initialValue) return
+    if (autoFetchDoneRef.current) return
+
+    autoFetchDoneRef.current = true
+    setQrValue(initialValue)
+    safeStopScanner() // ensure no camera is left running
+    void fetchTransaction(initialValue)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initialValue])
+
+  // ---- Cleanup on unmount ----
   useEffect(() => {
     return () => {
       safeStopScanner()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (!visible) return null
@@ -151,39 +182,52 @@ const QRScanner: React.FC<QRScannerProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800">
-            Scan QR Code
+            {initialValue ? 'Loading Transaction' : 'Scan QR Code'}
           </h2>
           <button
             onClick={handleClose}
             className="text-gray-500 hover:text-gray-700 transition-colors"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6">
-          {/* QR Scanner Container */}
-          <div
-            id="qr-scanner"
-            ref={qrRef}
-            className="w-full max-w-[400px] mx-auto mb-4 bg-gray-900 rounded-lg overflow-hidden"
-            style={{ minHeight: '300px' }}
-          />
+          {/* QR Scanner Container — hidden when resolving an initial value */}
+          {!initialValue && (
+            <div
+              id="qr-scanner"
+              ref={qrRef}
+              className="w-full max-w-[400px] mx-auto mb-4 bg-gray-900 rounded-lg overflow-hidden"
+              style={{ minHeight: '300px' }}
+            />
+          )}
 
           {/* Permission Denied Alert */}
           {permissionDenied && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">
-                Camera access denied. Please allow camera permission in your browser settings.
+                Camera access denied. Please allow camera permission in your browser
+                settings.
               </p>
             </div>
           )}
 
           {/* Scanning Status */}
-          {scanning && (
+          {scanning && !initialValue && (
             <div className="text-center mb-4">
               <div className="flex items-center justify-center gap-2 text-sm text-green-600">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -196,9 +240,25 @@ const QRScanner: React.FC<QRScannerProps> = ({
           {isLoading && (
             <div className="text-center mb-4">
               <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <svg
+                  className="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 <span>Loading transaction...</span>
               </div>
@@ -206,21 +266,16 @@ const QRScanner: React.FC<QRScannerProps> = ({
           )}
 
           {/* Stop Scanning Button */}
-          {scanning && (
+          {scanning && !initialValue && (
             <div className="text-center mt-4">
               <button
-                onClick={() => {
-                  safeStopScanner()
-                 // handleClose()
-                }}
+                onClick={() => safeStopScanner()}
                 className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
               >
                 Stop Scanning
               </button>
             </div>
           )}
-
-        
 
           {/* Error Display */}
           {error && !transaction && (
@@ -229,7 +284,12 @@ const QRScanner: React.FC<QRScannerProps> = ({
               <button
                 onClick={() => {
                   setError(null)
-                  startScanner()
+                  if (initialValue) {
+                    // Re-attempt the same lookup
+                    void fetchTransaction(initialValue)
+                  } else {
+                    startScanner()
+                  }
                 }}
                 className="mt-2 px-4 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
               >

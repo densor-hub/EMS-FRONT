@@ -13,6 +13,7 @@ import { IdAndName, TransactionItem } from '@/lib/types';
 import TransactionItemsTable from './TransactionItemsTable';
 import { config } from './AppConfig';
 import StatusBadge from '../ui/statusbadge';
+import AddPayment from '@/app/purchases/addPayments';
 
 interface Payment {
   paymentDate: string;
@@ -44,8 +45,8 @@ interface TransactionDetailsTabsProps {
   transactionType: 'sale' | 'purchase';
   businessPartnerName: string;
   paymentMethods: IdAndName[] | undefined;
-  onAddPayment: () => void;
-  onAddDelivery: () => void;
+  onAddPayment?: () => void;
+  onAddDelivery?: () => void;
   loading?: boolean;
   showItemsCode?: boolean;
   itemsTableMinWidth?: string;
@@ -549,7 +550,7 @@ export function TransactionDetailsTabs({
             </div>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button
+           {onAddPayment != null && <Button
               variant="outline"
               size="sm"
               onClick={onAddPayment}
@@ -557,8 +558,8 @@ export function TransactionDetailsTabs({
             >
               <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
               Payment
-            </Button>
-            <Button
+            </Button>}
+            {onAddDelivery != null && <Button
               variant="outline"
               size="sm"
               onClick={onAddDelivery}
@@ -566,7 +567,7 @@ export function TransactionDetailsTabs({
             >
               <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
               {isPurchase ? 'Receive' : 'Delivery'}
-            </Button>
+            </Button>}
           </div>
         </div>
       </div>

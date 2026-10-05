@@ -8,12 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { customerService, itemService } from '@/lib/api-service';
+// import { customerService, itemService } from '@/lib/api-service';
 import type { Customer, Item } from '@/lib/types';
 import { Edit, Trash2, User, Mail, Phone, MapPin, DollarSign, CreditCard, Wallet } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
-import { useToast } from '@/hooks/use-toast';
 import { formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
 

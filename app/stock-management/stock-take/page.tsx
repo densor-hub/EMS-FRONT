@@ -43,10 +43,10 @@ export default function SalePage() {
   // const [paymentsModalOpen, setPayemntsModalOpen] = useState<boolean>(false);
   // const [showAddPayment, setShowAddPayment] = useState<boolean>(false);
  
-  const [amountPaid, setAmountPaid] = useState("")
-  const [date, setDate] = useState('')
-  
-const printContentRef = useRef(null);
+  // const [amountPaid, setAmountPaid] = useState("")
+  // const [date, setDate] = useState('')
+  // 
+// const printContentRef = useRef(null);
 const isLoadingRef = useRef(false);
 
 const loadData = async (): Promise<void> => {

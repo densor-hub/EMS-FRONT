@@ -16,6 +16,8 @@ import {
   ChevronDown,
   LucideChartNetwork,
   LucideShoppingCart,
+  SendToBackIcon,
+  PlusCircleIcon
 } from 'lucide-react';
 
 interface NavItem {
@@ -28,22 +30,22 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
   {
-    label: 'POS',
-    href: '/POS',
+    label: 'Sales',
+    href: '/sales',
     icon: <Receipt size={20} />,
     children: [
-      { label: 'Sale', href: '/POS/sale' },
-      { label: 'Receipt', href: '/POS/receipt' },
+      { label: 'Sale', href: '/sales/sale' },
+      { label: 'Deliveries', href: '/sales/deliveries' },
+      { label: 'Customer Sales', href: '/sales/customer-sales' },
     ],
   },
   {
-    label: 'Operations',
-    href: '/operations',
+    label: 'Disbursements',
+    href: '/disbursements',
     icon: <LucideChartNetwork size={20} />,
     children: [
-      { label: 'Purchases', href: '/operations/purchase' },
-      { label: 'Customer Sales', href: '/operations/customer' },
-      { label: 'Disbursements', href: '/operations/disbursements' },
+      { label: 'Disbursements', href: '/disbursements/disbursement' },
+      { label: 'Approval', href: '/disbursements/approval' },
     ],
   },
   {
@@ -54,8 +56,27 @@ const navItems: NavItem[] = [
       { label: 'Stock Lock', href: '/stock-management/stock-lock' },
       { label: 'Stock Take', href: '/stock-management/stock-take' },
       { label: 'Stock Verification', href: '/stock-management/stock-verification' },
-      { label: 'Stock Transfer', href: '/stock-management/stock-transfer' },
-      { label: 'Stock Transfer Approval', href: '/stock-management/stock-transfer-approval' },
+    ],
+  },
+   {
+    label: 'Transfers',
+    href: '/transfers',
+    icon: <SendToBackIcon size={20} />,
+    children: [
+      { label: 'Requests', href: '/transfers/requests' },
+      { label: 'Manager Check', href: '/transfers/manager-check' },
+      { label: 'Deliveries', href: '/transfers/deliveries' },
+      { label: 'Receivals', href: '/transfers/receivals' },
+    ],
+  },
+  {
+    label: 'Purchases',
+    href: '/purchases',
+    icon: <PlusCircleIcon size={20} />,
+    children: [
+      { label: 'Request', href: '/purchases/request' },
+      { label: 'Manager Check', href: '/purchases/manager-check' },
+      { label: 'Receivals', href: '/purchases/receivals' },
     ],
   },
   {
@@ -64,7 +85,7 @@ const navItems: NavItem[] = [
     icon: <Settings size={20} />,
     children: [
        { label: 'Shops', href: '/setup/shops' },
-        { label: 'Roles', href: '/setup/roles' },
+        { label: 'Roles & Permissions', href: '/setup/roles' },
         { label: 'Employees', href: '/setup/employees' },
         { label: 'Items', href: '/setup/items' },
         { label: 'Customers', href: '/setup/customers' },
@@ -93,11 +114,13 @@ const NavItemRenderer = ({
   isParentActive: (item: NavItem) => boolean;
   onClose: () => void;
 }) => {
+  const {user} = useAuth()
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = expandedItems.includes(item.label);
   const isItemActive = isActive(item.href);
   const isItemParentActive = isParentActive(item);
 
+  console.log(user)
   if (hasChildren) {
     return (
       <li>

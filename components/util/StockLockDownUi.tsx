@@ -248,7 +248,7 @@ const addToCart = useCallback(() => {
 
   const item = items.find(i => i.id === selectedItem);
   if (!item) {
-    toastErrors('The selected item no longer exists', "")
+    toastErrors(toast, 'The selected item no longer exists',"", false)
     return;
   }
 
@@ -257,7 +257,7 @@ const addToCart = useCallback(() => {
   
   const availableQty = stockLevel?.availableQuantity ?? item.quanityInUnit ?? 0;
   if (qty > availableQty) {
-    toastErrors(`Only ${availableQty} units available. Please reduce the quantity.`,'Insufficient Stock')
+    toastErrors(toast, `Only ${availableQty} units available. Please reduce the quantity.`,'Insufficient Stock', false)
     return;
   }
   

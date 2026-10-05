@@ -50,7 +50,7 @@ export default function DeliveryTransactionUI(prop: TransactionUI) {
 
   // ==================== ALL useMemo HOOKS THIRD ====================
   const isStockTransfer = useMemo(() => 
-    prop?.transactionActionType?.toLowerCase() === "stock transfer",
+    prop?.transactionActionType?.toLowerCase() === "TRANS",
     [prop?.transactionActionType]
   );
 
@@ -181,6 +181,7 @@ const checkStock = async (itemId: string) => {
         prop?.setReceiptData && prop?.setReceiptData({
           qrCode: response?.data?.qrCode, 
           transactionNumber: selectedTransaction?.transactionCode || "", 
+          uniqueCount: response?.data?.count,
           showQRCode: true 
         });
       }
@@ -192,7 +193,7 @@ const checkStock = async (itemId: string) => {
       }
 
       if (prop.setTransactionDetails && selectedTransaction.id) {
-        await axiosInstance.get(`Transactions/${selectedTransaction.id}`).then(res => {
+        await axiosInstance.get(`Transactions/${selectedTransaction.id}/location/${selectedShop || sessionShop}`).then(res => {
           prop.setTransactionDetails?.(res?.data);
         });
       }

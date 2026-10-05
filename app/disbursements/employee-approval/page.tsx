@@ -1,25 +1,26 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, Suspense} from "react";
-import {  Plus, User} from "lucide-react";
+import { useState, useEffect, useRef, Suspense, } from "react";
+import {  Plus, User, PhoneCall } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
 import {  CardContent } from "@/components/ui/card";
-// import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToaster } from '@/components/util/CustomToast';
+import  { useToaster } from '@/components/util/CustomToast';
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
-import { Supplier, Transaction} from "@/lib/types";
+import { Customer,  Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import AddPayment from '../addPayments';
+import AddPayment from '@/app/purchases/addPayments';
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
+import POSReceipt, {POSReceiptProps} from '@/components/util/POSReceipt';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
-// import TransactionDetailsTabs from '@/components/util/TransactionItemSelectionUi';
+import { config } from '@/components/util/AppConfig';
+
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
 const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"), {
@@ -27,13 +28,6 @@ const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"
   ssr: false
 });
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 }
-];
 
 export default function PurcahsePage() {
   const toast = useToaster()
@@ -49,34 +43,37 @@ export default function PurcahsePage() {
   const [showDeliveryModal, setShowDeliveryModal] = useState<boolean>(false);
   const [amountPaid, setAmountPaid] = useState("");
   const [date, setDate] = useState('');
-  const [suppliers, setsuppliers] = useState<Supplier[]>([]);
-  const [selectedSupplier, setselectedSupplier] = useState<string>();
-  const [activeTab, setActiveTab] = useState<'items'| 'payments' | 'deliveries' | 'reversals' | string>('items');
-  
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<string>("items");
+  const [receiptData, setReceiptData] = useState<POSReceiptProps | null>(null)
+  const sessionShop = sessionStorage.getItem("selectedShop");
+
   // Date filters
+  // const [paymentStartDate, setPaymentStartDate] = useState<string>("");
+  // const [paymentEndDate, setPaymentEndDate] = useState<string>("");
+  // const [deliveryStartDate, setDeliveryStartDate] = useState<string>("");
+  // const [deliveryEndDate, setDeliveryEndDate] = useState<string>("");
 
   const isLoadingRef = useRef(false);
 
-  // Load suppliers and all purchases on mount (only once)
+  // Load initial data on mount (only once)
   useEffect(() => {
     loadInitialData();
   }, []);
-
 
   const loadInitialData = async (): Promise<void> => {
     if (isLoadingRef.current) return;
 
     isLoadingRef.current = true;
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
-      
-      // Load suppliers
-      const suppliersResponse = await axiosInstance.get(`/Suppliers?companyId=${user.companyId || user}&locationId=${selectedShop || sessionShop}`);
-      setsuppliers(suppliersResponse?.data);
+      // Load customers
+      const customersResponse = await axiosInstance.get(`/Customers?companyId=${user.companyId || user}&locationId=${selectedShop || sessionShop}`);
+      setCustomers(customersResponse?.data);
 
-      // Load all purchases
-      const purchasesResponse = await axiosInstance.get(`/Purchases?locationId=${selectedShop || sessionShop}&generalStatus=1`);
-      setsales(purchasesResponse?.data);
+      // Load all sales
+      const salesResponse = await axiosInstance.get(`/sales?LocationId=${selectedShop || sessionShop}&Type=Customer`);
+      setsales(salesResponse?.data);
       
     } catch (error) {
       console.error("Error loading data:", error);
@@ -95,15 +92,11 @@ export default function PurcahsePage() {
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get(`/Transactions/${transactionId}`);
+      const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
     } catch (error: any) {
       console.error("Error fetching transaction details:", error);
-      toast.error({
-        title: 'Failed to load details',
-        description: error?.response?.data?.message || 'Please try again later',
-      });
       return null;
     } finally {
       setLoading(false);
@@ -125,10 +118,7 @@ export default function PurcahsePage() {
     const totalAmount = transactionDetails?.totalAmount || 0;
     
     if (totalPaid >= totalAmount) {
-      toast.warning({
-        title: 'Payment Complete',
-        description: 'All payments for this transaction have been completed.',
-      });
+      toastErrors(toast, "Payments for this transaction has been completed")
       return;
     }
     setShowAddPaymentModal(true);
@@ -151,32 +141,34 @@ export default function PurcahsePage() {
           paymentMethod: Number(paymentMethod)
         };
 
-        await axiosInstance.post("/Transactions/Payment", paymentObj).then( async() => {
-            setActiveTab("payments");
+        await axiosInstance.post("/Transactions/Payment", paymentObj);
 
-            reset();
-            setShowAddPaymentModal(false);
-            
-            // Refresh purchases after payment
-            const sessionShop = sessionStorage.getItem("selectedShop");
-            const purchasesResponse = await axiosInstance.get(`/Purchases?locationId=${selectedShop || sessionShop}&generalStatus=1`);
-            setsales(purchasesResponse?.data);
+        reset();
+        setShowAddPaymentModal(false);
+        
+        // Refresh sales after payment
+        const salesResponse = await axiosInstance.get(`/sales?LocationId=${selectedShop || sessionShop}&Type=Customer`);
+        setsales(salesResponse?.data);
 
-            // Refresh transaction details after payment
-            if (selectedTransaction?.transactionId) {
-              await fetchTransactionDetails(selectedTransaction.transactionId);
-            }
+        // Refresh transaction details after payment
+        if (selectedTransaction?.transactionId) {
+          await fetchTransactionDetails(selectedTransaction.transactionId);
+        }
 
-            toast.success({
-              title: 'Submitted successfully',
-              description: 'Payment saved successfully',
-            });
+        // Switch to payments tab
+        setActiveTab("payments");
+
+        toast.success({
+          title: 'Submitted successfully',
+          description: 'Payment saved successfully',
         });
-
       } catch (error: any) {
         console.error("Error creating deposit:", error);
 
-        toastErrors(toast, error)
+        toast.warning({
+          title: 'Failed to submit',
+          description: error?.response?.data?.message || 'Please try again later',
+        });
       } finally {
         setLoading(false);
       }
@@ -185,15 +177,17 @@ export default function PurcahsePage() {
 
   const columns = [
     {
-      key: "SuppliersName" as keyof Transaction,
-      label: "Suppliers",
+      key: "CustomerName" as keyof Transaction,
+      label: "Customer",
       sortable: true,
-      render: (value: Transaction) => (
-        <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{suppliers?.find(x=> x.id == value.supplierId)?.supplierCompanyName}</span>
-        </div>
-      ),
+      render: (value: Transaction) => {
+        return (
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{`${customers?.find(x=> x.id == value.customerId)?.firstName} ${customers?.find(x=> x.id == value.customerId)?.lastName}`}</span>
+          </div>
+        )
+      },
     },
     {
       key: "totalAmount" as keyof Transaction,
@@ -234,34 +228,27 @@ export default function PurcahsePage() {
    
   ];
 
-  // if (loading) {
-  //   return (
-     
-  //   );
-  // }
-
   return (
-    <Suspense fallback={<LoadingOverlay/>}>
-       {loading && <LoadingOverlay />}
+  <Suspense fallback={<LoadingOverlay/>}>
+    {loading && <LoadingOverlay/> }
       <div className="min-h-screen w-full overflow-x-hidden">
       <Header
-        title="Purchases from suppliers"
-        // description="Suppliers Transactions"
+        title="Transactions to customers"
       />
+
       <div className="relative" >
         <div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" >
           <div className="mt-2 w-full sm:w-[300px] px-2"  >
-            <Label htmlFor="item" className="text-foreground text-sm">Select Supplier</Label>
-            <Select value={selectedSupplier} onValueChange={setselectedSupplier}>
+            <Label htmlFor="item" className="text-foreground text-sm">Select Customer</Label>
+            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
               <SelectTrigger className="bg-white border-border w-full">
-                <SelectValue placeholder="Select Supplier" />
+                <SelectValue placeholder="Select Customer" />
               </SelectTrigger>
               <SelectContent>
-                {suppliers.map(item => (
+                {customers.map(item => (
                   <SelectItem key={item.id} value={item.id.toString()}>
-                    <div className="flex flex-col">
-                      <span className="text-sm">{item.supplierCompanyName}</span>
-                      {/* <span className="text-xs">{item.firstName + " " + item?.lastName}</span> */}
+                    <div className="flex flex-row">
+                      <span className="text-sm">{item.firstName + " " + item?.lastName} </span> <span><PhoneCall size={10} style={{margin:"5px"}}/></span> {item?.phone}
                     </div>
                   </SelectItem>
                 ))}
@@ -270,56 +257,56 @@ export default function PurcahsePage() {
           </div>
 
           {!modalOpen && <Button className="w-auto relative top-7" onClick={() => {
-            if (!selectedSupplier) {
+            if (!selectedCustomer) {
               toast.info({
-                title: 'Select Suppliers',
-                description: 'Please select Suppliers to add',
+                title: 'Select Customer',
+                description: 'Please select Customer to add',
               });
               return;
             }
             setModalOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-2" />
-            New
+            New Sale
           </Button>}
         </div>
 
-          {!modalOpen &&
-            <CardContent className="m-0 p-0 overflow-x-auto">
-              <DataTable
-                title="All Purchases"
-                data={selectedSupplier ? sales.filter(sale => sale.supplierId === selectedSupplier) : sales}
-                columns={columns}
-                searchKey="transactionCode"
-                addLabel="Add Purchase"
-                emptyMessage="No transaction found for the selected supplier."
-                onRowClick={(row) => openTransactionDetails(row)}
-              />
-            </CardContent>}
+        {!modalOpen &&  !receiptData &&
+          <CardContent className="m-0 p-0 overflow-x-auto">
+            <DataTable
+              title="All sales"
+              data={selectedCustomer ? sales.filter(sale => sale.customerId === selectedCustomer) : sales}
+              columns={columns}
+              searchKey="transactionCode"
+              addLabel="Add Sale"
+              emptyMessage="No transaction found. Click on 'New' at the top left corner to get started."
+              onRowClick={(row) => openTransactionDetails(row)}
+            />
+          </CardContent>}
 
         {/* Using your Modal component */}
         <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
           {modalOpen &&
             <div className="w-full">
               <TransactionUI
-                setOpen={setModalOpen}
-                reloadSetterFunction={setsales}
-                reloadUrl={`/Purchases?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&SuppliersId=${selectedSupplier}`}
-                submitUrl={`/Purchases`}
-                businessPartnerLable="Supplier"
-                businessPartnerName={`${suppliers?.find(x => x.id === selectedSupplier)?.supplierCompanyName ||  ""} - ${suppliers?.find(x => x.id === selectedSupplier)?.firstName + " " + suppliers?.find(x => x.id === selectedSupplier)?.lastName || ""}`}
-                businessPartnerValue={selectedSupplier}
-                transactionActionType="PURCHASE"
                 instantSale={false}
+                setOpen={setModalOpen} 
+                reloadSetterFunction={setsales} 
+                reloadUrl={`/sales?LocationId=${selectedShop || sessionShop}&CustomerId=${selectedCustomer}&Type=Customer`}
+                submitUrl={`/sales/Customer/${selectedCustomer}`}
+                businessPartnerLable="Sale to Customer"
+                businessPartnerName={customers?.find(x => x.id === selectedCustomer)?.firstName + " " + customers?.find(x => x.id === selectedCustomer)?.lastName || ""}
+                businessPartnerValue={selectedCustomer}
+                transactionActionType="SALE"
               />
             </div>
           }
         </div>
 
-        {/* Transaction Details Modal - 95vw width */}
+        {/* Transaction Details Modal */}
         <Modal
-            isOpen={detailsModalOpen}
-            onClose={() => {
+          isOpen={detailsModalOpen && !receiptData}
+          onClose={() => {
             setDetailsModalOpen(false);
             setShowAddPaymentModal(false);
             setShowDeliveryModal(false);
@@ -330,20 +317,19 @@ export default function PurcahsePage() {
           size='full'
           height='585px'
         >
-            {/* Header */}
-            <TransactionDetailsTabs
-              transactionDetails={transactionDetails}
-              selectedTransaction={selectedTransaction}
-              transactionType="purchase"
-              businessPartnerName={selectedTransaction.supplierName || "Supplier"}
-              paymentMethods={paymentMethods}
-              onAddPayment={handleAddPayment}
-              onAddDelivery={() => setShowDeliveryModal(true)}
-              loading={loading}
-              showItemsCode={false}
-              setActiveTab={setActiveTab}
-              activeTab={activeTab}
-            />
+          <TransactionDetailsTabs
+            transactionDetails={transactionDetails}
+            selectedTransaction={selectedTransaction}
+            transactionType="sale"
+            businessPartnerName={selectedTransaction.customerName || "Customer"}
+            paymentMethods={config.pampaymentMethods}
+            onAddPayment={handleAddPayment}
+            onAddDelivery={() => setShowDeliveryModal(true)}
+            loading={loading}
+            showItemsCode={false}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
         </Modal>
 
         {/* Add Payment Modal */}
@@ -354,7 +340,6 @@ export default function PurcahsePage() {
             reset();
           }}
           title="Add Payment"
-          // description={`Add payment `} //for transaction ${selectedTransaction.transactionCode}
           size="md"
         >
           <div className="space-y-4">
@@ -366,7 +351,6 @@ export default function PurcahsePage() {
               paymentMethod={paymentMethod}
               setPaymentMethod={setPaymentMethod}
               minDate={selectedTransaction?.transactionDate?.split("T")[0] || ""}
-              
             />
             <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-gray-200">
               <Button
@@ -396,7 +380,7 @@ export default function PurcahsePage() {
           onClose={() => {
             setShowDeliveryModal(false);
           }}
-          title={`Receival from ${suppliers?.find(x => x.id === selectedTransaction?.supplierId)?.supplierCompanyName || ""} (Trans # - ${selectedTransaction.transactionCode})`}
+          title={`Delivery to Customer - ${customers?.find(x => x.id === selectedTransaction?.customerId)?.firstName + " " + customers?.find(x => x.id === selectedTransaction?.customerId)?.lastName || ""} (Trans # - ${selectedTransaction.transactionCode})`}
           size='full'
         >
           <div className="w-full">
@@ -404,20 +388,26 @@ export default function PurcahsePage() {
               setOpen={setShowDeliveryModal}
               selectedTransaction={transactionDetails}
               setTransactionDetails={setTransactionDetails}
-              reloadUrl={`/Purchases?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&SuppliersId=${selectedSupplier}`}
+              reloadUrl={`/sales?LocationId=${selectedShop || sessionShop}&Type=Customer`}
               reloadSetterFunction={setsales}
               submitUrl={`/Transactions/Delivery`}
-              transactionActionType="PURCHASE"
-              heading='Suppliers Delivery'
-              setActiveTab = {setActiveTab}
+              transactionActionType="SALE"
+              heading='Customer Delivery'
+              setReceiptData={setReceiptData}
             />
           </div>
         </Modal>
+
+        {receiptData && <div className=" fixed inset-0 z-100 top-0 left-0 right-0 min-h-screen bg-gray-100 p-4 flex justify-center">
+          <POSReceipt
+            data={receiptData}
+            setData={setReceiptData}
+          />
+        </div>}
       </div>
 
       {toast.ToastComponent}
     </div>
-    </Suspense>
-    
+  </Suspense>
   );
 }

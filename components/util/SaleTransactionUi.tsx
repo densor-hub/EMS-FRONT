@@ -782,7 +782,7 @@ const handleAddItem = useCallback(() => {
           setReceiptData({
             qrCode: response?.data?.qrCode, 
             transactionNumber: response?.data?.transactionNumber, 
-            // amount: cartTotal, 
+            uniqueCount: response?.data?.count, 
             showQRCode: true 
           });
         }

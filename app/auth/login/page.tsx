@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Building2, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { authService } from '@/lib/api-service';
 import { useAuth } from '@/lib/auth-context';
 import { PublicRoute } from '@/routes/public-route';
 import { Company, User } from '@/lib/types';

@@ -1,48 +1,37 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, SetStateAction, Dispatch } from "react";
-import { Wallet, Plus, User, Calendar, Trash2, List, Package, CreditCard, Truck, RotateCcw, DollarSign, Filter } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, User, Package,Truck, RotateCcw } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToaster } from '@/components/util/CustomToast';
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
-import { handlePrint } from "@/lib/utils";
-import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
-import {Item, Shop, Supplier, Transaction } from "@/lib/types";
+import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers } from "@/helpers/formatStrings";
+import { Shop,  Transaction, TransactionItem } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import PaymentsFooter from '../../operations/paymentFooter';
-import AddPayment from '../../operations/addPayments';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
-import SkeletonLoading, { LoadingOverlay } from '@/components/SkeletonLoading';
+import  { LoadingOverlay } from '@/components/SkeletonLoading';
 import StatusBadge from '@/components/ui/statusbadge'
-import { Textarea } from '@/components/ui/textarea';
-
+import { useToaster } from '@/components/util/CustomToast';
+import { config } from '@/components/util/AppConfig';
+import { CustomSelect } from '@/components/util/CustomSelect';
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
-const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"), {
-  loading: () => <div className="w-full p-8 text-center animate-pulse">Loading form...</div>,
+const SaleTransactionUi = dynamic(() => import("@/components/util/SaleTransactionUi"), {
+  loading: () => <div className="w-full p-8 text-center animate-pulse"><LoadingOverlay/></div>,
   ssr: false
 });
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 }
-];
 
 export default function PurcahsePage() {
    const sessionShop = sessionStorage.getItem("selectedShop");
-  const toast  = useToaster();
+  const  toast = useToaster();
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [sales, setStockTransfers] = useState<Transaction[]>([]);
@@ -50,7 +39,7 @@ export default function PurcahsePage() {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Partial<Transaction>>({});
-  const [transactionDetails, setTransactionDetails] = useState<any>(null);
+  const [transactionDetails, setTransactionDetails] = useState<Partial<Transaction>>({});
   const [showAddPaymentModal, setShowAddPaymentModal] = useState<boolean>(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState<boolean>(false);
   const [amountPaid, setAmountPaid] = useState("");
@@ -63,9 +52,7 @@ export default function PurcahsePage() {
   // Date filters
   const [deliveryStartDate, setDeliveryStartDate] = useState<string>("");
   const [deliveryEndDate, setDeliveryEndDate] = useState<string>("");
-  const [remarks, setRemarks] = useState<string>("");
-
-  const printContentRef = useRef(null);
+  const [filterItem, setFilterItem] = useState<string>("");
   const isLoadingRef = useRef(false);
 
   useEffect(() => {
@@ -94,47 +81,15 @@ export default function PurcahsePage() {
     setPaymentMethod("");
   };
 
-  const submitResponse = async (response : number) => {
-    try {
-          setLoading(true);
-
-        var postObj = {
-          stockTransferId : selectedTransaction?.id,
-          comment : remarks,
-          stage: response
-        }
-
-        if (response == 2 && !remarks) {
-          toast.warning({
-            title: 'Please enter reason for declining',
-            description:""
-            // description: error?.response?.data?.message || 'Please try again later',
-          });
-
-          return setLoading(false)
-        }
-        await axiosInstance.put('/StockTransfer/approval', postObj)
-    } catch(error: any) {
-      console.log(error?.message)
-      toastErrors(toast, error);
-      setLoading(false)
-
-    } finally{
-      setLoading(false)
-    }
-
-  }
-  // const handleDelete = (transaction: Transaction) => { };
-
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setIsLoadingDetails(true);
-      const response = await axiosInstance.get(`/Transactions/${transactionId}`);
+      const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
     } catch (error: any) {
       console.error("Error fetching transaction details:", error);
-      toast.warning({
+      toast.error({
         title: 'Failed to load details',
         description: error?.response?.data?.message || 'Please try again later',
       });
@@ -156,7 +111,7 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&Approval=${true}`)
+      const stockTransfers = await axiosInstance.get(`/StockTransfer/Approved-For-Delivery?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
       console.log(stockTransfers.data)
       setStockTransfers(stockTransfers?.data);
   }
@@ -169,10 +124,15 @@ export default function PurcahsePage() {
     getStockTransfers();
   }, [selectedShopForStockTrans]);
 
+
+  // console.log(selectedTransaction?.supplierId  ===  (selectedShop || sessionShop))
+  // console.log()
+  // console.log((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name})}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode})`)
+  // console.log(shops)
   const columns = [
-     {
-      key: "shopsName" as keyof Transaction,
-      label: "Shop Name",
+    {
+      key: "customerName" as keyof Transaction,
+      label: "Shop",
       sortable: true,
       render: (value: Transaction) => {
         const supId =  value?.supplierId;
@@ -188,17 +148,17 @@ export default function PurcahsePage() {
         </div>
       },
     },
-    {
-      key: "type" as keyof Transaction,
-      label: "Type",
-      sortable: true,
-      render: (value: Transaction) => (
-        <div className="flex items-center gap-2">
-          {/* <User className="h-4 w-4 text-muted-foreground" /> */}
-          <span className="font-medium">{value?.supplierId === (selectedShop || sessionShop) ? "OUT FLOW" : "MY REQUEST"}</span>
-        </div>
-      ),
-    },
+    // {
+    //   key: "type" as keyof Transaction,
+    //   label: "Type",
+    //   sortable: true,
+    //   render: (value: Transaction) => (
+    //     <div className="flex items-center gap-2">
+    //       {/* <User className="h-4 w-4 text-muted-foreground" /> */}
+    //       <span className="font-medium">{value?.supplierId === (selectedShop || sessionShop) ? "OUT FLOW" : "MY REQUEST"}</span>
+    //     </div>
+    //   ),
+    // },
     {
       key: "totalAmount" as keyof Transaction,
       label: "Total Amount",
@@ -239,29 +199,32 @@ export default function PurcahsePage() {
     const details = transactionDetails;
     if (!details) return null;
 
-
     return (
-      <div className="space-y-4">
-
+      <div className="space-y-4" style={{height:"Calc(100vh - 400px)", overflow:"scroll"}}>
+       
         <div className="overflow-x-auto">
-          <table className="w-full h-[Calc(100vh-100px)]">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="bg-gray-100 border-b-2 border-gray-200">
                 <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Item Name</th>
                 <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Code</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Qty</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Order Qty</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Delivered</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Received</th>
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Unit Price</th>
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Total</th>
               </tr>
             </thead>
             <tbody>
-              {details?.items?.map((item: any, index: number) => (
+              {details?.items?.map((item: TransactionItem, index: number) => (
                 <tr key={item.id || index} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-2 sm:p-3 text-xs sm:text-sm">{item.name || item.itemName}</td>
                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">{item.code}</td>
                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.quantity?.toString() || '0')}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">GHS {formatNumberWithCommas(item.unitPrice?.toFixed(2) || '0.00')}</td>
-                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">GHS {formatNumberWithCommas((item.quantity * item.unitPrice)?.toFixed(2) || '0.00')}</td>
+                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.itemsDelivered.reduce((sum, el) => el?.quantity + sum, 0)?.toString())}</td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm text-right">{formatNumberWithCommas(item.itemsReceived?.reduce((sum, el) => el?.quantity + sum, 0)?.toString())}</td>
+                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right"> {formatNumberWithCommas(item.unitPrice?.toFixed(2) || '0.00')}</td>
+                  <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold"> {formatNumberWithCommas((item.quantity * item.unitPrice)?.toFixed(2) || '0.00')}</td>
                 </tr>
               ))}
             </tbody>
@@ -269,7 +232,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  GHS {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {config.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -279,17 +242,17 @@ export default function PurcahsePage() {
     );
   };
 
- 
   // Render deliveries tab content
   const renderDeliveriesTab = () => {
     const details = transactionDetails;
     if (!details) return null;
 
+    
     // Collect all deliveries from items
     let allDeliveries: any[] = [];
     details?.items?.forEach((item: any) => {
       if (item.itemsDelivered && item.itemsDelivered.length > 0) {
-        item.itemsDelivered.forEach((delivery: any) => {
+       (selectedTransaction?.supplierId === (selectedShop || sessionShop) ? item.itemsDelivered : item?.itemsReceived).forEach((delivery: any) => {
           allDeliveries.push({
             itemName: item.name || item.itemName,
             itemCode: item.code,
@@ -297,11 +260,14 @@ export default function PurcahsePage() {
             quantity: delivery.quantity,
             deliveredQuantity: delivery.quantity,
             deliveryId: delivery.deliveryId,
-            reversals: delivery.itemReversals || []
+            reversals: delivery.itemReversals || [],
+            batchId: delivery?.batchId
           });
         });
       }
     });
+    
+    if (filterItem) allDeliveries = allDeliveries.filter(x=> x.itemCode === filterItem)
 
     // Filter deliveries by date
     allDeliveries = allDeliveries.filter((delivery) => {
@@ -314,19 +280,10 @@ export default function PurcahsePage() {
       return true;
     });
 
-    if (allDeliveries.length === 0) {
-      return (
-        <div className="text-center py-8 sm:py-12">
-          <Truck className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
-          <p className="text-gray-500 mt-2 text-sm sm:text-base">No deliveries recorded for this transaction</p>
-        </div>
-      );
-    }
-
     return (
-      <div className="space-y-4">
+      <div className="space-y-2" >
         {/* Date Filter - Mobile Responsive */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg border-1 border-gray-300">
           <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
             <div className="space-y-1 flex-1 sm:flex-none">
               <Label className="text-xs sm:text-sm">From Date</Label>
@@ -347,21 +304,76 @@ export default function PurcahsePage() {
               />
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setDeliveryStartDate("");
-              setDeliveryEndDate("");
-            }}
-            className="w-full sm:w-auto text-xs sm:text-sm"
-          >
-            Clear Filter
-          </Button>
+           <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
+               <div className="space-y-2 w-full ">
+            <Label htmlFor="item" className="text-foreground">Select Item</Label>
+
+             <CustomSelect
+                options={transactionDetails?.items?.map((x) => ({
+                  value: x.id.toString(),
+                  label: x.name
+                  // discriptionLabel: `${config.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
+                })) || []}
+                value={filterItem}
+                onValueChange={setFilterItem}
+                placeholder="Select Item"
+                required={true}
+                searchable={true}
+                clearable={true}
+                size="md"
+              />
+            {/* <Select value={filterItem} onValueChange={setFilterItem}>
+              <SelectTrigger className="bg-white border-border w-full">
+                <SelectValue placeholder="Select Item" />
+              </SelectTrigger>
+              <SelectContent>
+                {transactionDetails?.items?.map((item : any)  => (
+                  <SelectItem key={item?.itemId || item?.id} value={item.code}>
+                    <div className="flex flex-col">
+                      <span>{item.name}</span>
+                      <span className="text-xs text-muted-foreground">{item?.code  + ", " + (item?.code?.length > 20 ? (item?.code?.slice(0, 20) + "..."): item?.code)}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select> */}
+          </div>
+             
+          <div  className='flex h-10 relative top-6'>
+            {/* <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePrint(printContentRef)}
+                    className="flex-1 sm:flex-none bg-blue-500 text-white hover:bg-blue-600 text-xs sm:text-sm"
+                  >
+                    🖨️ 
+                  </Button> */}
+             <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeliveryStartDate("");
+                  setDeliveryEndDate("");
+                  setFilterItem("")
+                }}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+              >
+              X Clear  
+              </Button>
+          </div>
+
+           </div>
+          
+          
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
+        <div className="overflow-x-auto"style={{height:"Calc(100vh - 500px)", overflow:"scroll"}} >
+           {allDeliveries.length === 0 &&<div className="text-center py-8 sm:py-12">
+            <Truck className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
+            <p className="text-gray-500 mt-2 text-sm sm:text-base">No supplies recorded for this transaction</p>
+          </div>}
+
+          {allDeliveries.length > 0 &&<table className="w-full min-w-[600px]" >
             <thead>
               <tr className="bg-gray-100 border-b-2 border-gray-200">
                 <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Item Name</th>
@@ -372,26 +384,23 @@ export default function PurcahsePage() {
               </tr>
             </thead>
             <tbody>
-              {allDeliveries.map((delivery, index) => (
+              {allDeliveries.sort((a, b) => a?.deliveryDate?.localeCompare(b?.deliveryDate)).map((delivery, index) => (
                 <tr key={delivery.deliveryId || index} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">{delivery.itemName}</td>
                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">{delivery.itemCode}</td>
                   <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">{alphaNumericDate(delivery.deliveryDate)}</td>
                   <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">{formatNumberWithCommas(delivery.quantity?.toString() || '0')}</td>
-                  {/* <td className="p-2 sm:p-3 text-xs sm:text-sm hidden sm:table-cell">
-                    {delivery.reversals && delivery.reversals.length > 0 ? (
-                      <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                        {delivery.reversals.length}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td> */}
+                  
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
         </div>
+          <div className='flex justify-end '>
+             <p>{selectedTransaction?.supplierId === (selectedShop || sessionShop) ? "Deliveries " : "Receivals"}: <span className='font-semibold'> {(new Set(allDeliveries.map(x=> x?.batchId))).size}</span></p>
+             <span style={{visibility:'hidden'}}>----</span>  
+             <p> Quantity {selectedTransaction?.supplierId === (selectedShop || sessionShop) ? "Delivered" : "Received"}: <span className='font-semibold'> {allDeliveries.reduce((sum, r) => sum + r.quantity, 0)}</span></p>
+          </div>
 
       </div>
     );
@@ -482,65 +491,99 @@ export default function PurcahsePage() {
   }
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className=" w-full overflow-x-hidden">
       <Header
-        title="Transfers Approvals"
-        description="shops Transactions"
+        title="Transfer Deliveries"
+        description=""
       />
 
       <div className="relative">
-        <div className="flex flex-col sm:flex-row justify-between ">
-          <div className="space-y-2 w-full sm:w-[300px] p-2">
-            <Label htmlFor="item" className="text-foreground">Select Shop</Label>
-            <Select value={selectedShopForStockTrans} onValueChange={setselectedShopForStockTrans}>
-              <SelectTrigger className="bg-white border-border w-full">
-                <SelectValue placeholder="Select Supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                {shops.map(item => (
-                  <SelectItem key={item.id} value={item.id.toString()}>
-                    <div className="flex flex-col">
-                      <span>{item.name}</span>
-                      <span className="text-xs text-muted-foreground">{item?.phone  + ", " + (item?.address?.length > 20 ? (item?.address?.slice(0, 20) + "..."): item?.address)}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4">
+          {!modalOpen &&
+           <div className="space-y-2 md:col-span-4">
+              {/* <Label htmlFor="item" className="text-foreground">
+                Select Shop <span className="text-destructive">*</span>
+              </Label>
+              <CustomSelect
+                options={shops?.map((x) => ({
+                  value: x.id.toString(),
+                  label: x.name,
+                }))}
+                value={selectedShopForStockTrans}
+                onValueChange={setselectedShopForStockTrans}
+                placeholder="Select Shop"
+                required={true}
+                searchable={true}
+                clearable={true}
+                size="md"
+                className='w-[300px]'
+              /> */}
+            </div>
+          // <div className="space-y-2 w-full sm:w-[300px] m-2">
+          //   <Label htmlFor="item" className="text-foreground">Select Shop</Label>
+          //   <Select value={selectedShopForStockTrans} onValueChange={setselectedShopForStockTrans}>
+          //     <SelectTrigger className="bg-white border-border w-full">
+          //       <SelectValue placeholder="Select Shop to request from" />
+          //     </SelectTrigger>
+          //     <SelectContent>
+          //       {shops.map(item => (
+          //         <SelectItem key={item.id} value={item.id.toString()}>
+          //           <div className="flex flex-col">
+          //             <span>{item.name}</span>
+          //             <span className="text-xs text-muted-foreground">{item?.phone  + ", " + (item?.address?.length > 20 ? (item?.address?.slice(0, 20) + "..."): item?.address)}</span>
+          //           </div>
+          //         </SelectItem>
+          //       ))}
+          //     </SelectContent>
+          //   </Select>
+          // </div>
+          }
+
+         {/* <div className='m-1 lg:m-2 flex justify-center items-center'>
+           {!modalOpen && <Button className="w-[98%]  m-auto lg:m-0 relative bottom-2 lg:bottom-0 sm:w-full sm:w-auto" onClick={() => {
+            if (!selectedShopForStockTrans) {
+              toast.info({
+                title: 'Select shops',
+                description: 'Please select shops to add',
+              });
+              return;
+            }
+            setModalOpen(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Request
+          </Button>}
+         </div> */}
         </div>
 
-      {!modalOpen &&
-        <CardContent className="m-0 p-0 overflow-x-auto">
-          <DataTable
-            title="All Transfers"
-            data={sales}
-            columns={columns}
-            searchKey="transactionCode"
-            addLabel="Add Purchase"
-            emptyMessage="No transaction found for the selected shop."
-            onRowClick={(row) => openTransactionDetails(row)}
-          />
-        </CardContent>}
+          {!modalOpen &&
+            <CardContent className="m-0 p-0 overflow-x-auto">
+              <DataTable
+                title="Approved Transfers"
+                data={sales}
+                columns={columns}
+                searchKey="customerName"
+                addLabel="Add Purchase"
+                emptyMessage="No transaction found for the selected shop."
+                onRowClick={(row) => openTransactionDetails(row)}
+                height="h-[calc(100vh-315px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
+              />
+            </CardContent>}
 
         {/* Using your Modal component */}
-        <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
           {modalOpen &&
-            <div className="w-full">
-              <TransactionUI
+              <SaleTransactionUi
                 setOpen={setModalOpen}
                 reloadSetterFunction={setStockTransfers}
-                reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&From=${true}`}
+                reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionShop}`}
                 submitUrl="/StockTransfer/Request"
-                businessPartnerLable="Shop"
-                businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""} - ${shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""}`}
+                businessPartnerLable="Request From "
+                businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""}`}
                 businessPartnerValue={selectedShopForStockTrans}
-                transactionActionType="TRAN"
+                transactionActionType="TRANS"
                 instantSale={false}
               />
-            </div>
           }
-        </div>
 
         {/* Transaction Details Modal - 95vw width */}
         <Modal
@@ -550,97 +593,96 @@ export default function PurcahsePage() {
             setShowAddPaymentModal(false);
             setShowDeliveryModal(false);
             reset();
-            setTransactionDetails(null);
+            setTransactionDetails({});
           }}
           title=""
           size='full'
+          // className='h-[100%]'
         >
-          <div className="space-y-4 w-full px-2 sm:px-4">
+          <div className="space-y-4 w-full px-2 sm:px-4  min-h-[480px]">
             {/* Header */}
-            <div className="border-b border-gray-200 pb-4">
+            <div className="border-b border-gray-200 pb-4 ">
               <div className="flex flex-col sm:flex-col lg:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="w-full sm:w-auto">
-                  <h2 className="text-sm  sm:text-xl font-bold text-gray-800 break-words">
-                    {shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""}
+                 <div className='flex'>
+                   <span>Delivery to : </span> 
+                   <h2 className="text-sm  sm:text-xl font-bold text-gray-800 break-words">
+                    {shops?.find(x => x.id === selectedTransaction?.customerId)?.name || ""}
                   </h2>
+                 </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
+                    {/* <p>{}</p> */}
                     <span className="text-xs sm:text-sm text-gray-600">Transaction: <span className="font-semibold">{selectedTransaction.transactionCode}</span></span>
                     <span className="text-xs sm:text-sm text-gray-600">Date: <span className="font-semibold">{alphaNumericDate(selectedTransaction.transactionDate || "")}</span></span>
-                    <span><StatusBadge status={selectedTransaction?.status?.toLocaleLowerCase()}/> </span>
+                    <span><StatusBadge status={selectedTransaction?.status} className=''/> </span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                
+
+                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeliveryModal(true)}
+                    className="flex-1 sm:flex-none bg-red-500 text-white hover:bg-red-300 text-xs sm:text-sm"
+                    disabled={selectedTransaction?.supplierId !== (selectedShop || sessionShop) || selectedTransaction?.status?.toLocaleLowerCase()!== "approved"}
+                  >
+                    <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                    DELIVER
+                  </Button>
+                 
+                  {/* <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeliveryModal(true)}
+                    className="flex-1 sm:flex-none bg-purple-500 text-white hover:bg-purple-600 text-xs sm:text-sm"
+                    disabled={selectedTransaction?.supplierId === (selectedShop || sessionShop) || selectedTransaction?.status?.toLocaleLowerCase() !== "approved"}
+                  >
+                    <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                    RECEIVE
+                  </Button> */}
                 </div>
               </div>
             </div>
 
             {/* Tabs */}
             <div className="w-full">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" >
+                <TabsList className="grid w-full grid-cols-4 mb-4  bg-emerald-200 overflow-x-auto">
+                  <TabsTrigger value="items" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
+                    <Package className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Items</span>
+                    <span className="sm:hidden">Items</span>
+                  </TabsTrigger>
+                  
+                  <TabsTrigger value="deliveries" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
+                    <Truck className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:block">{selectedTransaction?.supplierId === (selectedShop || sessionShop) ? "Supplies" : "Receivals"}</span>
+                    <span className="sm:hidden">Sup</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="reversals" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3">
+                    <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Reversals</span>
+                    <span className="sm:hidden">Rev</span>
+                  </TabsTrigger>
+                </TabsList>
 
-                
                 {isLoadingDetails ? (
                   <div className="flex justify-center items-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-500"></div>
                   </div>
                 ) : (
-                  <>
+                  <div>
                     <TabsContent value="items" className="mt-0">
                       {renderItemsTab()}
                     </TabsContent>
-                    {/* <TabsContent value="payments" className="mt-0">
-                      {renderPaymentsTab()}
-                    </TabsContent> */}
                     <TabsContent value="deliveries" className="mt-0">
                       {renderDeliveriesTab()}
                     </TabsContent>
                     <TabsContent value="reversals" className="mt-0">
                       {renderReversalsTab()}
                     </TabsContent>
-                  </>
+                  </div>
                 )}
-
-                <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-end gap-2 sm:gap-4 bg-gray-50 p-3 rounded-lg">
-                {/* Remarks section */}
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:flex-1">
-                  <Label className="text-xs sm:text-sm font-medium text-gray-700 self-start sm:self-center">
-                    Remarks
-                  </Label>
-                  <Textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="text-xs sm:text-sm bg-white border-gray-300 h-[50px] w-full resize-none"
-                    placeholder="Add remarks..."
-                  />
-                </div>
-
-                {/* Buttons section */}
-                <div className="flex flex-col xs:flex-row sm:flex-col lg:flex-row gap-2 w-full sm:w-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => submitResponse(1)}
-                    className="flex-1 sm:flex-none bg-green-500 text-white hover:bg-green-600 text-xs sm:text-sm px-4 py-2"
-                    disabled={selectedTransaction?.status?.toLocaleLowerCase() !== "pending"}
-                  >
-                    <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
-                    APPROVE
-                  </Button>
-                
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => submitResponse(2)}
-                    className="flex-1 sm:flex-none bg-red-500 text-white hover:bg-red-600 text-xs sm:text-sm px-4 py-2"
-                    disabled={selectedTransaction?.status?.toLocaleLowerCase() !== "pending"}
-                  >
-                    <Truck className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
-                    DECLINE
-                  </Button>
-                </div>
-              </div>
-
               </Tabs>
             </div>
           </div>
@@ -653,7 +695,7 @@ export default function PurcahsePage() {
           onClose={() => {
             setShowDeliveryModal(false);
           }}
-           title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode}`)}
+          title={((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Stock Transfer to ${shops?.find(x=> x.id === selectedTransaction?.customerId)?.name}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode}`)}
           size='full'
         >
           <div className="w-full">
@@ -662,9 +704,9 @@ export default function PurcahsePage() {
               selectedTransaction={transactionDetails}
               setTransactionDetails={setTransactionDetails}
               reloadSetterFunction={setStockTransfers}
-              reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&From=${true}`}
-              submitUrl="/StockTransfer/Request"
-              transactionActionType="SALE"
+              reloadUrl={`/StockTransfer/Approved-For-Delivery?LocationId=${selectedShop || sessionShop}`}
+              submitUrl={selectedTransaction?.supplierId === (selectedShop || sessionShop)  ? "/Transactions/Delivery" : "StockTransfer/Receival"}
+              transactionActionType={"TRANS"}
               heading='Shops Delivery'
             />
           </div>

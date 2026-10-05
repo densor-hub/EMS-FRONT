@@ -1,208 +1,237 @@
-import { CartItem, TransactionItem} from "@/lib/types"
+// helpers/formatStrings.ts
+import type { CartItem, TransactionItem } from '@/lib/types'
+import type { ToasterReturn } from '@/components/util/CustomToast'
 
-export const symbol_inString = (value : string) => {
-    const containsSymbol = /[!@#$%^&(),.?":{}|<>/_|+`~";]/
-   return containsSymbol.test(value)
+// ---------- Validation ----------
+
+export const symbol_inString = (value: string): boolean =>
+  /[!@#$%^&(),.?":{}|<>/_|+`~";]/.test(value)
+
+export const symbol_inNumber = (value: string): boolean =>
+  /[!@#$%^&()*?":{}|<>/_|+`~";]/.test(value)
+
+export const hasAlphabetInNumber = (value: string): boolean => /[a-zA-Z]/.test(value)
+
+export const removeAllAlphabets = (str: string): string =>
+  String(str ?? '').replace(/[a-zA-Z]/g, '')
+
+// ---------- Strings ----------
+
+export const capitalize = (data: string): string => {
+  if (!data || data.trim().length === 0) return ''
+  return data
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
 }
 
-export const symbol_inNumber = (value: string) => {
-    const containsSymbol = /[!@#$%^&()*?":{}|<>/_|+`~";]/
-    return containsSymbol.test(value)
+export const separateByCapitalLetters = (str: string): string =>
+  String(str).replace(/([A-Z])/g, ' $1').trim()
+
+// ---------- Dates ----------
+
+export const time = (date: string): string => {
+  if (!date || !date.trim()) return date
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return date
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-export const hasAlphabetInNumber = (value: string) => {
-    const containsAlphabet = /[a-zA-Z]/
-    return containsAlphabet.test(value)
+export const alphaNumericDate = (date: string): string => {
+  if (!date || !date.trim()) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
-export const removeAllAlphabets = (str: string) => {
-  return str?.toString().replace(/[a-zA-Z]/g, '') || ''
-}
+export const alphaNumericCurrentDate = (): string => alphaNumericDate(new Date().toISOString())
+export const currentDate = (): string => alphaNumericCurrentDate()
 
-export const capitalize = (data: string) => {
-    if (!data || data?.toString().trim()?.length === 0) return
-        let finalString = ""
-        data?.toString()?.trim()?.split(" ").forEach(element => {
-          if (element?.length > 0) {
-            finalString += `${ element[0]?.toUpperCase()}${element?.slice(1)?.toLowerCase()} `
-          }
-          
-        })
-        return finalString?.trim() 
-    }
+export const numericCurrentDate = (format: string): string => {
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
 
-export const time = (date: string)  => {
-    return date?.toString()?.trim() === undefined || date?.toString()?.trim()?.length === 0 ?  date : `${new Date(date)?.toString()?.slice(16, 25)} ${Number(new Date(date)?.toString()?.slice(16, 18)) > 11 ? "pm" : "am"}`
-}
-
-export const alphaNumericDate = (date: string) => {
-   const alphaNumericDate = new Date(date?.toString()?.trim())?.toString()?.slice(4, 16)
-   return date?.toString()?.trim() === undefined || date?.toString()?.trim()?.length === 0 ?  "" : `${alphaNumericDate?.slice(4, 6)}-${alphaNumericDate?.slice(0, 3)}-${alphaNumericDate?.slice(7)}`
-}
-
-export const alphaNumericCurrentDate = () => {
-    return alphaNumericDate(`${new Date().getMonth() + 1}-${new Date().getDate()}-${new Date().getFullYear()}`)
-}
-
-export const currentDate = () => {
-    return alphaNumericDate(`${new Date().getMonth() + 1}-${new Date().getDate()}-${new Date().getFullYear()}`)
-}
-
-export const numericCurrentDate = (format: string) => {
-  const year = new Date().getFullYear()
-  const month = new Date().getMonth() + 1
-  const day = new Date().getDate()
-    let dateValue = ''
-    format?.toString().toLowerCase().trim() === 'yyyy-mm-dd' ? (
-      dateValue = `${year}-${month?.toString().length < 2 ? `0${month}` : month}-${day?.toString().length < 2 ? `0${day}` : day}`
-    ) :   format?.toString().toLowerCase().trim() === 'mm-dd-yyy' ? (
-      dateValue = `${month?.toString().length < 2 ? `0${month}` : month}-${day?.toString().length < 2 ? `0${day}` : day}-${year}`
-    ) : dateValue = `${day?.toString().length < 2 ? `0${day}` : day}-${month?.toString().length < 2 ? `0${month}` : month}-${year}` 
-
-    return dateValue
-}
-
-export const formatNumberWithCommas = (number: string) => {
-    if (!number || number === null || number === undefined) return ""
-    if (symbol_inNumber(number?.toString())) return ""
-    const retriveNumber = removeAllAlphabets.toString()?.replace(/,/g, '') ? removeAllAlphabets(number?.toString()).toString()?.replace(/,/g, '') : number
-
-    
-    if (retriveNumber?.toString().includes(".")) {
-      return `${retriveNumber?.toString()?.split(".")[0]?.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${retriveNumber?.toString()?.slice(retriveNumber?.toString()?.split(".")[0]?.length).replace(/\./g, '')}`
-    }
-
-    return retriveNumber?.toString()?.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-    
-}
-
-export const currency = (value: string) => {
-    if (value === undefined) return ""
-    let decimalPoints = value?.toString()?.includes(".") ?  `${value?.toString()?.slice(value?.toString()?.split(".")[0]?.length).replace(/\./g, '')}` : parseFloat(value?.toString()?.trim()).toFixed(2).split(".")[1]
-    if (decimalPoints?.length ===  1) {
-      decimalPoints = `0${decimalPoints}`
-    }
-    return formatNumberWithCommas((value))?.length > 0 ? `${formatNumberWithCommas((value?.toString()?.split(".")[0]))}.${decimalPoints}` : ""
-}
-
-export const removeCommasFromNumbers = (string: string) => {
-  // console.log(string)
-  if (symbol_inNumber(string)) return ""
-  if (string === undefined || string === null) return 0
-
-  return Number(string?.toString()?.replace(/,/g, '')) 
-}
-
-
-export const volume = (value: string) => {
-  if ((Number(value) === 0 || value?.toString().trim() === "0")) {
-      return Number(value)
+  switch (format?.toLowerCase().trim()) {
+    case 'yyyy-mm-dd':
+      return `${yyyy}-${mm}-${dd}`
+    case 'mm-dd-yyyy':
+      return `${mm}-${dd}-${yyyy}`
+    default:
+      return `${dd}-${mm}-${yyyy}`
   }
-    return formatNumberWithCommas((removeCommasFromNumbers(value))?.toString())
- }
-
-
-export const removeHyphinFromCarNumber = (string : string) => {
-    if (string === undefined) return ""
- 
-    return string?.toString()?.replace(/-/g, '')
 }
 
-export const carNumber = (string : string) => {
-    if (string === undefined || string === null) return ""
-    if (string?.includes("-")) { return string?.toUpperCase() }
-    if (string.length > 10) return string
-    string = removeHyphinFromCarNumber(string)
-    if (string?.length === 0 || string === null || string === undefined) return ""
-    if (isNaN(Number(string[string.length - 1]))) return `${string?.slice(0, 2)}-${string?.slice(2, string.length - 1)}-${string.slice(string.length - 1)}`
-    return `${string?.slice(0, 2)}-${string?.slice(2, string.length - 2)}-${string.slice(string.length - 2)}`
+// ---------- Numbers ----------
+
+export const formatNumberWithCommas = (number: string): string => {
+  if (number === null || number === undefined || number === '') return ''
+  const cleaned = String(number).replace(/,/g, '')
+  if (!/^-?\d*\.?\d*$/.test(cleaned)) return ''
+
+  const [intPart, decPart] = cleaned.split('.')
+  const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return decPart !== undefined ? `${intFormatted}.${decPart}` : intFormatted
 }
 
-
-export const separateByCapitalLetters = (string: string) => {
-    return String(string).replace(/([A-Z])/g, ' $1').trim()
+export const currency = (value: string): string => {
+  if (!value) return ''
+  const num = Number(String(value).replace(/,/g, ''))
+  if (isNaN(num)) return ''
+  return formatNumberWithCommas(num.toFixed(2))
 }
 
+export const removeCommasFromNumbers = (value: string): number => {
+  if (value === undefined || value === null || symbol_inNumber(value)) return 0
+  return Number(String(value).replace(/,/g, ''))
+}
 
-export const urlParams = () => {
-    const urlParams = {}
-    window?.location?.search?.slice(1)?.split('&').forEach(param => {
-      urlParams[param?.split("=")[0]?.toString()] = param?.split("=")[1]?.toString()?.replace(/%20/g, ' ')
+export const volume = (value: string): string | number => {
+  if (Number(value) === 0 || String(value).trim() === '0') return 0
+  return formatNumberWithCommas(String(removeCommasFromNumbers(value)))
+}
+
+export const Sum = <T extends Record<string, unknown>>(
+  prop: keyof T,
+  array: T[] = []
+): number => {
+  return array.reduce((total, item) => {
+    const n = Number(String(item[prop] ?? '').replace(/,/g, ''))
+    return total + (isNaN(n) ? 0 : n)
+  }, 0)
+}
+
+// ---------- Vehicle numbers ----------
+
+export const removeHyphinFromCarNumber = (str: string): string =>
+  String(str ?? '').replace(/-/g, '')
+
+/**
+ * Formats a Ghanaian plate number into "AB-1234-23" form.
+ * Accepts: "GT123423", "GT-1234-23", "GT 1234 23"
+ */
+export const carNumber = (str: string): string => {
+  if (str === undefined || str === null) return ''
+  if (str.includes('-')) return str.toUpperCase()
+  if (str.length > 10) return str
+
+  const clean = removeHyphinFromCarNumber(str)
+  if (!clean) return ''
+
+  const lastChar = clean[clean.length - 1]
+  if (isNaN(Number(lastChar))) {
+    return `${clean.slice(0, 2)}-${clean.slice(2, clean.length - 1)}-${lastChar}`
+  }
+  return `${clean.slice(0, 2)}-${clean.slice(2, clean.length - 2)}-${clean.slice(-2)}`
+}
+
+// ---------- URL ----------
+
+export const urlParams = (): Record<string, string> => {
+  const params: Record<string, string> = {}
+  if (typeof window === 'undefined') return params
+
+  window.location.search
+    .slice(1)
+    .split('&')
+    .filter(Boolean)
+    .forEach((pair) => {
+      const [key, value] = pair.split('=')
+      if (key) params[decodeURIComponent(key)] = decodeURIComponent(value ?? '')
     })
-
-    return urlParams
+  return params
 }
 
-export const Sum = (propOfArrayItemToBeSumed = "", array = []) => {
-    let total = 0
-    array?.forEach(element => {
-            total += Number(removeCommasFromNumbers(element[propOfArrayItemToBeSumed]))
-    })
-    return total
+// ---------- Search validation ----------
+
+export const isNotValidSearchInput = (
+  value = '',
+  allowEmptyValue = false
+): string | undefined => {
+  const filter = value.trim()
+  if (!filter && !allowEmptyValue) return 'Please enter a filter in the search box'
+  if (!/[a-zA-Z0-9]/.test(filter) && filter !== '*') {
+    return 'Please enter valid search text'
+  }
+  return undefined
 }
 
+// ---------- Toasts ----------
 
-
-  export const isNotValidSearchInput = (value = "", allowEmptyValue = false) => {
-    const filter = value?.trim()
-    if (!value?.trim() && !allowEmptyValue) {
-       return  ("Please enter a filter in the search box")
-    } 
-    
-    if (!/[a-zA-Z0-9]/.test(filter) && filter !== "*") {
-       return  ("Please enter valid search text")
-    } 
-    
+export const toastErrors = (
+  toast: ToasterReturn,
+  error: unknown,
+  heading = '',
+  showHeading = false
+): void => {
+  const axiosErr = error as {
+    response?: { data?: { message?: string } | string }
   }
+  const description =
+    typeof error === 'string'
+      ? error
+      : axiosErr?.response?.data && typeof axiosErr.response.data === 'object'
+        ? axiosErr.response.data.message
+        : typeof axiosErr?.response?.data === 'string'
+          ? axiosErr.response.data
+          : 'Please try again later'
 
-  export const toastErrors = (toast : any, error: any, heading: string = "", showHeading : boolean = false) => {
-    // console.log(error?.response?.data?.message)
-   return   toast.warning({
-        title: heading || (showHeading ?  'Failed to submit' : ""),
-        description: typeof(error) === 'string' ? error : error?.response?.data?.message 
-          ? error?.response?.data?.message 
-          : typeof(error?.response?.data) === 'string' 
-            ? error?.response?.data 
-            : 'Please try again later'
-      })
+  toast.warning({
+    title: heading || (showHeading ? 'Failed to submit' : ''),
+    description: description ?? 'Please try again later',
+  })
+}
+
+export const toastSuccess = (
+  toast: ToasterReturn,
+  message: string,
+  heading = ''
+): void => {
+  toast.success({ title: heading, description: message })
+}
+
+// ---------- Stock / cart helpers ----------
+
+export const getDeliveredQuantity = (
+  item: TransactionItem,
+  isStockTransfer: boolean,
+  supplierId: string
+): number => {
+  if (!item.itemsDelivered) return 0
+  if (isStockTransfer && supplierId !== sessionStorage.getItem('selectedShop')) {
+    return item.itemsReceived?.reduce((sum, d) => sum + d.quantity, 0) ?? 0
   }
+  return item.itemsDelivered.reduce((sum, d) => sum + d.quantity, 0)
+}
 
-  export const toastSuccess = (toast : any, successMessgae: any, heading: string = "") => {
-     toast.success({
-        title: heading ,
-        description: successMessgae
-      })
-  }
+export const getOriginalRemainingQuantity = (
+  item: TransactionItem,
+  isStockTransfer: boolean,
+  supplierId: string
+): number => {
+  const delivered = getDeliveredQuantity(item, isStockTransfer, supplierId)
+  return (item.quantity || 0) - delivered
+}
 
-  // Helper function to get the total delivered quantity for an item
-  export const getDeliveredQuantity = (item: TransactionItem, isStockTransfer: boolean, suppplierId : string): number => {
-    if (!item.itemsDelivered) return 0;
-    if (isStockTransfer) {
-       if (suppplierId !== (sessionStorage.getItem("selectedShop"))) {
-           return item.itemsReceived.reduce((sum, delivery) => sum + delivery.quantity, 0);
-       }
-    }
-    return item.itemsDelivered.reduce((sum, delivery) => sum + delivery.quantity, 0);
-  };
-  
+const getCartQuantity = (itemId: string, cart: CartItem[]): number => {
+  const cartItem = cart.find((c) => c.id === itemId)
+  return cartItem?.receivingQuantity ?? 0
+}
 
-  // Helper function to get the remaining quantity for an item
-// This does NOT factor in cart selections
-export const getOriginalRemainingQuantity = (item: TransactionItem, isStockTransfer: boolean,  suppplierId : string): number => {
-  const delivered = getDeliveredQuantity(item, isStockTransfer, suppplierId);
-  return (item.quantity || 0) - delivered;
-};
-
-
-  // Get the current cart quantity for a specific item
-  const getCartQuantity = (itemId: string, cart: CartItem[]): number => {
-    const cartItem = cart.find(c => c.id === itemId);
-    return cartItem ? cartItem?.receivingQuantity??0 : 0;
-  };
-
-  // Get the remaining quantity factoring in cart selections
-  export const getRemainingQuantity = (item: TransactionItem, isStockTransfer : boolean, supplierId: string , cart : CartItem[] ): number => {
-    const originalRemaining = getOriginalRemainingQuantity(item, isStockTransfer, supplierId);
-    const cartQty = getCartQuantity(item.id || item.itemId, cart);
-    return originalRemaining - cartQty;
-  };
+export const getRemainingQuantity = (
+  item: TransactionItem,
+  isStockTransfer: boolean,
+  supplierId: string,
+  cart: CartItem[]
+): number => {
+  const original = getOriginalRemainingQuantity(item, isStockTransfer, supplierId)
+  const inCart = getCartQuantity(item.id || item.itemId, cart)
+  return original - inCart
+}
