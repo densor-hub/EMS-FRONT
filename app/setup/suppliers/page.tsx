@@ -36,9 +36,11 @@ export default function SuppliersPage() {
   const [selectedShops, setselectedShops] = useState<string[]>([]);
 
   useEffect(() => {
-    loadSuppliers();
-    loadData();
-  }, []);
+    if (user) {
+       loadSuppliers();
+      loadData();
+    } 
+  }, [user]);
 
   const loadSuppliers = async () => {
     try {

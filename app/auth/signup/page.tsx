@@ -26,8 +26,9 @@ import {
   ArrowRight,
   Check,
 } from 'lucide-react';
-import { authService } from '@/lib/api-service';
 import Loading from '@/app/dashboard/loading';
+import { toastErrors } from '@/helpers/formatStrings';
+import axiosInstance from '@/lib/customAxios';
 
 type Step = 'company' | 'user';
 
@@ -87,14 +88,15 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      await authService.signup(
-        {
+
+        const company = {
           name: companyName,
           email: companyEmail,
           phone: companyPhone,
           address: companyAddress,
-        },
-        {
+        }
+
+        const adminInfo  = {
           firstName,
           lastName,
           email: userEmail,
@@ -102,17 +104,16 @@ export default function SignupPage() {
           phone : "",
           confirmPassword
         }
-      ).then((res) => {
-        // console.log(res)
-        if (res?.status == 200) {
+      const response = await axiosInstance.post('/auth/register', { company, adminInfo : {...adminInfo, fullname : `${adminInfo.firstName} ${adminInfo.lastName}`} });
+      
+        if (response?.status == 200) {
           
-           resetForm()
-           router.push("/auth/login")
+          resetForm()
+          router.push("/auth/login")
         }
-      });
-
     } catch (err) {
-      setError('Registration failed. Please try again.');
+      console.log(err)
+      toastErrors( toast, 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

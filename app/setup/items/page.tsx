@@ -54,8 +54,10 @@ export default function ItemsPage() {
    const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
-    loadItems();
-    locadLocations();
+    if (user) {
+      loadItems();
+      locadLocations();
+    }
   }, []);
 
   const loadItems = async () => {

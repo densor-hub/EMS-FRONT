@@ -113,7 +113,7 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
       const sessionShop = sessionStore.get("selectedShop");
       
       if (!selectedShop && !sessionShop) {
-        router.push('/dashboard/select-shop');
+        router.push('/select-shop');
         return;
       }
       

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { LoadingOverlay } from '../SkeletonLoading';
 
 interface HeaderProps {
   title: string;
@@ -20,7 +21,7 @@ interface HeaderProps {
 
 export function Header({ title, description }: HeaderProps) {
   const { user, userLogOut, selectedShop, setSelectedShop } = useAuth();
-
+  const [isLoading, setIsLoading] = useState(false)
   const locations = user?.locations ?? [];
 
   const [activeShopId, setActiveShopId] = useState<string | undefined>(
@@ -64,7 +65,9 @@ export function Header({ title, description }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border p-0 h-16">
+   <>
+    {isLoading && <LoadingOverlay/>}
+       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border p-0 h-16">
       <div className="flex items-center justify-between px-2 pt-2">
         <div className="flex-1 min-w-0">
           <h1 className="text-sm md:text-xl lg:text-2xl font-semibold text-foreground truncate">
@@ -160,7 +163,10 @@ export function Header({ title, description }: HeaderProps) {
               <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={userLogOut} className="text-destructive">
+              <DropdownMenuItem onClick={() => {
+                setIsLoading(true)
+                userLogOut()
+              }} className="text-destructive">
                 Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -168,5 +174,6 @@ export function Header({ title, description }: HeaderProps) {
         </div>
       </div>
     </header>
+   </>
   );
 }

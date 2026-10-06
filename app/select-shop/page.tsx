@@ -28,8 +28,8 @@ export default function SelectShopPage() {
   // If the user already has a shop selected, skip this page
   useEffect(() => {
     if (selectedShop) {
-      console.log('[select-shop] selectedShop present, redirecting to /dashboard');
-      router.replace('/dashboard');
+      // console.log('[select-shop] selectedShop present, redirecting to /dashboard');
+      router.push('/dashboard');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -38,7 +38,7 @@ export default function SelectShopPage() {
   useEffect(() => {
     if (!selected) return;
     setSelectedShop(selected);
-    router.replace('/dashboard');
+    router.push('/dashboard');
   }, [selected, router, setSelectedShop]);
 
 

@@ -554,7 +554,7 @@ const handleAddItem = useCallback(() => {
       const sessionShop = sessionStore.get("selectedShop");
       
       if (!selectedShop && !sessionShop) {
-        router.push('/dashboard/select-shop');
+        router.push('/select-shop');
         return;
       }
       
@@ -596,7 +596,7 @@ const handleAddItem = useCallback(() => {
     
     const sessionShop = sessionStore.get("selectedShop");
     if (!selectedShop && !sessionShop) {
-      router.push('/dashboard/select-shop');
+      router.push('/select-shop');
       return;
     }
     
