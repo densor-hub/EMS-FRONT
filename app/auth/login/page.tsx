@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,17 +14,18 @@ import { PublicRoute } from '@/routes/public-route';
 import { Company, User } from '@/lib/types';
 import { login } from '@/lib/customAxios';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
+import { getAuthState } from '@/lib/customAxios';
 
 export default function LoginPage() {
   const router = useRouter();
-  const {setUser, setCompany, user} = useAuth();
+  const {setUser, setCompany, user, isAuthenticated} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const authState = getAuthState()
 
- // console.log(user)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -70,8 +71,11 @@ export default function LoginPage() {
     }
   };
 
+  
+  if (authState?.user?.id && authState?.isAuthenticated) return router.push('/dashboard')
+  
   return (
-    <PublicRoute>
+    <>
      {isLoading && <LoadingOverlay/>}
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -186,6 +190,6 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
-    </PublicRoute>
+    </>
   );
 }

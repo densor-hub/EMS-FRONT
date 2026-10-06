@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PublicRoute } from '@/routes/public-route';
 import { useToaster } from '@/components/util/CustomToast';
+import { getAuthState } from '@/lib/customAxios';
 
 import {
   Building2,
@@ -33,6 +34,7 @@ type Step = 'company' | 'user';
 export default function SignupPage() {
   const toast = useToaster()
   const router = useRouter();
+  const authState = getAuthState()
   const [step, setStep] = useState<Step>('company');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -116,12 +118,10 @@ export default function SignupPage() {
     }
   };
 
-  // if (isLoading) {
-  //   return <Loading/>
-  // }
+   if (authState?.user?.id && authState?.isAuthenticated) return router.push('/dashboard')
 
   return (
-    <PublicRoute>
+    <>
       {isLoading && <Loading/>}
     <div className="bg-background flex  justify-center p-4 h-auto overflow-y-hidden">
       <div className="w-full max-w-lg" >
@@ -392,6 +392,6 @@ export default function SignupPage() {
       </div>
     </div>
     {toast.ToastComponent}
-    </PublicRoute>
+    </>
   );
 }

@@ -1,22 +1,11 @@
 'use client';
-import React, {
-  createContext,
-  useContext,
-  ReactNode,
-  useEffect,
-  useState,
-} from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useState, useRef } from 'react';
 import { Company, User } from './types';
-import {
-  performInitialAuthCheck,
-  getAuthState,
-  registerAuthSetters,
-  resetAuthCheck,
-} from './customAxios';
-import { LoadingOverlay } from '@/components/SkeletonLoading';
+import { performInitialAuthCheck, getAuthState, registerAuthSetters } from './customAxios';
+import {LoadingOverlay} from '@/components/SkeletonLoading';
 import { logout } from './customAxios';
 import { useToaster } from '@/components/util/CustomToast';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import SelectCompany from '@/app/select-shop/page';
 import { publicPaths } from '@/components/util/AppConfig';
 
@@ -29,104 +18,102 @@ interface AuthContextType {
   setCompany: React.Dispatch<React.SetStateAction<Partial<Company>>>;
   setSelectedShop: React.Dispatch<React.SetStateAction<string>>;
   isLoading: boolean;
-  userLogOut: () => Promise<void>;
+  userLogOut  : () => {}
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Normalize path for publicPaths comparison
-const normalizePath = (p: string | null | undefined): string => {
-  if (!p) return '';
-  return p.toLowerCase().replace(/^\/+/, '');
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const toast = useToaster();
-  const router = useRouter();
-  const pathname = usePathname();
-
+  const toast = useToaster()
+  const router = useRouter()
   const [user, setUser] = useState<Partial<User>>({});
   const [company, setCompany] = useState<Partial<Company>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedShop, setSelectedShop] = useState<string>('');
+  const [selectedShop, setSelectedShop] = useState<string>("");
+  
+  const initializationStarted = useRef(false);
+  const authCheckCompleted = useRef(false);
 
-  const isPublicPage = publicPaths.includes(normalizePath(pathname));
-
-  // ────────────────────────────────────────────────
-  // Active logout (user-initiated)
-  // ────────────────────────────────────────────────
-  const userLogOut = async (): Promise<void> => {
-    try {
-      await logout();
-    } catch (err) {
-      console.error('Logout error:', err);
+  const userLogOut = async () => {
+    setSelectedShop("")
+    setUser({})
+    setCompany({})
+    sessionStorage.clear()
+    localStorage.clear()
+    
+    //console.log(publicPaths.includes(window.location.pathname?.toLowerCase() || window.location.pathname.slice(1)?.toLowerCase()))
+    await logout()
+    if (!publicPaths.includes(window.location.pathname?.toLowerCase() || window.location.pathname.slice(1)?.toLowerCase())) {
+       router.push("/auth/login")
     }
-
-    setIsAuthenticated(false);
-    setSelectedShop('');
-    setUser({});
-    setCompany({});
-    sessionStorage.clear();
-    localStorage.clear();
-
-    if (!isPublicPage) {
-      router.push('/auth/login');
-    }
-  };
-
-  // ────────────────────────────────────────────────
-  // Register axios setters once
-  // ────────────────────────────────────────────────
+    return;
+  }
+  // Register setters with axios instance ONCE
   useEffect(() => {
+    // console.log('Registering auth setters');
     registerAuthSetters(setUser, setCompany);
   }, []);
 
-  // ────────────────────────────────────────────────
-  // Initial auth check — always runs the effect, relies
-  // on performInitialAuthCheck for deduplication
-  // ────────────────────────────────────────────────
   useEffect(() => {
-    // Skip entirely on public pages
-    if (isPublicPage) {
-      setIsLoading(false);
+
+    // Prevent multiple initializations
+    if (initializationStarted.current) {
+      // console.log('Initialization already started, skipping');
       return;
     }
+    initializationStarted.current = true;
 
     let isMounted = true;
 
-    const initializeApp = async () => {
-      setIsLoading(true);
+    const initializeApp = async () =>
+       {
+      setIsLoading(true)
       try {
-        const authResult = await performInitialAuthCheck();
-
-        if (!isMounted) return;
-
-        setIsAuthenticated(authResult);
-
-        const authState = getAuthState();
-        if (Object.keys(authState.user).length > 0) {
-          setUser(authState.user);
-          setCompany(authState.company);
+        // console.log('Starting app initialization...');
+        
+        // Perform auth check - this will only run once due to caching
+        const authResult = await performInitialAuthCheck() ;
+        
+        if (isMounted && !authCheckCompleted.current) {
+          authCheckCompleted.current = true;
+          setIsAuthenticated(authResult && !user.id);
+          
+          // Get the latest auth state
+          const authState = getAuthState();
+          // console.log('Final auth state:', {
+          //   authResult,
+          //   user: authState.user,
+          //   company: authState.company
+          // });
+          
+          // Ensure React state is in sync
+          if (Object.keys(authState.user).length > 0) {
+            setUser(authState.user);
+            setCompany(authState.company);
+          }
         }
 
         if (!authResult) {
+        // setIsLoading(false)
           toast.warning({
             title: 'Failed to authenticate user',
-            description: 'Redirecting to login...',
-          });
+            description:  'Logging You Out...',
+          })
+
           setTimeout(() => {
-            if (isMounted) router.push('/auth/login');
-          }, 1500);
+            userLogOut()
+          }, 3000)
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (isMounted) {
           setIsAuthenticated(false);
-          router.push('/auth/login');
         }
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -135,35 +122,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPublicPage]);
+  }, []); // Empty dependency array
 
-  // ────────────────────────────────────────────────
-  // Loading gate
-  // ────────────────────────────────────────────────
-  if (isLoading && !isPublicPage && !user?.id) {
+  
+  if (isLoading && !user?.id) {
     return <LoadingOverlay />;
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        user,
-        company,
-        selectedShop,
-        setUser,
-        setCompany,
-        setSelectedShop,
-        isLoading,
-        userLogOut,
-      }}
-    >
-      {user?.id && !(selectedShop || sessionStorage.getItem('selectedShop')) ? (
-        <SelectCompany />
-      ) : (
-        children
-      )}
+    <AuthContext.Provider value={{
+      isAuthenticated,
+      user,
+      company,
+      selectedShop,
+      setUser,
+      setCompany,
+      setSelectedShop,
+      isLoading,
+      userLogOut
+    }}>
+      { user?.id  && !(selectedShop || sessionStorage.getItem("selectedShop")) ? <SelectCompany/> : children }
     </AuthContext.Provider>
   );
 };

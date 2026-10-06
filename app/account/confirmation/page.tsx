@@ -6,7 +6,7 @@ import { Loader2, CheckCircle2, XCircle, Eye, EyeOff, LockKeyhole } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { confirmAccount, setPassword } from '@/lib/customAxios';
+import { confirmAccount, getAuthState, setPassword } from '@/lib/customAxios';
 
 type Status = 'verifying' | 'invalid' | 'ready' | 'submitting' | 'success';
 
@@ -23,6 +23,7 @@ function ConfirmationContent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  
 
   useEffect(() => {
     if (!token || !email) {
@@ -77,6 +78,7 @@ function ConfirmationContent() {
       );
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 p-4">
@@ -226,6 +228,10 @@ function ConfirmationContent() {
 }
 
 export default function ConfirmationPage() {
+  const authState = getAuthState()
+  const router = useRouter()
+  if (authState?.user?.id && authState?.isAuthenticated) return router.push('/dashboard')
+
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">

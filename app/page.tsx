@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { AuthGuard } from '@/routes/auth-guard';
 import { PublicRoute } from '@/routes/public-route';
+import { getAuthState } from '@/lib/customAxios';
+import { useRouter } from 'next/navigation';
 
 const features = [
   {
@@ -62,9 +64,13 @@ const benefits = [
   'Multi-user support',
 ];
 
+
 export default function LandingPage() {
+ const authState = getAuthState();
+ const router = useRouter()
+    if (authState?.user?.id && authState?.isAuthenticated) return router.push('/dashboard')
   return (
-   <PublicRoute>
+   <>
        <div className="h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur z-50">
@@ -215,6 +221,6 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
-   </PublicRoute>
+   </>
   );
 }

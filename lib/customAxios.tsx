@@ -40,6 +40,7 @@ export const registerAuthSetters = (
   
   // Immediately sync existing data if available
   if (Object.keys(currentUser).length > 0) {
+    // console.log('Syncing existing user to React:', currentUser);
     setUser(currentUser);
   }
   if (Object.keys(currentCompany).length > 0) {
@@ -52,6 +53,7 @@ const updateAuthState = (user?: Partial<User>, company?: Partial<Company>) => {
   if (user && Object.keys(user).length > 0) {
     currentUser = { ...currentUser, ...user };
     if (userStateSetter) {
+      // console.log('Updating React user state:', currentUser);
       userStateSetter(currentUser);
     }
   }
@@ -96,20 +98,24 @@ export const performInitialAuthCheck = async (
 ): Promise<boolean> => {
   // Register setters if provided
   if (setUser && setCompany) {
+    // console.log("SETTERS CALLED")
     registerAuthSetters(setUser, setCompany);
   }
 
   // Return cached result if already completed successfully
   if (initialAuthCheckResult) {
+    // console.log('Returning cached auth result:', initialAuthCheckResult);
    // return initialAuthCheckResult;
   }
 
   // Return existing promise if in progress
   if (initialAuthCheckPromise) {
+    // console.log('Returning existing auth promise');
     return initialAuthCheckPromise;
   }
 
   // Create new auth check promise
+  // console.log('Starting initial auth check...');
   initialAuthCheckPromise = (async () => {
     try {
       const response = await axios.post(
@@ -117,6 +123,8 @@ export const performInitialAuthCheck = async (
         {},
         { withCredentials: true }
       );
+
+      // console.log('Auth check response received');
 
       // Parse user data
       const fullName = response?.data?.fullName || '';
@@ -154,6 +162,7 @@ export const performInitialAuthCheck = async (
       return true;
       
     } catch (error: any) {
+      console.error('Auth check failed:', error);
       // Only clear state if this is a real auth failure, not a network error
       if (error.response?.status === 401) {
         clearAuthState();
@@ -169,6 +178,7 @@ export const performInitialAuthCheck = async (
 
 // Reset auth check (call this ONLY on logout)
 export const resetAuthCheck = () => {
+  console.log('Resetting auth check');
   initialAuthCheckDone = false;
   initialAuthCheckPromise = null;
   initialAuthCheckResult = null;
@@ -183,7 +193,7 @@ export const isAccessTokenExpired = (): boolean => {
 // Get current auth state
 export const getAuthState = () => {
   return {
-    isAuthenticated: !isAccessTokenExpired(),
+    isAuthenticated: initialAuthCheckResult === true && !!accessToken && !isAccessTokenExpired(),
     user: currentUser,
     company: currentCompany,
     initialAuthCheckDone,
