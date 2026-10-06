@@ -63,3 +63,5 @@ export const config : AppConfiguration = {
 
 export const publicPaths = ['/', '/auth', '/auth/login', 'auth/signup', '/account/confirmation']
 
+
+

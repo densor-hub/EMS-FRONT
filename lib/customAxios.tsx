@@ -6,7 +6,8 @@ import axios, {
 } from 'axios';
 import { Company, User } from './types';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7214';
+//const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7214';
+const baseURL = '/api'
 
 // ---------- browser-safe storage ----------
 const isBrowser = () => typeof window !== 'undefined';
