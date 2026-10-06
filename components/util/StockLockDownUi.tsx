@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import ItemSelection from "@/components/util/ItemSelection";
 import { SaleCart, CartColumn } from "@/components/util/SaleCart";
 import { toastErrors } from "@/helpers/formatStrings";
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Types
 interface StockLockDownPayload {
@@ -109,7 +110,7 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
     setLoading(true);
     
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       
       if (!selectedShop && !sessionShop) {
         router.push('/dashboard/select-shop');
@@ -151,7 +152,7 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
     
     setLoadingStockLevel(true);
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const response = await axiosInstance.get(`/Items/Stock-Level/${itemId}?locationId=${sessionShop || selectedShop}`);
       if (isMountedRef.current) {
         setStockLevel(response?.data);
@@ -170,7 +171,7 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
   useEffect(() => {
     isMountedRef.current = true;
     
-    const sessionShop = sessionStorage.getItem("selectedShop");
+    const sessionShop = sessionStore.get("selectedShop");
     if (!selectedShop && !sessionShop) {
       router.push('/select-shop');
       return;
@@ -346,7 +347,7 @@ const addToCart = useCallback(() => {
     setSubmitting(true);
     
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const locationId = selectedShop || sessionShop || '';
       
       const turnAroundDateTime = new Date(`${turnAroundDate}T${turnAroundTime}:00`);
@@ -399,7 +400,7 @@ const addToCart = useCallback(() => {
   const keyExtractor = useCallback((item: CartItem) => item.id, []);
 
   // If no shop selected
-  const sessionShop = sessionStorage.getItem("selectedShop");
+  const sessionShop = sessionStore.get("selectedShop");
   if (!selectedShop && !sessionShop) {
     return null;
   }

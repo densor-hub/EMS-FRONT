@@ -14,9 +14,10 @@ import { MultiSelectComponent } from '@/components/ui/select';
 import axiosInstance from '@/lib/customAxios';
 import { useAuth } from '@/lib/auth-context';
 import { useToaster } from '@/components/util/CustomToast';
+import { sessionStore } from '@/helpers/formatStrings';
 
 export default function SuppliersPage() {
-  const sessionShop = sessionStorage.getItem("selectedShop");
+  const sessionShop = sessionStore.get("selectedShop");
   const toast = useToaster();
   const {user, selectedShop} = useAuth();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);

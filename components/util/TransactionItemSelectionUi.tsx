@@ -13,6 +13,7 @@ import { useToaster } from '@/components/util/CustomToast';
 import { getRemainingQuantity,  getOriginalRemainingQuantity, getDeliveredQuantity,  formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from '@/helpers/formatStrings';
 import { Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { sessionStore } from '@/helpers/formatStrings';
 // import { ItemStockLevelDTO } from '@/lib/types';
 // import { useAuth } from '@/lib/auth-context';
 // import axiosInstance from '@/lib/customAxios';
@@ -176,7 +177,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                 {/* Quantity Input */}
                 <div className="space-y-1">
                     <Label htmlFor="quantity" className="text-xs sm:text-sm text-foreground">
-                        {props?.isStockTransfer && props?.selectedTransaction?.supplierId !== (selectedShop || sessionStorage.getItem("selectedShop")) 
+                        {props?.isStockTransfer && props?.selectedTransaction?.supplierId !== (selectedShop || sessionStore.get("selectedShop")) 
                     || (!props?.isStockTransfer && (props?.selectedTransaction?.transactionCode?.toUpperCase()?.startsWith("PUR") || props?.selectedTransaction?.supplierId) ) ? "Delivery Qty" : "Receiving Qty"}
                     </Label>
                     <Input

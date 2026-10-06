@@ -21,6 +21,7 @@ import { DataTable } from '@/components/dashboard/data-table';
 import AddPayment from '@/app/purchases/addPayments';
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Dynamic imports
 const Modal = dynamic(
@@ -80,7 +81,7 @@ export default function PurchasePage() {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const locationId = selectedShop || sessionShop;
       const companyId = user?.companyId || user;
 
@@ -103,7 +104,7 @@ export default function PurchasePage() {
 
   const refetchPurchases = async () => {
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const purchasesResponse = await axiosInstance.get(
         `/Purchases/Requests?locationId=${selectedShop || sessionShop}&generalStatus=1`
       );

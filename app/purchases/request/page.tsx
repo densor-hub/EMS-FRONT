@@ -20,6 +20,7 @@ import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
 import { CustomSelect } from '@/components/util/CustomSelect';
+import { sessionStore } from '@/helpers/formatStrings';
 // import TransactionDetailsTabs from '@/components/util/TransactionItemSelectionUi';
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
@@ -69,7 +70,7 @@ export default function PurcahsePage() {
 
     isLoadingRef.current = true;
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       
       // Load suppliers
       const suppliersResponse = await axiosInstance.get(`/Suppliers?companyId=${user.companyId || user}&locationId=${selectedShop || sessionShop}`);
@@ -159,7 +160,7 @@ export default function PurcahsePage() {
             setShowAddPaymentModal(false);
             
             // Refresh purchases after payment
-            const sessionShop = sessionStorage.getItem("selectedShop");
+            const sessionShop = sessionStore.get("selectedShop");
             const purchasesResponse = await axiosInstance.get(`/Purchases/Requests?locationId=${selectedShop || sessionShop}&generalStatus=1`);
             setsales(purchasesResponse?.data);
 
@@ -306,7 +307,7 @@ export default function PurcahsePage() {
               <TransactionUI
                 setOpen={setModalOpen}
                 reloadSetterFunction={setsales}
-                reloadUrl={`/Purchases/Requests?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&SuppliersId=${selectedSupplier}`}
+                reloadUrl={`/Purchases/Requests?LocationId=${selectedShop || sessionStore.get("selectedShop")}&SuppliersId=${selectedSupplier}`}
                 submitUrl={`/Purchases`}
                 businessPartnerLable="Supplier"
                 businessPartnerName={`${suppliers?.find(x => x.id === selectedSupplier)?.supplierCompanyName ||  ""} - ${suppliers?.find(x => x.id === selectedSupplier)?.firstName + " " + suppliers?.find(x => x.id === selectedSupplier)?.lastName || ""}`}
@@ -406,7 +407,7 @@ export default function PurcahsePage() {
               setOpen={setShowDeliveryModal}
               selectedTransaction={transactionDetails}
               setTransactionDetails={setTransactionDetails}
-              reloadUrl={`/Purchases/Requests?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&SuppliersId=${selectedSupplier}`}
+              reloadUrl={`/Purchases/Requests?LocationId=${selectedShop || sessionStore.get("selectedShop")}&SuppliersId=${selectedSupplier}`}
               reloadSetterFunction={setsales}
               submitUrl={`/Transactions/Delivery`}
               transactionActionType="PURCHASE"

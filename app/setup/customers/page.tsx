@@ -15,10 +15,11 @@ import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
 import { formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
+import { sessionStore } from '@/helpers/formatStrings';
 
 
 export default function CustomersPage() {
-  const sessionShop = sessionStorage.getItem("selectedShop")
+  const sessionShop = sessionStore.get("selectedShop")
   const toast = useToaster()
   const {selectedShop} = useAuth()
   const [customers, setCustomers] = useState<Customer[]>([]);

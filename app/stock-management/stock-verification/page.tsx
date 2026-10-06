@@ -20,6 +20,7 @@ import axiosInstance from "@/lib/customAxios";
 
 import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, Sum } from "@/helpers/formatStrings";
 import StockVerificationUi from "@/components/util/StockVerificationUi";
+import { sessionStore } from '@/helpers/formatStrings';
 
 interface SaleCompleteProps {
   transaction: Transaction;
@@ -42,7 +43,7 @@ const loadData = async (): Promise<void> => {
     
     isLoadingRef.current = true;
     try {
-        const purchasess = await axiosInstance.get(`/purchases?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
+        const purchasess = await axiosInstance.get(`/purchases?LocationId=${selectedShop || sessionStore.get("selectedShop")}`)
         setPurchases(purchasess?.data);
     } catch (error) {
         console.error("Error loading data:", error);

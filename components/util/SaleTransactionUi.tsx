@@ -24,6 +24,7 @@ import ReusableCart, {CartColumn} from "./SaleCart";
 import { config } from "./AppConfig";
 import { useToaster } from "./CustomToast";
 import { it } from "node:test";
+import { sessionStore } from "@/helpers/formatStrings";
 
 // Types
 interface TransactionUI {
@@ -194,7 +195,7 @@ const useStockCheck = (selectedShop: string, toast: any) => {
       
       setCheckingStock(true);
       try {
-        const sessionShop = sessionStorage.getItem("selectedShop");
+        const sessionShop = sessionStore.get("selectedShop");
         const locationId = selectedShop || sessionShop;
         
         if (!locationId) {
@@ -338,7 +339,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
 
   // Memoized values
   const locationId = useMemo(() => {
-    return selectedShop || sessionStorage.getItem("selectedShop") || "";
+    return selectedShop || sessionStore.get("selectedShop") || "";
   }, [selectedShop]);
 
   const totalWithCoupon = useMemo(() => {
@@ -550,7 +551,7 @@ const handleAddItem = useCallback(() => {
     setLoading(true);
     
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       
       if (!selectedShop && !sessionShop) {
         router.push('/dashboard/select-shop');
@@ -593,7 +594,7 @@ const handleAddItem = useCallback(() => {
   useEffect(() => {
     isMountedRef.current = true;
     
-    const sessionShop = sessionStorage.getItem("selectedShop");
+    const sessionShop = sessionStore.get("selectedShop");
     if (!selectedShop && !sessionShop) {
       router.push('/dashboard/select-shop');
       return;
@@ -748,7 +749,7 @@ const handleAddItem = useCallback(() => {
     setSubmitting(true);
     
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const locationId = selectedShop || sessionShop || '';
       const paidAmount = parseFormattedNumber(amountPaid);
       
@@ -822,8 +823,8 @@ const handleAddItem = useCallback(() => {
 
 
   // Conditional returns after all hooks
-  const sessionShop = sessionStorage.getItem("selectedShop");
-  if (!selectedShop && !sessionShop) {
+  //const sessionShop = sessionStore.get("selectedShop");
+  if (!selectedShop && !sessionStore.get("selectedShop")) {
     return null;
   }
 

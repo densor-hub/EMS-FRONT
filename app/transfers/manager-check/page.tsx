@@ -26,6 +26,7 @@ import StatusBadge from '@/components/ui/statusbadge'
 import { Textarea } from '@/components/ui/textarea';
 import { CustomSelect } from '@/components/util/CustomSelect';
 import { config } from '@/components/util/AppConfig';
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
@@ -43,7 +44,7 @@ const paymentMethods = [
 ];
 
 export default function PurcahsePage() {
-   const sessionShop = sessionStorage.getItem("selectedShop");
+   const sessionShop = sessionStore.get("selectedShop");
   const toast  = useToaster();
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
@@ -164,7 +165,7 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
+      const stockTransfers = await axiosInstance.get(`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStore.get("selectedShop")}`)
       setStockTransfers(stockTransfers?.data);
   }
 
@@ -560,7 +561,7 @@ export default function PurcahsePage() {
               <TransactionUI
                 setOpen={setModalOpen}
                 reloadSetterFunction={setStockTransfers}
-                reloadUrl={`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&From=${true}`}
+                reloadUrl={`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStore.get("selectedShop")}&From=${true}`}
                 submitUrl="/StockTransfer/Request"
                 businessPartnerLable="Shop"
                 businessPartnerName={`${shops?.find(x => x.id === selectedShopForStockTrans)?.name ||  ""} - ${shops?.find(x => x.id === selectedShopForStockTrans)?.name || ""}`}
@@ -692,7 +693,7 @@ export default function PurcahsePage() {
               selectedTransaction={transactionDetails}
               setTransactionDetails={setTransactionDetails}
               reloadSetterFunction={setStockTransfers}
-              reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&From=${true}`}
+              reloadUrl={`/StockTransfer?LocationId=${selectedShop || sessionStore.get("selectedShop")}&From=${true}`}
               submitUrl="/StockTransfer/Request"
               transactionActionType="SALE"
               heading='Shops Delivery'

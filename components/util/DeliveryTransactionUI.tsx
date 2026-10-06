@@ -16,6 +16,7 @@ import StockLevelUi from "./StockLevelUi";
 import TransactionItemSelection from "./TransactionItemSelectionUi";
 import CartUi from "./DeliveryCart";
 import { POSReceiptProps } from "./POSReceipt";
+import { sessionStore } from "@/helpers/formatStrings";
 
 interface TransactionUI {
   setOpen: (isOpen: boolean) => void;
@@ -85,7 +86,7 @@ const checkStock = async (itemId: string) => {
       
       setCheckingStock(true);
       try {
-        const sessionShop = sessionStorage.getItem("selectedShop");
+        const sessionShop = sessionStore.get("selectedShop");
         const locationId = selectedShop || sessionShop;
         
         if (!locationId) {
@@ -156,7 +157,7 @@ const checkStock = async (itemId: string) => {
 
     setLoading(true);
     try {
-      const sessionShop = sessionStorage.getItem("selectedShop");
+      const sessionShop = sessionStore.get("selectedShop");
       const transaction = {
         locationId: sessionShop || selectedShop,
         transactionId: selectedTransaction.id || selectedTransaction.transactionId,
@@ -323,10 +324,11 @@ const checkStock = async (itemId: string) => {
                     onClick={handleSubmit}
                     disabled={cart.length === 0 || !date || (!isStockTransfer && !amountPaid && !!selectedTransaction?.supplierName)}
                   >
+
+                    {/* isStockTransfer && selectedTransaction?.supplierId !== (selectedShop || sessionStore.get("selectedShop")) 
+                    || (!isStockTransfer && (selectedTransaction?.transactionCode?.toUpperCase()?.startsWith("PUR") || selectedTransaction.supplierId) ) */}
                     <TruckIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                    {isStockTransfer && selectedTransaction?.supplierId !== (selectedShop || sessionStorage.getItem("selectedShop")) 
-                    || (!isStockTransfer && (selectedTransaction?.transactionCode?.toUpperCase()?.startsWith("PUR") || selectedTransaction.supplierId) )
-                    ? "Receive" : "Deliver"}
+                    {"Deliver"}
                   </Button>
 
                   <Button

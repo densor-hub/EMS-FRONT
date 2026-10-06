@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import jsPDF from 'jspdf'
 import { config } from './AppConfig'
 import { useToaster } from './CustomToast'
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Add WebUSB type definitions
 declare global {
@@ -63,7 +64,7 @@ interface POSReceiptUi {
   setData: Dispatch<SetStateAction<POSReceiptProps | null>>
 }
 
-var sessionShop = sessionStorage.getItem("selectedShop");
+var sessionShop = sessionStore.get("selectedShop");
 
 const POSReceipt: React.FC<POSReceiptUi> = ({
   data,

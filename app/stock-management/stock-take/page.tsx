@@ -23,6 +23,7 @@ import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers, Sum 
 import { useToaster } from '@/components/util/CustomToast';
 // import { useToast } from "@/components/ui/use-toast";
 import StockTakeUI from "@/components/util/StockTakeUi";
+import { sessionStore } from '@/helpers/formatStrings';
 
 interface SaleCompleteProps {
   transaction: Transaction;
@@ -54,7 +55,7 @@ const loadData = async (): Promise<void> => {
     
     isLoadingRef.current = true;
     try {
-        const purchasess = await axiosInstance.get(`/purchases?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}`)
+        const purchasess = await axiosInstance.get(`/purchases?LocationId=${selectedShop || sessionStore.get("selectedShop")}`)
         setPurchases(purchasess?.data);
     } catch (error) {
         console.error("Error loading data:", error);

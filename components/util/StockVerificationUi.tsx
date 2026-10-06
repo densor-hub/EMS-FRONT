@@ -43,6 +43,7 @@ import { useToaster } from '@/components/util/CustomToast';
 import Loading from "@/app/dashboard/loading";
 import { DataTable } from '@/components/dashboard/data-table';
 import StockFilterBar from "./StockFilterBar";
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Types
 interface StockLockDownItem {
@@ -132,7 +133,7 @@ export default function StockVerificationUi() {
   // Get selected shop from session if not in context
   const getSelectedShop = useCallback(() => {
     if (selectedShop) return selectedShop;
-    return sessionStorage.getItem("selectedShop") || "";
+    return sessionStore.get("selectedShop") || "";
   }, [selectedShop]);
 
   // Helper to get item by ID
@@ -468,7 +469,7 @@ export default function StockVerificationUi() {
   }, [searchTerm, handleSearch]);
 
   // Check if shop is selected
-  const sessionShop = sessionStorage.getItem("selectedShop");
+  const sessionShop = sessionStore.get("selectedShop");
   if (!selectedShop && !sessionShop) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">

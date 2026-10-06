@@ -21,13 +21,14 @@ import {  config } from '@/components/util/AppConfig';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
 import { CustomSelect } from '@/components/util/CustomSelect';
+import { sessionStore } from '@/helpers/formatStrings';
 //cat Academics =1, Food =2, Tech=3, Cloths=4, Construction=5, Tools=6, Electronics=7, Other=8 
 //units Piece = 1, Box =2, Set =3, Pack = 4, Liter = 5, Yards = 6, Meters = 7, Feets = 8
 
 
 
 export default function ItemsPage() {
-  const sessionShop = sessionStorage.getItem("selectedShop")
+  const sessionShop = sessionStore.get("selectedShop")
   const {user, selectedShop} = useAuth()
   const toast = useToaster()
   const [items, setItems] = useState<Item[]>([]);

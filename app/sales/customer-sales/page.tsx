@@ -20,6 +20,7 @@ import { LoadingOverlay } from '@/components/SkeletonLoading';
 import POSReceipt, {POSReceiptProps} from '@/components/util/POSReceipt';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
 import { config } from '@/components/util/AppConfig';
+import { sessionStore } from '@/helpers/formatStrings';
 
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
@@ -47,7 +48,7 @@ export default function PurcahsePage() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("items");
   const [receiptData, setReceiptData] = useState<POSReceiptProps | null>(null)
-  const sessionShop = sessionStorage.getItem("selectedShop");
+  const sessionShop = sessionStore.get("selectedShop");
 
   // Date filters
   // const [paymentStartDate, setPaymentStartDate] = useState<string>("");

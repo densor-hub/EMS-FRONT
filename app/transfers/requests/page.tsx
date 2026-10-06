@@ -21,6 +21,7 @@ import StatusBadge from '@/components/ui/statusbadge'
 import { useToaster } from '@/components/util/CustomToast';
 import { config } from '@/components/util/AppConfig';
 import { CustomSelect } from '@/components/util/CustomSelect';
+import { sessionStore } from '@/helpers/formatStrings';
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
 const SaleTransactionUi = dynamic(() => import("@/components/util/SaleTransactionUi"), {
@@ -30,7 +31,7 @@ const SaleTransactionUi = dynamic(() => import("@/components/util/SaleTransactio
 
 
 export default function PurcahsePage() {
-   const sessionShop = sessionStorage.getItem("selectedShop");
+   const sessionShop = sessionStore.get("selectedShop");
   const  toast = useToaster();
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
@@ -111,7 +112,7 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer/Requests?LocationId=${selectedShop || sessionStorage.getItem("selectedShop")}&Type=1`)
+      const stockTransfers = await axiosInstance.get(`/StockTransfer/Requests?LocationId=${selectedShop || sessionStore.get("selectedShop")}&Type=1`)
       setStockTransfers(stockTransfers?.data);
   }
 
