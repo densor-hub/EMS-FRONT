@@ -38,15 +38,15 @@ const navItems: NavItem[] = [
       { label: 'Customer Sales', href: '/sales/customer-sales' },
     ],
   },
-  {
-    label: 'Disbursements',
-    href: '/disbursements',
-    icon: <LucideChartNetwork size={20} />,
-    children: [
-      { label: 'Disbursements', href: '/disbursements/disbursement' },
-      { label: 'Approval', href: '/disbursements/approval' },
-    ],
-  },
+  // {
+  //   label: 'Disbursements',
+  //   href: '/disbursements',
+  //   icon: <LucideChartNetwork size={20} />,
+  //   children: [
+  //     { label: 'Disbursements', href: '/disbursements/request' },
+  //     { label: 'Approval', href: '/disbursements/approval' },
+  //   ],
+  // },
   {
     label: 'Stock Management',
     href: '/stock-management/stock',
