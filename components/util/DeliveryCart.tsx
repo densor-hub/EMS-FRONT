@@ -46,7 +46,7 @@ const CartUi = (props: CartProps) => {
                     //      )
                     //  }
                      className="my-custom-table"
-                     emptyMessage="Your cart is empty. Please add items."
+                     emptyMessage="No data found."
                      setDataSource={props?.setDataSource}
                  />
                </CardContent>

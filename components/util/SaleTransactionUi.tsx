@@ -773,7 +773,7 @@ const handleAddItem = useCallback(() => {
         items: saleItems,
         transactionCode: "",
         couponCode: couponData?.code || "",
-        currencyCode: "GHS",
+        currencyCode: config.currency,
         transactionType: 1
         // remarks: `Paid: ${formatCurrency(paidAmount)}${couponData ? `, Coupon: ${couponData.code} (${formatCurrency(couponAmount)})` : ''}`
       };
@@ -875,7 +875,7 @@ const handleAddItem = useCallback(() => {
               onRemove={(item, index) => handleRemoveFromCart(index)}
               onClear={handleClearCart}
               loading={submitting}
-              emptyMessage="No items in cart"
+             emptyMessage="No data found."
               emptySubMessage="Add items using the form above"
               className={prop?.instantSale ? "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-238px)] lg:max-h-[calc(100vh-238px)]" : "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-276px)] lg:max-h-[calc(100vh-276px)]"}
               

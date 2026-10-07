@@ -37,8 +37,8 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
-      className={cn(
-        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-7 md:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+     className={cn(
+        "text-xs md:text-sm border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 h-7 md:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
@@ -93,7 +93,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn('text-muted-foreground px-2 py-1.5 text-xs', className)}
+      className={cn('text-muted-foreground px-2 py-1.5 text-xs sm:text-xs', className)}
       {...props}
     />
   )
@@ -191,7 +191,7 @@ function SelectComponent (prop : ISelectComponent) {
             <Label htmlFor="item" className="text-foreground">{prop.label}</Label>
             <Select value={prop?.selectedItem} onValueChange={prop.setSelectedItem}>
               <SelectTrigger className="bg-white border-border w-[100%]">
-                <SelectValue placeholder="Select item" />
+                <SelectValue placeholder="Select item"  className='text-xm sm:text-sm'/>
               </SelectTrigger>
               <SelectContent>
                 {prop?.items.map(item => (
@@ -220,72 +220,80 @@ function MultiSelectComponent({
   selectedItems,
   setSelectedItems,
   items,
-  label,
 }: IMultiSelectComponent) {
   const toggleItem = (id: string) => {
     if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(i => i !== id))
+      setSelectedItems(selectedItems.filter((i) => i !== id))
     } else {
       setSelectedItems([...selectedItems, id])
     }
   }
 
   const selectedLabels = items
-    .filter(i => selectedItems.includes(i.id))
-    .map(i => i.name)
+    .filter((i) => selectedItems.includes(i.id))
+    .map((i) => i.name)
 
   return (
-    <div className="space-y-2 md:col-span-3 border-[1px] rounded">
-      <Popover.Root>
-        <Popover.Trigger asChild>
-          <button
-            className={cn(
-              "border-input bg-white border-border flex w-full items-center justify-between rounded-md px-3 py-2 text-sm shadow-xs"
-            )}
-          >
-            <span className="truncate">
-              {selectedLabels.length > 0
-                ? selectedLabels.join(', ')
-                : 'Select items'}
-            </span>
-            <ChevronDownIcon className="size-4 opacity-50" />
-          </button>
-        </Popover.Trigger>
-
-        <Popover.Content
-          className="bg-popover text-popover-foreground z-50 w-[var(--radix-popover-trigger-width)] rounded-md border shadow-md p-1"
-          align="start"
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "border-input bg-white border-border flex w-full items-center justify-between gap-2 rounded-md border px-3",
+            "h-7 md:h-9 text-xs md:text-sm shadow-xs",
+            "outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+            "disabled:cursor-not-allowed disabled:opacity-50"
+          )}
         >
-          <div className="max-h-60 overflow-y-auto">
-            {items.map(item => {
-              const checked = selectedItems.includes(item.id)
+          <span className="truncate min-w-0 flex-1 text-left">
+            {selectedLabels.length > 0
+              ? selectedLabels.join(', ')
+              : 'Select items'}
+          </span>
+          <ChevronDownIcon className="size-4 opacity-50 shrink-0" />
+        </button>
+      </Popover.Trigger>
 
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => toggleItem(item.id)}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-2 rounded-sm px-2 py-2 text-sm",
-                    checked && "bg-accent"
-                  )}
-                >
-                  <div className="mt-1">
-                    {checked && <CheckIcon className="size-4" />}
-                  </div>
-
-                  <div className="flex flex-col">
-                    <span>{item.name}</span>
-                    <span className="text-xs text-muted-foreground">
+      {/* ⬇ THIS IS THE FIX */}
+      <Popover.Portal>
+        <Popover.Content
+          className={cn(
+            "bg-popover text-popover-foreground z-50 rounded-md border shadow-md p-1",
+            "w-[var(--radix-popover-trigger-width)]",
+            "max-h-60 overflow-y-auto"
+          )}
+          align="start"
+          sideOffset={4}
+          collisionPadding={8}
+        >
+          {items.map((item) => {
+            const checked = selectedItems.includes(item.id)
+            return (
+              <div
+                key={item.id}
+                onClick={() => toggleItem(item.id)}
+                className={cn(
+                  "flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-xs md:text-sm",
+                  checked && "bg-accent"
+                )}
+              >
+                <div className="mt-0.5 shrink-0">
+                  {checked && <CheckIcon className="size-4" />}
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="truncate">{item.name}</span>
+                  {item.description && (
+                    <span className="truncate text-xs text-muted-foreground">
                       {item.description}
                     </span>
-                  </div>
+                  )}
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )
+          })}
         </Popover.Content>
-      </Popover.Root>
-    </div>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 

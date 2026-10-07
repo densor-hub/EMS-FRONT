@@ -539,7 +539,7 @@ export default function PurcahsePage() {
                 columns={ columns}
                 searchKey="customerName"
                 addLabel="Add Purchase"
-                emptyMessage="No transaction found for the selected shop."
+                emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
                 height="h-[calc(100vh-315px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
               />

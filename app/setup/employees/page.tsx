@@ -18,18 +18,20 @@ import { useToaster } from '@/components/util/CustomToast';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import { config } from '@/components/util/AppConfig';
 import { useAuth } from '@/lib/auth-context';
+import SweetAlert from '@/components/util/SweetAlert';
 
 const employeeStatuses = [
-  {id : 0, name : "Deactivated"},
-  {id : 1, name : "Active"},
-  {id : 2, name : "On Leave"},
-  {id : 3, name : "Suspended"},
-  {id : 4, name : "Resigned"},
-  {id : 5, name : "Terminated"}
-]
+  { id: 0, name: 'Deactivated' },
+  { id: 1, name: 'Active' },
+  { id: 2, name: 'On Leave' },
+  { id: 3, name: 'Suspended' },
+  { id: 4, name: 'Resigned' },
+  { id: 5, name: 'Terminated' },
+];
+
 export default function EmployeesPage() {
   const toast = useToaster();
-  const {selectedShop} = useAuth();
+  const { selectedShop } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -37,19 +39,22 @@ export default function EmployeesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
+  // Delete confirmation state
+  const [showAlert, setShowAlert] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+
   // Form state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [selectedShops, setselectedShops] = useState<string []>([]);
+  const [selectedShops, setselectedShops] = useState<string[]>([]);
   const [roleId, setRoleId] = useState('');
   const [salary, setSalary] = useState('');
   const [hireDate, setHireDate] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [isAppUser, setIsAppUser] = useState(true);
   const [status, setStatus] = useState('');
-  
 
   useEffect(() => {
     loadEmployees();
@@ -58,25 +63,21 @@ export default function EmployeesPage() {
 
   const loadEmployees = async () => {
     try {
-       const employeesData = await axiosInstance.get('/employees');
+      const employeesData = await axiosInstance.get('/employees');
       setEmployees(employeesData?.data);
-      //shops 
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
   };
 
-  
   const loadData = async () => {
     try {
-      //shops 
       const shopsData = await axiosInstance.get('/locations');
-       const rolesData = await axiosInstance.get(`/positions?ForTransactions`);
+      const rolesData = await axiosInstance.get(`/positions?ForTransactions`);
       setShops(shopsData?.data);
       setRoles(rolesData?.data);
-
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
   };
 
@@ -92,18 +93,17 @@ export default function EmployeesPage() {
     setIsActive(true);
     setEditingEmployee(null);
     setStatus('');
-    setIsAppUser(false)
-    setIsLoading(false)
+    setIsAppUser(false);
+    setIsLoading(false);
   };
 
   const openModal = (employee?: Employee) => {
-    // console.log(employee)
-    let locationIds : string [] = [];
+    let locationIds: string[] = [];
 
-    if (employee?.locations !== undefined ) {
-       if (employee?.locations?.length > 0) {
-          locationIds = employee.locations.map((x : any)=> { return x.id.toString()});
-       }
+    if (employee?.locations !== undefined) {
+      if (employee?.locations?.length > 0) {
+        locationIds = employee.locations.map((x: any) => x.id.toString());
+      }
     }
 
     if (employee) {
@@ -117,8 +117,8 @@ export default function EmployeesPage() {
       setSalary(formatNumberWithCommas(employee.salary.toString()));
       setHireDate(employee.hireDate);
       setIsActive(employee.isActive);
-      setIsAppUser(employee.isAppUser)
-      setStatus(employee.status.toString())
+      setIsAppUser(employee.isAppUser);
+      setStatus(employee.status.toString());
     } else {
       resetForm();
     }
@@ -126,7 +126,7 @@ export default function EmployeesPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    setIsLoading(true)
+    setIsLoading(true);
     e.preventDefault();
 
     const employeeData = {
@@ -134,63 +134,88 @@ export default function EmployeesPage() {
       lastName,
       phone,
       email,
-      address : "",
-      isAppUser : true,
-      locations : selectedShops,
-      positionId : roleId,
+      address: '',
+      isAppUser: true,
+      locations: selectedShops,
+      positionId: roleId,
       salary: parseFloat(removeCommasFromNumbers(salary).toString()),
       hireDate,
-      status : Number(status) 
+      status: Number(status),
     };
 
     try {
       if (editingEmployee) {
-        await axiosInstance.put("/employees", {...employeeData, id : editingEmployee.id});
+        await axiosInstance.put('/employees', {
+          ...employeeData,
+          id: editingEmployee.id,
+        });
       } else {
-        console.log(selectedShop)
-        await axiosInstance.post(`/employees/${selectedShop || sessionStorage?.getItem("selectedShop")}`, employeeData);
+        await axiosInstance.post(
+          `/employees/${selectedShop || sessionStorage?.getItem('selectedShop')}`,
+          employeeData
+        );
       }
-      
+
       await loadEmployees();
       setIsModalOpen(false);
       resetForm();
 
-       toast.success({
-          title: 'Submitted successfully',
-          description: 'Employee saved successfully',
-      })
+      toast.success({
+        title: 'Submitted successfully',
+        description: 'Employee saved successfully',
+      });
     } catch (error: any) {
-
       console.error('Error saving employee:', error.response?.data?.message);
-
-       toast.warning({
-          title:  'Failed to submit',
-          description: error?.response?.data?.message || 'Please try again later',
-      })
-    }
-    finally {
-      setIsLoading(false)
+      toast.warning({
+        title: 'Failed to submit',
+        description: error?.response?.data?.message || 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = async (employee: Employee) => {
-    if (confirm(`Are you sure you want to delete "${employee.firstName} ${employee.lastName}"?`)) {
-      try {
-        await axiosInstance.delete(`/employees/${employee.id}`)
-        await loadEmployees();
-      } catch (error) {
-        console.error('Error deleting employee:', error);
-      }
+  // Step 1: open the confirmation dialog
+  const requestDelete = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setShowAlert(true);
+    setIsModalOpen(false);
+  };
+
+  // Step 2: confirmed — perform the delete
+  const confirmDelete = async () => {
+    const employee = employeeToDelete;
+    setShowAlert(false);
+    setEmployeeToDelete(null);
+    if (!employee) return;
+
+    setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    try {
+      await axiosInstance.delete(`/employees/${employee.id}`);
+      await loadEmployees();
+      toast.success({
+        title: 'Deleted successfully',
+        description: 'Employee deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      toast.warning({
+        title: 'Failed to delete employee',
+        description: 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: `${config.currency}` }).format(amount);
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: `${config.currency}`,
+    }).format(amount);
 
-
-  // useEffect(() => {
-  //   setHireDate(hireDate)
-  // }, [hireDate])
   const columns = [
     {
       key: 'firstName' as keyof Employee,
@@ -204,24 +229,21 @@ export default function EmployeesPage() {
             </span>
           </div>
           <div>
-            <p className="font-medium text-foreground">{employee.firstName} {employee.lastName}</p>
+            <p className="font-medium text-foreground">
+              {employee.firstName} {employee.lastName}
+            </p>
             <p className="text-xs text-muted-foreground">{employee.email}</p>
           </div>
         </div>
       ),
     },
-    // {
-    //   key: 'selectedShops' as keyof Employee,
-    //   label: 'Shop',
-    //   render: (employee: Employee) => (
-    //     <span className="text-muted-foreground">{getShopName(employee.)}</span>
-    //   ),
-    // },
     {
       key: 'roleId' as keyof Employee,
       label: 'Role',
       render: (employee: Employee) => (
-        <Badge variant="outline">{roles?.find(x=> x.id === employee.roleId)?.name}</Badge>
+        <Badge variant="outline">
+          {roles?.find((x) => x.id === employee.roleId)?.name}
+        </Badge>
       ),
     },
     {
@@ -229,24 +251,37 @@ export default function EmployeesPage() {
       label: 'Salary',
       sortable: true,
       render: (employee: Employee) => (
-        <span className="font-medium text-foreground">{formatCurrency(employee.salary)}</span>
+        <span className="font-medium text-foreground">
+          {formatCurrency(employee.salary)}
+        </span>
       ),
     },
     {
       key: 'isActive' as keyof Employee,
       label: 'Status',
       render: (employee: Employee) => (
-        <Badge className={employee.status.toString() === "1"  ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}>
-          {employeeStatuses.find(x=> x.id.toString()  == employee.status)?.name}
+        <Badge
+          className={
+            employee.status.toString() === '1'
+              ? 'bg-success/20 text-success'
+              : 'bg-muted text-muted-foreground'
+          }
+        >
+          {employeeStatuses.find((x) => x.id.toString() == employee.status)?.name}
         </Badge>
       ),
     },
-
     {
       key: 'isAppUser' as keyof Employee,
       label: 'App User',
       render: (employee: Employee) => (
-        <Badge className={employee.isAppUser ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}>
+        <Badge
+          className={
+            employee.isAppUser
+              ? 'bg-success/20 text-success'
+              : 'bg-muted text-muted-foreground'
+          }
+        >
           {employee.isAppUser ? 'Yes' : 'No'}
         </Badge>
       ),
@@ -256,7 +291,9 @@ export default function EmployeesPage() {
       label: 'Hire Date',
       sortable: true,
       render: (employee: Employee) => (
-        <span className="font-medium text-foreground">{alphaNumericDate(employee.hireDate)}</span>
+        <span className="font-medium text-foreground">
+          {alphaNumericDate(employee.hireDate)}
+        </span>
       ),
     },
     {
@@ -264,10 +301,14 @@ export default function EmployeesPage() {
       label: 'Actions',
       render: (employee: Employee) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => openModal(employee)}>
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(employee)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestDelete(employee);
+            }}
+          >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -277,10 +318,10 @@ export default function EmployeesPage() {
 
   return (
     <div className="min-h-screen">
-      {isLoading && <LoadingOverlay/>}
+      {isLoading && <LoadingOverlay />}
       <Header title="Employees" description="Manage your workforce" />
 
-      <div className="p-6">
+      <div className="m-2">
         <DataTable
           title="All Employees"
           data={employees}
@@ -288,7 +329,9 @@ export default function EmployeesPage() {
           searchKey="firstName"
           onAdd={() => openModal()}
           addLabel="Add Employee"
-          emptyMessage="No employees found. Add your first employee to get started."
+          emptyMessage="No data found."
+          onRowClick={(emp) => openModal(emp)}
+          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
         />
       </div>
 
@@ -300,180 +343,218 @@ export default function EmployeesPage() {
           resetForm();
         }}
         title={editingEmployee ? 'Edit Employee' : 'Add New Employee'}
-        description={editingEmployee ? 'Update employee information' : 'Add a new team member'}
+        description={
+          editingEmployee ? 'Update employee information' : 'Add a new team member'
+        }
         size="xl"
       >
-      <form onSubmit={handleSubmit} className="space-y-4">
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="firstName" className="text-foreground">First Name</Label>
-      <div className="relative">
-        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          id="firstName"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          placeholder="John"
-          className="pl-10 bg-white border-border"
-          required
-        />
-      </div>
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
-      <Input
-        id="lastName"
-        value={lastName}
-        onChange={(e) => setLastName(e.target.value)}
-        placeholder="Doe"
-        className="bg-white border-border"
-        required
-      />
-    </div>
-  </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-foreground">First Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="John"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Doe"
+                className="bg-white border-border"
+                required
+              />
+            </div>
+          </div>
 
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="email" className="text-foreground">Email</Label>
-      <div className="relative">
-        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="john@company.com"
-          className="pl-10 bg-white border-border"
-          required
-        />
-      </div>
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="phone" className="text-foreground">Phone</Label>
-      <div className="relative">
-        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          id="phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="+1 234 567 8900"
-          className="pl-10 bg-white border-border"
-          required
-        />
-      </div>
-    </div>
-  </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-foreground">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@company.com"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-foreground">Phone</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1 234 567 8900"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
+            </div>
+          </div>
 
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="shop" className="text-foreground">Shop</Label>
-      <MultiSelectComponent
-        selectedItems={selectedShops}
-        items={shops.map((x) => ({
-          id: x.id,
-          name: x.name,
-          description: '',
-        }))}
-        label=""
-        setSelectedItems={setselectedShops}
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="role" className="text-foreground">Role</Label>
-      <Select value={roleId} onValueChange={setRoleId} required>
-        <SelectTrigger className="bg-white border-border w-full">
-          <SelectValue placeholder="Select role" />
-        </SelectTrigger>
-        <SelectContent>
-          {roles.map((role) => (
-            <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="shop" className="text-foreground">Shop(s)</Label>
+              <MultiSelectComponent
+                selectedItems={selectedShops}
+                items={shops.map((x) => ({
+                  id: x.id,
+                  name: x.name,
+                  description: '',
+                }))}
+                label=""
+                setSelectedItems={setselectedShops}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role" className="text-foreground">Role</Label>
+              <Select value={roleId} onValueChange={setRoleId} required>
+                <SelectTrigger className="bg-white border-border w-full">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-  {/* Salary + Hire Date row — both 50/50 */}
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="salary" className="text-foreground">
-        Monthly Salary ({config.currency})
-      </Label>
-      <div className="relative">
-        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          id="salary"
-          value={salary}
-          onChange={(e) => setSalary(formatNumberWithCommas(e.target.value))}
-          placeholder="50000"
-          className="pl-10 bg-white border-border"
-          required
-        />
-      </div>
-    </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="salary" className="text-foreground">
+                Monthly Salary ({config.currency})
+              </Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="salary"
+                  value={salary}
+                  onChange={(e) => setSalary(formatNumberWithCommas(e.target.value))}
+                  placeholder="50000"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
+            </div>
 
-    <div className="space-y-2">
-      {/* <Label htmlFor="hireDate" className="text-foreground">Hire Date</Label>
-      <div className="relative"> */}
-      <Label htmlFor="hireDate" className="text-xs sm:text-sm w-full">Hire Date</Label>
-      <Input
-        type="date"
-        value={hireDate}
-        onChange={(e) => setHireDate(e.target.value)}
-        className="w-full text-xs sm:text-sm bg-white border-gray-300"
-        required = {!hireDate}
-      />
-    </div>
-  </div>
+            <div className="space-0">
+              <Label htmlFor="hireDate" className="text-xs sm:text-sm w-full">
+                Hire Date
+              </Label>
+              <Input
+                type="date"
+                value={hireDate}
+                onChange={(e) => setHireDate(e.target.value)}
+                className="w-full text-xs sm:text-sm bg-white border-gray-300"
+                required={!hireDate}
+              />
+            </div>
+          </div>
 
-  {/* Status (when editing) + Is App User */}
-  <div className="grid grid-cols-2 gap-4">
-    {editingEmployee && (
-      <div className="space-y-2">
-        <Label htmlFor="status" className="text-foreground">Status</Label>
-        <Select value={status} onValueChange={setStatus} required>
-          <SelectTrigger className="bg-white border-border w-full">
-            <SelectValue placeholder="Select status" />
-          </SelectTrigger>
-          <SelectContent>
-            {employeeStatuses.map((s) => (
-              <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    )}
+          <div className="grid grid-cols-2 gap-4">
+            {editingEmployee && (
+              <div className="space-y-2">
+                <Label htmlFor="status" className="text-foreground">Status</Label>
+                <Select value={status} onValueChange={setStatus} required>
+                  <SelectTrigger className="bg-white border-border w-full">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeStatuses.map((s) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-    <div className={`flex items-center justify-between p-4 bg-secondary rounded-lg ${!editingEmployee ? 'col-span-2' : ''}`}>
-      <div>
-        <Label htmlFor="isActive" className="text-foreground">Is App User</Label>
-        <p className="text-xs text-muted-foreground">Employee can access the system</p>
-      </div>
-      <Switch
-        id="isActive"
-        checked={isAppUser}
-        onCheckedChange={setIsAppUser}
-      />
-    </div>
-  </div>
+            <div
+              className={`flex items-center justify-between p-4 bg-secondary rounded-lg ${
+                !editingEmployee ? 'col-span-2' : ''
+              }`}
+            >
+              <div>
+                <Label htmlFor="isActive" className="text-foreground">
+                  Is App User
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Employee can access the system
+                </p>
+              </div>
+              <Switch
+                id="isActive"
+                checked={isAppUser}
+                onCheckedChange={setIsAppUser}
+              />
+            </div>
+          </div>
 
-  <div className="flex justify-end gap-3 pt-4">
-    <Button
-      type="button"
-      variant="outline"
-      onClick={() => {
-        setIsModalOpen(false);
-        resetForm();
-      }}
-    >
-      Cancel
-    </Button>
-    <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-      {editingEmployee ? 'Update Employee' : 'Add Employee'}
-    </Button>
-  </div>
-</form>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsModalOpen(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {editingEmployee ? 'Update Employee' : 'Add Employee'}
+            </Button>
+          </div>
+        </form>
       </Modal>
+
+      <SweetAlert
+        isOpen={showAlert}
+        onClose={() => {
+          setShowAlert(false);
+          setEmployeeToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowAlert(false);
+          setEmployeeToDelete(null);
+        }}
+        type="error"
+        title="Delete Employee?"
+        message={
+          employeeToDelete
+            ? `Are you sure you want to delete "${employeeToDelete.firstName} ${employeeToDelete.lastName}"? This action cannot be undone.`
+            : 'This action cannot be undone.'
+        }
+        confirmText="Yes, Delete"
+        showCancelButton={true}
+        showCloseButton={false}
+      />
 
       {toast.ToastComponent}
     </div>

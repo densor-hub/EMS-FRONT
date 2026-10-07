@@ -9,22 +9,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import type { Shop, Supplier } from '@/lib/types';
-import { Edit, Trash2, Truck, User, Mail, Phone, MapPin, Building } from 'lucide-react';
+import { Trash2, Truck, User, Mail, Phone, MapPin, Building } from 'lucide-react';
 import { MultiSelectComponent } from '@/components/ui/select';
 import axiosInstance from '@/lib/customAxios';
 import { useAuth } from '@/lib/auth-context';
 import { useToaster } from '@/components/util/CustomToast';
 import { sessionStore } from '@/helpers/formatStrings';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
+import SweetAlert from '@/components/util/SweetAlert';
+import { config } from '@/components/util/AppConfig';
 
 export default function SuppliersPage() {
-  const sessionShop = sessionStore.get("selectedShop");
+  const sessionShop = sessionStore.get('selectedShop');
   const toast = useToaster();
-  const {user, selectedShop} = useAuth();
+  const { user, selectedShop } = useAuth();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [shops, setShops] = useState<Shop[]>([]);
+
+  // Delete confirmation state
+  const [showAlert, setShowAlert] = useState(false);
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -36,38 +43,34 @@ export default function SuppliersPage() {
   const [selectedShops, setselectedShops] = useState<string[]>([]);
 
   useEffect(() => {
-    if (user) {
-       loadSuppliers();
+    if (user?.companyId) {
+      loadSuppliers();
       loadData();
-    } 
+    }
   }, [user]);
 
   const loadSuppliers = async () => {
     try {
-      const data = await axiosInstance.get(`Suppliers?companyId=${user.companyId}`);
+      const data = await axiosInstance.get(`Suppliers?companyId=${user?.companyId}`);
       setSuppliers(data?.data);
     } finally {
       setIsLoading(false);
     }
   };
 
-    const loadData = async () => {
+  const loadData = async () => {
     try {
-      //shops 
       const shopsData = await axiosInstance.get('/locations');
-      //  const rolesData = await axiosInstance.get('/positions');
       setShops(shopsData?.data);
-      // setRoles(rolesData?.data);
-
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
   };
 
   const resetForm = () => {
     setName('');
     setFirstName('');
-     setLastName('');
+    setLastName('');
     setEmail('');
     setPhone('');
     setAddress('');
@@ -77,14 +80,13 @@ export default function SuppliersPage() {
 
   const openModal = (supplier?: Supplier) => {
     if (supplier) {
+      let locationIds: string[] = [];
 
-       let locationIds : string [] = [];
-
-       if (supplier?.locations !== undefined ) {
-            if (supplier?.locations?.length > 0) {
-                locationIds = supplier.locations.map((x : any)=> { return x.id.toString()});
-            }
+      if (supplier?.locations !== undefined) {
+        if (supplier?.locations?.length > 0) {
+          locationIds = supplier.locations.map((x: any) => x.id.toString());
         }
+      }
 
       setEditingSupplier(supplier);
       setName(supplier.supplierCompanyName);
@@ -93,7 +95,7 @@ export default function SuppliersPage() {
       setEmail(supplier.email);
       setPhone(supplier.phone);
       setAddress(supplier.address);
-      setselectedShops(locationIds)
+      setselectedShops(locationIds);
     } else {
       resetForm();
     }
@@ -109,67 +111,84 @@ export default function SuppliersPage() {
       phone,
       email,
       address,
-      supplierComanyName : name,
+      supplierComanyName: name,
       locations: selectedShops,
-      tin : ""
+      tin: '',
     };
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       if (editingSupplier) {
-        await axiosInstance.put('/Suppliers', {...supplierData, id : editingSupplier.id})
+        await axiosInstance.put('/Suppliers', {
+          ...supplierData,
+          id: editingSupplier.id,
+        });
       } else {
-        await axiosInstance.post(`Suppliers/${selectedShop || sessionShop}`, supplierData)
+        await axiosInstance.post(
+          `Suppliers/${selectedShop || sessionShop}`,
+          supplierData
+        );
       }
       await loadSuppliers();
       setIsModalOpen(false);
       resetForm();
 
-       toast.success({
-          title: 'Submitted successfully',
-          description: 'Supplier created successfully',
-      })
-    } catch (error : any) {
+      toast.success({
+        title: 'Submitted successfully',
+        description: 'Supplier created successfully',
+      });
+    } catch (error: any) {
       console.error('Error saving supplier:', error);
-
       toast.warning({
-          title:  'Failed to submit',
-          description: error?.response?.data?.message || 'Please try again later',
-      })
-    }
-    finally {
-      setIsLoading(false)
+        title: 'Failed to submit',
+        description: error?.response?.data?.message || 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = async (supplier: Supplier) => {
-    if (confirm(`Are you sure you want to delete "${supplier.supplierCompanyName}"?`)) {
-      try {
-        setIsLoading(true)
-        await axiosInstance.delete(`/Suppliers/${supplier.id}`)
-        await loadSuppliers();
+  // Step 1: open the confirmation dialog
+  const requestDelete = (supplier: Supplier) => {
+    setSupplierToDelete(supplier);
+    setShowAlert(true);
+    setIsModalOpen(false);
+  };
 
-        toast.success({
-          title: 'Submitted successfully',
-          description: 'Supplier deleted successfully',
-      })
-      } catch (error: any) {
-        console.error('Error deleting supplier:', error);
+  // Step 2: confirmed — perform the delete
+  const confirmDelete = async () => {
+    const supplier = supplierToDelete;
+    setShowAlert(false);
+    setSupplierToDelete(null);
+    if (!supplier) return;
 
-        toast.warning({
-          title:  'Failed to submit',
-          description: error?.response?.data?.message || 'Please try again later',
-      })
-      }
+    setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 0));
 
-      finally{
-        setIsLoading(false)
-      }
+    try {
+      await axiosInstance.delete(`/Suppliers/${supplier.id}`);
+      await loadSuppliers();
+
+      toast.success({
+        title: 'Deleted successfully',
+        description: 'Supplier deleted successfully',
+      });
+    } catch (error: any) {
+      console.error('Error deleting supplier:', error);
+      toast.warning({
+        title: 'Failed to delete supplier',
+        description: error?.response?.data?.message || 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: config.currency,
+    }).format(amount);
 
   const columns = [
     {
@@ -182,7 +201,9 @@ export default function SuppliersPage() {
             <Truck className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-foreground">{supplier.supplierCompanyName}</p>
+            <p className="font-medium text-foreground">
+              {supplier.supplierCompanyName}
+            </p>
             <p className="text-xs text-muted-foreground">{supplier.email}</p>
           </div>
         </div>
@@ -194,7 +215,9 @@ export default function SuppliersPage() {
       render: (supplier: Supplier) => (
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-muted-foreground" />
-          <span className="text-muted-foreground">{`${supplier.firstName} ${supplier.lastName}`}</span>
+          <span className="text-muted-foreground">
+            {`${supplier.firstName} ${supplier.lastName}`}
+          </span>
         </div>
       ),
     },
@@ -210,8 +233,14 @@ export default function SuppliersPage() {
       label: 'Outstanding Balance',
       sortable: true,
       render: (supplier: Supplier) => (
-        <Badge className={supplier.balance > 0 ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}>
-          {formatCurrency(supplier.balance)}
+        <Badge
+          className={
+            supplier.balance > 0
+              ? 'bg-warning/20 text-warning'
+              : 'bg-success/20 text-success'
+          }
+        >
+          {formatCurrency(supplier.balance ?? 0)}
         </Badge>
       ),
     },
@@ -220,10 +249,14 @@ export default function SuppliersPage() {
       label: 'Actions',
       render: (supplier: Supplier) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => openModal(supplier)}>
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(supplier)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestDelete(supplier);
+            }}
+          >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -231,19 +264,15 @@ export default function SuppliersPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen">
-      <Header title="Suppliers" description="Manage your supplier relationships" />
+      {isLoading && <LoadingOverlay />}
+      <Header
+        title="Suppliers"
+        description="Manage your supplier relationships"
+      />
 
-      <div className="p-6">
+      <div className="mt-2">
         <DataTable
           title="All Suppliers"
           data={suppliers}
@@ -251,7 +280,9 @@ export default function SuppliersPage() {
           searchKey="supplierCompanyName"
           onAdd={() => openModal()}
           addLabel="Add Supplier"
-          emptyMessage="No suppliers found. Add your first supplier to get started."
+          emptyMessage="No data found."
+          onRowClick={(shop) => openModal(shop)}
+          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
         />
       </div>
 
@@ -263,12 +294,18 @@ export default function SuppliersPage() {
           resetForm();
         }}
         title={editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
-        description={editingSupplier ? 'Update supplier information' : 'Add a new supplier to your system'}
+        description={
+          editingSupplier
+            ? 'Update supplier information'
+            : 'Add a new supplier to your system'
+        }
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-foreground">Company Name</Label>
+            <Label htmlFor="name" className="text-foreground">
+              Company Name
+            </Label>
             <div className="relative">
               <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -282,41 +319,47 @@ export default function SuppliersPage() {
             </div>
           </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="firstName" className="text-foreground">Contact First Name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="firstName"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="John Smith"
-                className="pl-10 bg-white border-border"
-                required
-              />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-foreground">
+                Contact First Name
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="John"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="text-foreground">Contact Last Name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="lastName"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="John Smith"
-                className="pl-10 bg-white border-border"
-                required
-              />
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-foreground">
+                Contact Last Name
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Smith"
+                  className="pl-10 bg-white border-border"
+                  required
+                />
+              </div>
             </div>
           </div>
-        </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email</Label>
+              <Label htmlFor="email" className="text-foreground">
+                Email
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -331,7 +374,9 @@ export default function SuppliersPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-foreground">Phone</Label>
+              <Label htmlFor="phone" className="text-foreground">
+                Phone
+              </Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -346,21 +391,26 @@ export default function SuppliersPage() {
             </div>
           </div>
 
-           <div className="space-y-2">
-              <Label htmlFor="shop" className="text-foreground">Shop</Label>
-              <MultiSelectComponent
-                selectedItems={selectedShops}
-                items={shops.map(x=> {
-                  return {id : x.id, name: x.name, description : ""}
-                })}
-                 label=''
-                setSelectedItems={setselectedShops}
-
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="shop" className="text-foreground">
+              Shop
+            </Label>
+            <MultiSelectComponent
+              selectedItems={selectedShops}
+              items={shops.map((x) => ({
+                id: x.id,
+                name: x.name,
+                description: '',
+              }))}
+              label=""
+              setSelectedItems={setselectedShops}
+            />
+          </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address" className="text-foreground">Address</Label>
+            <Label htmlFor="address" className="text-foreground">
+              Address
+            </Label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -385,12 +435,41 @@ export default function SuppliersPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              type="submit"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               {editingSupplier ? 'Update Supplier' : 'Add Supplier'}
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Delete confirmation */}
+      <SweetAlert
+        isOpen={showAlert}
+        onClose={() => {
+          setShowAlert(false);
+          setSupplierToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowAlert(false);
+          setSupplierToDelete(null);
+        }}
+        type="error"
+        title="Delete Supplier?"
+        message={
+          supplierToDelete
+            ? `Are you sure you want to delete "${supplierToDelete.supplierCompanyName}"? This action cannot be undone.`
+            : 'This action cannot be undone.'
+        }
+        confirmText="Yes, Delete"
+        showCancelButton={true}
+        showCloseButton={false}
+      />
+
+      {toast.ToastComponent}
     </div>
   );
 }

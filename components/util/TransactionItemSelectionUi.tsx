@@ -143,7 +143,6 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{item.name || item.itemName}</span>
                                                 <span className="text-xs text-muted-foreground">
-                                                    {/* Code: {item.code} | Remaining: {remaining} | Price: GHS{item?.unitPrice?.toFixed(2)} */}
                                                     { "Price " + item?.unitPrice?.toFixed(2) }
                                                 </span>
                                             </div>

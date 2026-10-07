@@ -120,7 +120,7 @@ const CartTable = ({
                     <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
                 </Button>
             )}
-            emptyMessage={emptyMessage}
+            emptyMessage="No data found."
             className={className}
         />
     );

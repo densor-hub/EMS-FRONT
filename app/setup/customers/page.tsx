@@ -8,24 +8,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-// import { customerService, itemService } from '@/lib/api-service';
-import type { Customer, Item } from '@/lib/types';
-import { Edit, Trash2, User, Mail, Phone, MapPin, DollarSign, CreditCard, Wallet } from 'lucide-react';
+import type { Customer } from '@/lib/types';
+import { User, Mail, Phone, MapPin, CreditCard, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
-import { formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
+import { currency, formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
 import { sessionStore } from '@/helpers/formatStrings';
-
+import { LoadingOverlay } from '@/components/SkeletonLoading';
+import SweetAlert from '@/components/util/SweetAlert';
+import { config } from '@/components/util/AppConfig';
 
 export default function CustomersPage() {
-  const sessionShop = sessionStore.get("selectedShop")
-  const toast = useToaster()
-  const {selectedShop} = useAuth()
+  const sessionShop = sessionStore.get('selectedShop');
+  const toast = useToaster();
+  const { selectedShop } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Delete confirmation state
+  const [showAlert, setShowAlert] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   // Form state
   const [firstName, setFirstName] = useState('');
@@ -36,24 +41,20 @@ export default function CustomersPage() {
   const [address, setAddress] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
 
-  // Deposit form state
-  // const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
-  // const [depositCustomer, setDepositCustomer] = useState<Customer | null>(null);
-  // const [depositAmount, setDepositAmount] = useState('');
-
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-        const response = await axiosInstance.get( `/Customers?locationId=${selectedShop || sessionShop}`);
-        setCustomers(response?.data);
+      const response = await axiosInstance.get(
+        `/Customers?locationId=${selectedShop || sessionShop}`
+      );
+      setCustomers(response?.data);
     } finally {
       setIsLoading(false);
     }
   };
-
 
   const resetForm = () => {
     setFirstName('');
@@ -73,20 +74,14 @@ export default function CustomersPage() {
       setLastName(customer.lastName);
       setEmail(customer.email);
       setPhone(customer.phone);
-      setNationalId(customer.nationalId)
+      setNationalId(customer.nationalId);
       setAddress(customer.address);
-      setCreditLimit(formatNumberWithCommas(customer.creditLimit.toString()));
+      setCreditLimit(formatNumberWithCommas(customer.creditLimit?.toString() ?? ''));
     } else {
       resetForm();
     }
     setIsModalOpen(true);
   };
-
-  // const openDepositModal = (customer: Customer) => {
-  //   setDepositCustomer(customer);
-  //   setDepositAmount('');
-  //   setIsDepositModalOpen(true);
-  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,83 +92,81 @@ export default function CustomersPage() {
       phone,
       email,
       address,
-      status : true,
-      locationId : selectedShop || sessionShop,
+      status: true,
+      locationId: selectedShop || sessionShop,
       creditLimit: parseFloat(removeCommasFromNumbers(creditLimit).toString()),
-      nationalIdentificationNumber: nationId
+      nationalIdentificationNumber: nationId,
     };
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       if (editingCustomer) {
-        await axiosInstance.put('/Customers', {...customerData, id : editingCustomer.id})
+        await axiosInstance.put('/Customers', {
+          ...customerData,
+          id: editingCustomer.id,
+        });
       } else {
-        await axiosInstance.post('/Customers', customerData)
+        await axiosInstance.post('/Customers', customerData);
       }
       await loadData();
       setIsModalOpen(false);
       resetForm();
 
       toast.success({
-          title: 'Submitted successfully',
-          description: 'Customer saved successfully',
-      })
+        title: 'Submitted successfully',
+        description: 'Customer saved successfully',
+      });
     } catch (error: any) {
-       console.error('Error saving employee:', error.response?.data?.message);
-
-      //  toast.warning({
-      //     title:  'Failed to submit',
-      //     description: error?.response?.data?.message || 'Please try again later',
-      // })
-    }
-    finally{
-      setIsLoading(false)
+      console.error('Error saving customer:', error.response?.data?.message);
+      toast.warning({
+        title: 'Failed to submit',
+        description: error?.response?.data?.message || 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // const handleDeposit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   if (!depositCustomer) return;
+  // Step 1: open the confirmation dialog
+  const requestDelete = (customer: Customer) => {
+    setCustomerToDelete(customer);
+    setShowAlert(true);
+    setIsModalOpen(false);
+  };
 
-  //   try {
-  //     await customerService.addDeposit(depositCustomer.id, parseFloat(depositAmount));
-  //     await loadData();
-  //     setIsDepositModalOpen(false);
-  //     setDepositCustomer(null);
-  //     setDepositAmount('');
-  //   } catch (error) {
-  //     console.error('Error adding deposit:', error);
-  //   }
-  // };
+  // Step 2: confirmed — perform the delete
+  const confirmDelete = async () => {
+    const customer = customerToDelete;
+    setShowAlert(false);
+    setCustomerToDelete(null);
+    if (!customer) return;
 
-  const handleDelete = async (customer: Customer) => {
-    if (confirm(`Are you sure you want to delete "${customer.firstName} ${customer.lastName}"?`)) {
-     
-      setIsLoading(true)
-      try {
-        await axiosInstance.delete(`/Customers/${customer?.id}`);
-        await loadData();
+    setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 0));
 
-      //    toast.success({
-      //     title: 'Submitted successfully',
-      //     description: 'Customer deleted successfully',
-      // })
-      } catch (error : any) {
-        console.error('Error deleting customer:', error);
-
-      //   toast.warning({
-      //     title:  'Failed to submit',
-      //     description: error?.response?.data?.message || 'Please try again later',
-      // })
-      }
-      finally{
-        setIsLoading(false)
-      }
+    try {
+      await axiosInstance.delete(`/Customers/${customer.id}`);
+      await loadData();
+      toast.success({
+        title: 'Deleted successfully',
+        description: 'Customer deleted successfully',
+      });
+    } catch (error: any) {
+      console.error('Error deleting customer:', error);
+      toast.warning({
+        title: 'Failed to delete customer',
+        description: error?.response?.data?.message || 'Please try again later',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: config.currency,
+    }).format(amount);
 
   const columns = [
     {
@@ -182,13 +175,10 @@ export default function CustomersPage() {
       sortable: true,
       render: (customer: Customer) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-semibold text-primary">
-              {customer.firstName[0]}{customer.lastName[0]}
-            </span>
-          </div>
           <div>
-            <p className="font-medium text-foreground">{customer.firstName} {customer.lastName}</p>
+            <p className="font-medium text-foreground">
+              {customer.firstName} {customer.lastName}
+            </p>
             <p className="text-xs text-muted-foreground">{customer.email}</p>
           </div>
         </div>
@@ -206,7 +196,9 @@ export default function CustomersPage() {
       label: 'Credit Limit',
       sortable: true,
       render: (customer: Customer) => (
-        <span className="text-foreground">{formatCurrency(customer.creditLimit)}</span>
+        <span className="text-foreground">
+          {formatCurrency(customer.creditLimit)}
+        </span>
       ),
     },
     {
@@ -214,25 +206,30 @@ export default function CustomersPage() {
       label: 'Outstanding Balance',
       sortable: true,
       render: (customer: Customer) => (
-        <Badge className={customer.balance > 0 ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}>
-          {formatCurrency(customer.balance)}
+        <Badge
+          className={
+            customer.balance > 0
+              ? 'bg-warning/20 text-warning'
+              : 'bg-success/20 text-success'
+          }
+        >
+          {currency(customer?.balance?.toString() || "0")}
         </Badge>
       ),
     },
-
     {
       key: 'actions' as keyof Customer,
       label: 'Actions',
       render: (customer: Customer) => (
         <div className="flex items-center gap-2">
-          {/* <Button variant="outline" size="sm" onClick={() => openDepositModal(customer)}>
-            <Wallet className="w-4 h-4 mr-1" />
-            Deposit
-          </Button> */}
-          <Button variant="ghost" size="icon" onClick={() => openModal(customer)}>
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(customer)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestDelete(customer);
+            }}
+          >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -240,20 +237,12 @@ export default function CustomersPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
- 
-       <div className="min-h-screen">
+    <div className="min-h-screen">
+      {isLoading && <LoadingOverlay />}
       <Header title="Customers" description="Manage customer accounts and credit" />
 
-      <div className="p-6">
+      <div className="mt-2">
         <DataTable
           title="All Customers"
           data={customers}
@@ -261,7 +250,9 @@ export default function CustomersPage() {
           searchKey="firstName"
           onAdd={() => openModal()}
           addLabel="Add Customer"
-          emptyMessage="No customers found. Add your first customer to get started."
+          emptyMessage="No data found."
+          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
+          onRowClick={(data) => openModal(data)}
         />
       </div>
 
@@ -273,13 +264,14 @@ export default function CustomersPage() {
           resetForm();
         }}
         title={editingCustomer ? 'Edit Customer' : 'Add New Customer'}
-        // description={editingCustomer ? 'Update customer information' : 'Add a new customer to your system'}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="firstName" className="text-foreground">First Name *</Label>
+              <Label htmlFor="firstName" className="text-foreground">
+                First Name *
+              </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -293,7 +285,9 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lastName" className="text-foreground">Last Name *</Label>
+              <Label htmlFor="lastName" className="text-foreground">
+                Last Name *
+              </Label>
               <Input
                 id="lastName"
                 value={lastName}
@@ -307,7 +301,9 @@ export default function CustomersPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">Email *</Label>
+              <Label htmlFor="email" className="text-foreground">
+                Email *
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -322,7 +318,9 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-foreground">Phone *</Label>
+              <Label htmlFor="phone" className="text-foreground">
+                Phone *
+              </Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -336,9 +334,11 @@ export default function CustomersPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="space-y-2">
-            <Label htmlFor="nationId" className="text-foreground">National ID *</Label>
+            <Label htmlFor="nationId" className="text-foreground">
+              National ID *
+            </Label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -353,7 +353,9 @@ export default function CustomersPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address" className="text-foreground">Address *</Label>
+            <Label htmlFor="address" className="text-foreground">
+              Address *
+            </Label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -362,13 +364,14 @@ export default function CustomersPage() {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="123 Customer Street"
                 className="pl-10 bg-white border-border"
-                // required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="creditLimit" className="text-foreground">Credit Limit </Label>
+            <Label htmlFor="creditLimit" className="text-foreground">
+              Credit Limit
+            </Label>
             <div className="relative">
               <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -377,7 +380,6 @@ export default function CustomersPage() {
                 onChange={(e) => setCreditLimit(formatNumberWithCommas(e.target.value))}
                 placeholder="5000"
                 className="pl-10 bg-white border-border"
-                // required
               />
             </div>
           </div>
@@ -393,75 +395,41 @@ export default function CustomersPage() {
             >
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              type="submit"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               {editingCustomer ? 'Update Customer' : 'Add Customer'}
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Deposit Modal */}
-      {/* <Modal
-        isOpen={isDepositModalOpen}
+      {/* Delete confirmation */}
+      <SweetAlert
+        isOpen={showAlert}
         onClose={() => {
-          setIsDepositModalOpen(false);
-          setDepositCustomer(null);
-          setDepositAmount('');
+          setShowAlert(false);
+          setCustomerToDelete(null);
         }}
-        title="Add Customer Deposit"
-        description={depositCustomer ? `Add a deposit for ${depositCustomer.firstName} ${depositCustomer.lastName}` : ''}
-        size="sm"
-      >
-        <form onSubmit={handleDeposit} className="space-y-4">
-          {depositCustomer && (
-            <div className="p-4 bg-secondary rounded-lg space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Current Deposits:</span>
-                <span className="font-medium text-success">{formatCurrency(depositCustomer.deposits)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Outstanding Balance:</span>
-                <span className="font-medium text-warning">{formatCurrency(depositCustomer.balance)}</span>
-              </div>
-            </div>
-          )}
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowAlert(false);
+          setCustomerToDelete(null);
+        }}
+        type="error"
+        title="Delete Customer?"
+        message={
+          customerToDelete
+            ? `Are you sure you want to delete "${customerToDelete.firstName} ${customerToDelete.lastName}"? This action cannot be undone.`
+            : 'This action cannot be undone.'
+        }
+        confirmText="Yes, Delete"
+        showCancelButton={true}
+        showCloseButton={false}
+      />
 
-          <div className="space-y-2">
-            <Label htmlFor="depositAmount" className="text-foreground">Deposit Amount</Label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="depositAmount"
-                type="number"
-                step="0.01"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="500.00"
-                className="pl-10 bg-white border-border"
-                required
-                min="0.01"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsDepositModalOpen(false);
-                setDepositCustomer(null);
-                setDepositAmount('');
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-              Add Deposit
-            </Button>
-          </div>
-        </form>
-      </Modal> */}
+      {toast.ToastComponent}
     </div>
   );
 }

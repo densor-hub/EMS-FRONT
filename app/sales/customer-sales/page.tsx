@@ -280,7 +280,7 @@ export default function PurcahsePage() {
               columns={columns}
               searchKey="transactionCode"
               addLabel="Add Sale"
-              emptyMessage="No transaction found. Click on 'New' at the top left corner to get started."
+              emptyMessage="No data found."
               onRowClick={(row) => openTransactionDetails(row)}
             />
           </CardContent>}

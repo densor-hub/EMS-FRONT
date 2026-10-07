@@ -518,7 +518,7 @@ export default function StockVerificationUi() {
           data={filteredData}
           columns={columns}
           addLabel="Refresh"
-          emptyMessage="No stock-take records found for the selected shop."
+          emptyMessage="No data found."
           onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}

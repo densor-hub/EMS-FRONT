@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import type { Role, AppRoute } from '@/lib/types';
-import { Edit, Trash2, ShieldCheck, FileText } from 'lucide-react';
+import { Edit, Trash2, ShieldCheck, FileText, ArrowDown, ChevronDown } from 'lucide-react';
 import axiosInstance from '@/lib/customAxios';
 import { Switch } from '@/components/ui/switch';
 import { useToaster } from '@/components/util/CustomToast';
@@ -299,13 +299,15 @@ const handleClearChildren = (parentId: string) => {
       label: 'Actions',
       render: (role: Role) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => openModal(role)}>
+          {/* <Button variant="ghost" size="icon" onClick={() => openModal(role)}>
             <Edit className="w-4 h-4" />
-          </Button>
+          </Button> */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => requestDelete(role)}
+            onClick={(e) => {
+               e.stopPropagation();  requestDelete(role)
+            }}
             disabled={role.name === 'Administrator'}
           >
             <Trash2 className="w-4 h-4 text-destructive" />
@@ -321,7 +323,7 @@ const handleClearChildren = (parentId: string) => {
       <div className="min-h-screen">
         <Header title="Roles" description="Manage user roles and permissions" />
 
-        <div className="p-6">
+        <div className="mt-2">
           <DataTable
             title="All Roles"
             data={roles}
@@ -329,7 +331,9 @@ const handleClearChildren = (parentId: string) => {
             searchKey="name"
             onAdd={() => openModal()}
             addLabel="Add Role"
-            emptyMessage="No roles found. Create your first role to get started."
+            emptyMessage="No data found."
+            height='h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]'
+             onRowClick={(role) => openModal(role)}
           />
         </div>
 
@@ -357,7 +361,7 @@ const handleClearChildren = (parentId: string) => {
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Manager"
+            placeholder="Enter Designation"
             className="pl-10 bg-white border-border"
             required
           />
@@ -457,6 +461,7 @@ const handleClearChildren = (parentId: string) => {
               {route.title}
             </label>
           </div>
+            {hasChildren && (!permissions.includes(route.id)) && <ChevronDown/>}
 
           {/* Per-parent Select all — only shown when the parent has children */}
           {hasChildren && permissions.includes(route.id) && (

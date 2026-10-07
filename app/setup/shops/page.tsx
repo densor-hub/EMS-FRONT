@@ -171,6 +171,7 @@ export default function ShopsPage() {
   const requestDelete = (shop: Shop) => {
     setShopToDelete(shop);
     setShowAlert(true);
+    setIsModalOpen(false);
   };
 
   // Step 2: confirmed — perform the delete
@@ -208,11 +209,9 @@ export default function ShopsPage() {
       sortable: true,
       render: (shop: Shop) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Store className="w-5 h-5 text-primary" />
-          </div>
+          
           <div>
-            <p className="font-medium text-foreground">{shop.name}</p>
+            <p className=" text-sm">{shop.name}</p>
             <p className="text-xs text-muted-foreground">{shop.address}</p>
           </div>
         </div>
@@ -248,27 +247,30 @@ export default function ShopsPage() {
         </Badge>
       ),
     },
-    {
-      key: 'createdAt' as keyof Shop,
-      label: 'Created',
-      sortable: true,
-      render: (shop: Shop) =>
-        shop.createdAt
-          ? new Date(shop.createdAt).toLocaleDateString()
-          : '-',
-    },
+    // {
+    //   key: 'createdAt' as keyof Shop,
+    //   label: 'Created',
+    //   sortable: true,
+    //   render: (shop: Shop) =>
+    //     shop.createdAt
+    //       ? new Date(shop.createdAt).toLocaleDateString()
+    //       : '-',
+    // },
     {
       key: 'actions' as keyof Shop,
       label: 'Actions',
       render: (shop: Shop) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => openModal(shop)}>
+          {/* <Button variant="ghost" size="icon" onClick={() => openModal(shop)}>
             <Edit className="w-4 h-4" />
-          </Button>
+          </Button> */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => requestDelete(shop)}
+            onClick={(e) => {
+              e.stopPropagation();   // ← prevents the row's onRowClick from firing
+              requestDelete(shop);
+            }}
           >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
@@ -283,7 +285,7 @@ export default function ShopsPage() {
       <div className="">
         <Header title="Shops" description="Manage your shop locations" />
 
-        <div className="p-6">
+        <div className="mt-2">
           <DataTable
             title="All Shops"
             data={shops}
@@ -291,7 +293,9 @@ export default function ShopsPage() {
             searchKey="name"
             onAdd={() => openModal()}
             addLabel="Add Shop"
-            emptyMessage="No shops found. Create your first shop to get started."
+            emptyMessage="No data found."
+            height='h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]'
+            onRowClick={(shop) => openModal(shop)}
           />
         </div>
 
@@ -396,7 +400,7 @@ export default function ShopsPage() {
           placeholder="123 Main Street, Downtown"
           rows={3}
           required
-          className="w-full rounded-md border border-border bg-white pl-10 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+          className="w-full text-xs sm:text-base rounded-md border border-border bg-white pl-10 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
         />
       </div>
     </div>

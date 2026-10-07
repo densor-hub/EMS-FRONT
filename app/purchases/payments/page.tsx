@@ -258,7 +258,7 @@ export default function PurcahsePage() {
                 columns={columns}
                 searchKey="supplierName"
                 addLabel="Add Purchase"
-                emptyMessage="No transaction found for the selected supplier."
+                emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
               />
             </CardContent>}

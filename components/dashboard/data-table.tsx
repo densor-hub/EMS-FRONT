@@ -102,14 +102,14 @@ export function DataTable<T extends { id: string }>({
                       setSearch(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="pl-7 sm:pl-9 w-full sm:w-64 bg-white border-border text-xs sm:text-sm h-8 sm:h-10"
+                    className=" text-sm sm:text-base pl-7 sm:pl-9 w-full sm:w-64 bg-white border-border text-xs sm:text-sm h-7 sm:h-10"
                   />
                 </div>
               )}
               {onAdd && (
                 <Button 
                   onClick={onAdd} 
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm h-8 sm:h-10 px-2 sm:px-4"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm h-7 sm:h-8 sm:h-10 px-2 sm:px-4"
                 >
                   <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden xs:inline">{addLabel}</span>

@@ -281,7 +281,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  GHS {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {`${config?.currency}`} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -549,7 +549,7 @@ export default function PurcahsePage() {
             columns={columns}
             searchKey="customerName"  
             addLabel="Add Purchase"
-            emptyMessage="No transaction found for the selected shop."
+            emptyMessage="No data found."
             onRowClick={(row) => openTransactionDetails(row)}
           />
         </CardContent>}

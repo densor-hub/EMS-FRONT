@@ -526,7 +526,7 @@ export default function StockTakeUI() {
           data={filteredData?.sort((a,b) => a?.transactionDate.localeCompare(b?.transactionDate))}
           columns={columns}
           addLabel="Refresh"
-          emptyMessage="No stock lockdown records found for the selected shop."
+          emptyMessage="No data found."
           onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}

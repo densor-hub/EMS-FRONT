@@ -54,7 +54,7 @@ export default function ItemsPage() {
    const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user?.companyId) {
       loadItems();
       locadLocations();
     }
@@ -210,12 +210,9 @@ export default function ItemsPage() {
       sortable: true,
       render: (item: Item) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Package className="w-5 h-5 text-primary" />
-          </div>
           <div>
             <p className="font-medium text-foreground">{item.name}</p>
-            <p className="text-xs text-muted-foreground">code: {item.code}</p>
+            <p className="text-xs text-muted-foreground">{item.code}</p>
           </div>
         </div>
       ),
@@ -237,7 +234,7 @@ export default function ItemsPage() {
    
     {
       key: 'sellingPrice' as keyof Item,
-      label: 'Selling Price (GHS)',
+      label: `Selling Price  ${config.currency}`,
       sortable: true,
       render: (item: Item) => (
         <span className="font-medium text-foreground text-center">{currency(item.sellingPrice?.toString())}</span>
@@ -272,15 +269,9 @@ export default function ItemsPage() {
     },
   ];
 
- 
-  if (isLoading) {
-    return (
-      <LoadingOverlay/>
-    );
-  }
-
   return (
     <div className="min-h-screen">
+      {isLoading &&  <LoadingOverlay/>}
       <Header title="Items" description="Manage your items catalog" />
 
       <div className="mt-2">
@@ -291,7 +282,7 @@ export default function ItemsPage() {
           searchKey="name"
           onAdd={() => openModal()}
           addLabel="Add Item"
-          emptyMessage="No items found. Add your first item to get started."
+          emptyMessage="No data found."
           height='h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]'
           onRowClick={(item) => openModal(item)}
         />
@@ -344,34 +335,34 @@ export default function ItemsPage() {
             </div>
           </div>
 
-          <div className='flex w-full flex-col md:flex-row gap-2'>
-            <div className="space-y-2 w-full">
-              <Label htmlFor="shop" className="text-foreground">Shops *</Label>
-              <MultiSelectComponent
-                selectedItems={selectedShops}
-                items={shops.map(x=> {
-                  return {id : x.id, name: x.name, description : ""}
-                })}
-                 label=''
-                setSelectedItems={setselectedShops}
-
-              />
-            </div>
-          <div className="space-y-2 w-full">
-            <Label htmlFor="description" className="text-foreground">Description</Label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of the item..."
-                className="pl-10 bg-white border-border min-h-[40px]"
-                // required
-              />
-            </div>
-          </div>
-          </div>
+          <div className='flex w-full flex-col md:flex-row gap-2 md:items-start'>
+  <div className="space-y-2 w-full md:self-start">
+    <Label htmlFor="shop" className="text-foreground">Shops *</Label>
+    <MultiSelectComponent
+      selectedItems={selectedShops}
+      items={shops.map((x) => ({
+        id: x.id,
+        name: x.name,
+        description: '',
+      }))}
+      label=""
+      setSelectedItems={setselectedShops}
+    />
+  </div>
+  <div className="space-y-2 w-full md:self-start">
+    <Label htmlFor="description" className="text-foreground">Description</Label>
+    <div className="relative">
+      <FileText className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+      <Textarea
+        id="description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Brief description of the item..."
+        className="pl-10 bg-white border-border min-h-[40px]"
+      />
+    </div>
+  </div>
+</div>
 
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-x-4">
             <div className="space-y-2 w-full">
@@ -418,7 +409,7 @@ export default function ItemsPage() {
                 value={quanityInUnit}
                 onChange={(e) => setQuanityInUnit(formatNumberWithCommas(e.target.value))}
                 placeholder={`Enter Qty in ${config?.unitOfMeasurements?.find(x=> x.id == unit)?.name || "UoM"}`}
-                className=" bg-white border-border"
+                className=" bg-white border-border text-right"
                 required
               />
             </div>}
@@ -454,7 +445,7 @@ export default function ItemsPage() {
                   onChange={(e) => setSellingPrice(formatNumberWithCommas(e.target.value))}
                   onBlur={() => {setSellingPrice(currency(sellingPrice))}}
                   placeholder=""
-                  className="pl-12 bg-white border-border"
+                  className="pl-12 bg-white border-border text-right"
                   required
                   // min="0"
                 />
@@ -471,7 +462,7 @@ export default function ItemsPage() {
                   value={reorderLevel}
                   onChange={(e) => setReorderLevel(formatNumberWithCommas(e.target.value))}
                   placeholder=""
-                  className="bg-white border-border"
+                  className="bg-white border-border text-right"
                   required
                   // min="0"
                 />

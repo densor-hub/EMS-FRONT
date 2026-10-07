@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Ticket, CheckCircle, X, Calendar } from 'lucide-react';
 import { currency, formatNumberWithCommas } from '@/helpers/formatStrings';
-import { paymentMethods } from './AppConfig';
+import { config, paymentMethods } from './AppConfig';
 import { CustomSelect } from './CustomSelect';
 
 interface CheckoutCardProps {
@@ -98,7 +98,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = memo(({
         <CardContent className="px-2 sm:px-3  space-y-3 sm:space-y-4">
           {!isTransfer && (
             <div className="font-bold text-xl sm:text-2xl lg:text-3xl text-center">
-              <span className="text-sm sm:text-md lg:text-lg">GHS </span>
+              <span className="text-sm sm:text-md lg:text-lg">{config?.currency} </span>
               <span className="text-green-600 text-2xl sm:text-3xl lg:text-4xl">{currency(cartTotal?.toString() || '0')}</span>
             </div>
           )}

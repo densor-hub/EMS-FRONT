@@ -438,7 +438,7 @@ const addToCart = useCallback(() => {
             onRemove={removeItem}
             onClear={clearItems}
             loading={submitting}
-            emptyMessage="No items in lock down"
+            emptyMessage="No data found."
             emptySubMessage="Add items using the form above"
             height="h-fit lg:h-[calc(100vh-340px)]"
             keyExtractor={keyExtractor}
