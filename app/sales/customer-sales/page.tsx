@@ -323,7 +323,7 @@ export default function PurcahsePage() {
             selectedTransaction={selectedTransaction}
             transactionType="sale"
             businessPartnerName={selectedTransaction.customerName || "Customer"}
-            paymentMethods={config.pampaymentMethods}
+            paymentMethods={config.paymentMethods}
             onAddPayment={handleAddPayment}
             onAddDelivery={() => setShowDeliveryModal(true)}
             loading={loading}
