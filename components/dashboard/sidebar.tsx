@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { getAuthState } from '@/lib/customAxios';
 import {
   LayoutDashboard,
   Building2,
@@ -14,7 +13,6 @@ import {
   Menu,
   X,
   ChevronDown,
-  // LucideChartNetwork,
   LucideShoppingCart,
   SendToBackIcon,
   PlusCircleIcon,
@@ -45,7 +43,7 @@ const navItems: NavItem[] = [
     href: '/coupons',
     icon: <AwardIcon size={20} />,
   },
-   {
+  {
     label: 'Disbursements',
     href: '/disbursements',
     icon: <LucideShoppingCart size={20} />,
@@ -217,32 +215,20 @@ const NavItemRenderer = ({
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { company, user, selectedShop, isLoading } = useAuth();
+  const { user, company, selectedShop } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const [sessionShop, setSessionShop] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSessionShop(sessionStorage.getItem('selectedShop'));
-  }, []);
-
-  // Fallback to module state if React state hasn't caught up yet
-  const authState = getAuthState();
-  const effectiveUser = user?.id ? user : authState.user;
-  const effectiveCompany = company?.id ? company : authState.company;
 
   const allowedCodes = useMemo(() => {
-    const codes =
-      (effectiveUser as any)?.routes?.map((x: any) => x.code) ?? [];
+    const codes = (user as any)?.routes?.map((x: any) => x.code) ?? [];
     return new Set<string>(codes);
-  }, [(effectiveUser as any)?.routes]);
+  }, [(user as any)?.routes]);
 
   const visibleNavItems = useMemo(() => {
-    if (isLoading) return [];
-    const routes = (effectiveUser as any)?.routes;
+    const routes = (user as any)?.routes;
     if (!routes || routes.length === 0) return [];
     return filterNavByRoutes(navItems, allowedCodes);
-  }, [(effectiveUser as any)?.routes, allowedCodes, isLoading]);
+  }, [(user as any)?.routes, allowedCodes]);
 
   // Auto-expand parent when a child route is active
   useEffect(() => {
@@ -317,11 +303,11 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-semibold text-xs text-muted-foreground truncate">
-              {(effectiveCompany as any)?.name || 'Company Name'}
+              {(company as any)?.name || 'Company Name'}
             </h2>
             <p className="font-semibold text-foreground truncate">
-              {(effectiveUser as any)?.locations?.find(
-                (x: any) => x.id == (selectedShop || sessionShop)
+              {(user as any)?.locations?.find(
+                (x: any) => String(x.id) === String(selectedShop)
               )?.name ?? ''}
             </p>
           </div>
@@ -363,7 +349,7 @@ export function Sidebar() {
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed mt-1.5 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
       >
-        <Menu size={12}/>
+        <Menu size={12} />
       </button>
 
       {isMobileOpen && (

@@ -915,7 +915,7 @@ const handleAddItem = useCallback(() => {
               instantSale={prop.instantSale}
               transactionType={prop?.transactionActionType}
               // height={prop.instantSale ? "calc(100vh - 75px)" : "calc(100vh - 365px)"}
-               className={prop?.instantSale ? "h-fit sm:h-[calc(100vh-79px)]" : "h-fit sm:h-[calc(100vh-118px)]"}
+               className={prop?.instantSale ? "h-fit sm:h-[calc(100vh-110px)]" : "h-fit sm:h-[calc(100vh-118px)]"}
             />
           </div>
         </div>

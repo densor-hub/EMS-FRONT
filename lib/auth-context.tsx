@@ -5,6 +5,8 @@ import React, {
   ReactNode,
   useEffect,
   useState,
+  useCallback,
+  useMemo,
 } from 'react';
 import { Company, User } from './types';
 import {
@@ -12,10 +14,10 @@ import {
   getAuthState,
   registerAuthSetters,
   logout,
-  resetAuthCheck,
+  readCachedAuthSnapshot,
+  setSelectedShopPersisted,
+  getSelectedShop,
 } from './customAxios';
-// import { LoadingOverlay } from '@/components/SkeletonLoading';
-// import { useToaster } from '@/components/util/CustomToast';
 import { useRouter } from 'next/navigation';
 import { publicPaths } from '@/components/util/AppConfig';
 
@@ -34,43 +36,63 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // const toast = useToaster();
   const router = useRouter();
-  const [user, setUser] = useState<Partial<User>>({});
-  const [company, setCompany] = useState<Partial<Company>>({});
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedShop, setSelectedShop] = useState<string>('');
 
-  const userLogOut = async () => {
+  // Synchronous snapshot: module state is hydrated from sessionStorage at
+  // module load, so this has real data on the very first render.
+  const snapshot = useMemo(() => readCachedAuthSnapshot(), []);
+
+  const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
+  const [company, setCompany] = useState<Partial<Company>>(
+    () => snapshot.company ?? {}
+  );
+  const [selectedShop, setSelectedShop] = useState<string>(
+    () => snapshot.selectedShop ?? ''
+  );
+
+  // isAuthenticated starts false. It flips to true only after
+  // performInitialAuthCheck() actually hears from the server (or login sets it).
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Only "loading" if we had no cached user to render.
+  const [isLoading, setIsLoading] = useState<boolean>(
+    () => Object.keys(snapshot.user ?? {}).length === 0
+  );
+
+  // Persist shop when it changes
+  useEffect(() => {
+    setSelectedShopPersisted(selectedShop);
+  }, [selectedShop]);
+
+  const userLogOut = useCallback(async () => {
     setSelectedShop('');
     setUser({});
     setCompany({});
-    sessionStorage.clear();
-    localStorage.clear();
+    setIsAuthenticated(false);
 
-    await logout();
-    resetAuthCheck();
+    await logout(); // internally clears sessionStorage + localStorage + module state
 
     const path = window.location.pathname?.toLowerCase() || '/';
     const normalized = path.startsWith('/') ? path.slice(1) : path;
     if (!publicPaths.includes(normalized)) {
       router.replace('/auth/login');
     }
-  };
+  }, [router]);
 
-  // Register setters with axios instance ONCE
+  // Register setters with axios once
   useEffect(() => {
     registerAuthSetters(setUser, setCompany);
   }, []);
 
-  // Re-sync on every mount. performInitialAuthCheck is memoized at module level,
-  // so this is cheap when the promise is already resolved.
+  // Reconcile with server on mount
   useEffect(() => {
     let isMounted = true;
 
     const initializeApp = async () => {
-      setIsLoading(true);
+      if (Object.keys(snapshot.user ?? {}).length === 0) {
+        setIsLoading(true);
+      }
+
       try {
         const authResult = await performInitialAuthCheck();
         if (!isMounted) return;
@@ -78,14 +100,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(!!authResult);
 
         const authState = getAuthState();
-        if (Object.keys(authState.user).length > 0) {
+        if (Object.keys(authState.user ?? {}).length > 0) {
           setUser(authState.user);
           setCompany(authState.company);
         }
 
-        if (!authResult) {
-          // No auto-logout. AuthGuard decides where to route.
-          console.warn('[auth] initial check returned false');
+        // Default the shop if still empty
+        if (!getSelectedShop()) {
+          const locations: any[] = (authState.user as any)?.locations ?? [];
+          if (locations.length > 0) {
+            setSelectedShop(String(locations[0].id));
+          }
         }
       } catch (error) {
         console.error('[auth] initialization error:', error);
@@ -100,6 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

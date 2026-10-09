@@ -6,8 +6,7 @@ import axios, {
 } from 'axios';
 import { Company, User } from './types';
 
-//const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7214';
-const baseURL = '/api'
+const baseURL = '/api';
 
 // ---------- browser-safe storage ----------
 const isBrowser = () => typeof window !== 'undefined';
@@ -38,6 +37,15 @@ const safeLocal = {
   },
 };
 
+// ---------- sessionStorage keys ----------
+const SK = {
+  accessToken: 'accessToken',
+  user: 'authUser',
+  company: 'authCompany',
+  selectedShop: 'selectedShop',
+  isAuthenticated: 'isAuthenticated',
+} as const;
+
 // ---------- module state ----------
 let isRefreshing = false;
 let accessToken: string | null = null;
@@ -49,8 +57,37 @@ let initialAuthCheckDone = false;
 let initialAuthCheckPromise: Promise<boolean> | null = null;
 let initialAuthCheckResult: boolean | null = null;
 
+// Tracks whether we've actually reconciled with the server this tab's
+// lifetime. Cached data alone is NOT proof of a valid session.
+let hasReconciledWithServer = false;
+
 let userStateSetter: ((user: Partial<User>) => void) | null = null;
 let companyStateSetter: ((company: Partial<Company>) => void) | null = null;
+
+// ---------- hydration at module load ----------
+// Runs once when this module is first imported on the client.
+// Gives the UI useful data on the very first render — but does NOT mark
+// the session as authenticated. Only the refresh endpoint can do that.
+(() => {
+  if (!isBrowser()) return;
+
+  const token = safeSession.get(SK.accessToken);
+  if (token) accessToken = token;
+
+  try {
+    const rawUser = safeSession.get(SK.user);
+    if (rawUser) currentUser = JSON.parse(rawUser);
+  } catch {
+    currentUser = {};
+  }
+
+  try {
+    const rawCompany = safeSession.get(SK.company);
+    if (rawCompany) currentCompany = JSON.parse(rawCompany);
+  } catch {
+    currentCompany = {};
+  }
+})();
 
 // ---------- axios instance ----------
 const axiosInstance: AxiosInstance = axios.create({
@@ -107,7 +144,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
         if (res.data?.accessTokenExpires) {
           accessTokenExpiry = new Date(res.data.accessTokenExpires);
         }
-        safeSession.set('accessToken', token);
+        safeSession.set(SK.accessToken, token);
       }
       return token ?? null;
     } catch {
@@ -157,7 +194,7 @@ axiosInstance.interceptors.response.use(
       flushQueue(null);
       accessToken = null;
       accessTokenExpiry = null;
-      safeSession.remove('accessToken');
+      safeSession.remove(SK.accessToken);
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;
@@ -180,10 +217,12 @@ export const registerAuthSetters = (
 const updateAuthState = (user?: Partial<User>, company?: Partial<Company>) => {
   if (user && Object.keys(user).length > 0) {
     currentUser = { ...currentUser, ...user };
+    safeSession.set(SK.user, JSON.stringify(currentUser));
     userStateSetter?.(currentUser);
   }
   if (company && Object.keys(company).length > 0) {
     currentCompany = { ...currentCompany, ...company };
+    safeSession.set(SK.company, JSON.stringify(currentCompany));
     companyStateSetter?.(currentCompany);
   }
 };
@@ -196,6 +235,7 @@ export const clearAuthState = () => {
   initialAuthCheckDone = false;
   initialAuthCheckPromise = null;
   initialAuthCheckResult = null;
+  hasReconciledWithServer = false;
 
   safeSession.clear();
   safeLocal.clear();
@@ -204,6 +244,25 @@ export const clearAuthState = () => {
   companyStateSetter?.({});
 };
 
+// ---------- selected shop (persisted in sessionStorage) ----------
+export const getSelectedShop = (): string =>
+  safeSession.get(SK.selectedShop) ?? '';
+
+export const setSelectedShopPersisted = (id: string) => {
+  if (id) safeSession.set(SK.selectedShop, id);
+  else safeSession.remove(SK.selectedShop);
+};
+
+// ---------- synchronous snapshot for the React context ----------
+export const readCachedAuthSnapshot = () => ({
+  user: currentUser,
+  company: currentCompany,
+  selectedShop: getSelectedShop(),
+  // Note: "have cached user" ≠ "authenticated". We only report authenticated
+  // when we've actually heard from the server this session.
+  isAuthenticated: hasReconciledWithServer && initialAuthCheckResult === true,
+});
+
 // ---------- initial auth check ----------
 export const performInitialAuthCheck = async (
   setUser?: React.Dispatch<React.SetStateAction<Partial<User>>>,
@@ -211,7 +270,9 @@ export const performInitialAuthCheck = async (
 ): Promise<boolean> => {
   if (setUser && setCompany) registerAuthSetters(setUser, setCompany);
 
-  if (initialAuthCheckResult === true) return true;
+  // Short-circuit ONLY if we've already reconciled this session, or if a
+  // call is already in-flight. A cached user does not skip the API call.
+  if (hasReconciledWithServer && initialAuthCheckResult === true) return true;
   if (initialAuthCheckPromise) return initialAuthCheckPromise;
 
   initialAuthCheckPromise = (async () => {
@@ -223,7 +284,7 @@ export const performInitialAuthCheck = async (
       );
 
       const fullName = response?.data?.fullName || '';
-      const nameParts = fullName.split(' ');
+      const nameParts = fullName.split(' ').filter(Boolean);
       const userData: Partial<User> = {
         lastName: nameParts[nameParts.length - 1] || '',
         firstName: nameParts[0] || '',
@@ -241,22 +302,40 @@ export const performInitialAuthCheck = async (
       if (response.data.accessToken) {
         accessToken = response.data.accessToken;
         accessTokenExpiry = new Date(response.data.accessTokenExpires);
-        safeSession.set('accessToken', accessToken??"");
+        safeSession.set(SK.accessToken, accessToken ?? '');
       }
 
       updateAuthState(userData, companyData);
-      safeSession.set('isAuthenticated', 'true');
+      safeSession.set(SK.isAuthenticated, 'true');
+
+      // Default the shop if none is set yet
+      if (isBrowser() && !safeSession.get(SK.selectedShop)) {
+        const locations = userData.locations ?? [];
+        if (locations.length > 0) {
+          safeSession.set(SK.selectedShop, String(locations[0].id));
+        }
+      }
 
       initialAuthCheckDone = true;
       initialAuthCheckResult = true;
+      hasReconciledWithServer = true;
       return true;
     } catch (error: any) {
       console.error('[auth] initial check failed:', error?.message);
 
-      // Do NOT call clearAuthState here — a transient failure shouldn't wipe
-      // local state and trigger a phantom logout.
       initialAuthCheckDone = true;
       initialAuthCheckResult = false;
+      hasReconciledWithServer = true;
+      // Allow a future call to retry (e.g. after network comes back).
+      initialAuthCheckPromise = null;
+
+      // Only wipe local state on a genuine 401 (session is dead).
+      // Network errors / server errors keep the cached session for
+      // offline tolerance.
+      if (error?.response?.status === 401) {
+        clearAuthState();
+      }
+
       return false;
     }
   })();
@@ -268,6 +347,7 @@ export const resetAuthCheck = () => {
   initialAuthCheckDone = false;
   initialAuthCheckPromise = null;
   initialAuthCheckResult = null;
+  hasReconciledWithServer = false;
 };
 
 export const isAccessTokenExpired = (): boolean => {
@@ -277,6 +357,7 @@ export const isAccessTokenExpired = (): boolean => {
 
 export const getAuthState = () => ({
   isAuthenticated:
+    hasReconciledWithServer &&
     initialAuthCheckResult === true &&
     !!accessToken &&
     !isAccessTokenExpired(),
@@ -302,10 +383,9 @@ export const login = async (email: string, password: string): Promise<any> => {
       accessTokenExpiry = data.accessTokenExpires
         ? new Date(data.accessTokenExpires)
         : null;
-      safeSession.set('accessToken', accessToken ?? '');
+      safeSession.set(SK.accessToken, accessToken ?? '');
     }
 
-    // Backend returns these at the TOP LEVEL of the response — not nested under `user`.
     const fullName = data.fullName || '';
     const nameParts = fullName.split(' ').filter(Boolean);
 
@@ -331,8 +411,16 @@ export const login = async (email: string, password: string): Promise<any> => {
     initialAuthCheckResult = true;
     initialAuthCheckDone = true;
     initialAuthCheckPromise = Promise.resolve(true);
+    hasReconciledWithServer = true;
 
-    safeSession.set('isAuthenticated', 'true');
+    safeSession.set(SK.isAuthenticated, 'true');
+
+    if (isBrowser() && !safeSession.get(SK.selectedShop)) {
+      const locations = userData.locations ?? [];
+      if (locations.length > 0) {
+        safeSession.set(SK.selectedShop, String(locations[0].id));
+      }
+    }
 
     return response;
   } catch (error) {
