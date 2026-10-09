@@ -1,9 +1,20 @@
 'use client';
-import React, { createContext, useContext, ReactNode, useEffect, useState, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  ReactNode,
+  useEffect,
+  useState,
+} from 'react';
 import { Company, User } from './types';
-import { performInitialAuthCheck, getAuthState, registerAuthSetters } from './customAxios';
+import {
+  performInitialAuthCheck,
+  getAuthState,
+  registerAuthSetters,
+  logout,
+  resetAuthCheck,
+} from './customAxios';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
-import { logout } from './customAxios';
 import { useToaster } from '@/components/util/CustomToast';
 import { useRouter } from 'next/navigation';
 import { publicPaths } from '@/components/util/AppConfig';
@@ -29,24 +40,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [company, setCompany] = useState<Partial<Company>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedShop, setSelectedShop] = useState<string>("");
-
-  const initializationStarted = useRef(false);
-  const authCheckCompleted = useRef(false);
+  const [selectedShop, setSelectedShop] = useState<string>('');
 
   const userLogOut = async () => {
-    setSelectedShop("");
+    setSelectedShop('');
     setUser({});
     setCompany({});
     sessionStorage.clear();
     localStorage.clear();
 
     await logout();
+    resetAuthCheck();
 
     const path = window.location.pathname?.toLowerCase() || '/';
     const normalized = path.startsWith('/') ? path.slice(1) : path;
     if (!publicPaths.includes(normalized)) {
-      router.push("/auth/login");
+      router.replace('/auth/login');
     }
   };
 
@@ -55,48 +64,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     registerAuthSetters(setUser, setCompany);
   }, []);
 
+  // Re-sync on every mount. performInitialAuthCheck is memoized at module level,
+  // so this is cheap when the promise is already resolved.
   useEffect(() => {
-    if (initializationStarted.current) return;
-    initializationStarted.current = true;
-
     let isMounted = true;
 
     const initializeApp = async () => {
       setIsLoading(true);
       try {
         const authResult = await performInitialAuthCheck();
+        if (!isMounted) return;
 
-        if (isMounted && !authCheckCompleted.current) {
-          authCheckCompleted.current = true;
-          setIsAuthenticated(!!authResult);
+        setIsAuthenticated(!!authResult);
 
-          const authState = getAuthState();
-
-          if (Object.keys(authState.user).length > 0) {
-            setUser(authState.user);
-            setCompany(authState.company);
-          }
+        const authState = getAuthState();
+        if (Object.keys(authState.user).length > 0) {
+          setUser(authState.user);
+          setCompany(authState.company);
         }
 
         if (!authResult) {
-          toast.warning({
-            title: 'Failed to authenticate user',
-            description: 'Logging You Out...',
-          });
-
-          setTimeout(() => {
-            userLogOut();
-          }, 3000);
+          // No auto-logout. AuthGuard decides where to route.
+          console.warn('[auth] initial check returned false');
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (isMounted) {
-          setIsAuthenticated(false);
-        }
+        console.error('[auth] initialization error:', error);
+        if (isMounted) setIsAuthenticated(false);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -105,20 +100,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <AuthContext.Provider value={{
-      isAuthenticated,
-      user,
-      company,
-      selectedShop,
-      setUser,
-      setCompany,
-      setSelectedShop,
-      isLoading,
-      userLogOut,
-    }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        company,
+        selectedShop,
+        setUser,
+        setCompany,
+        setSelectedShop,
+        isLoading,
+        userLogOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

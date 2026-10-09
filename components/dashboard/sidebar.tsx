@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { getAuthState } from '@/lib/customAxios';
 import {
   LayoutDashboard,
   Building2,
@@ -17,6 +18,7 @@ import {
   LucideShoppingCart,
   SendToBackIcon,
   PlusCircleIcon,
+  AwardIcon,
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,15 +40,21 @@ const navItems: NavItem[] = [
       { label: 'Customer Sales', href: '/sales/customer-sales' },
     ],
   },
-  // {
-  //   label: 'Disbursements',
-  //   href: '/disbursements',
-  //   icon: <LucideChartNetwork size={20} />,
-  //   children: [
-  //     { label: 'Disbursements', href: '/disbursements/request' },
-  //     { label: 'Approval', href: '/disbursements/approval' },
-  //   ],
-  // },
+  {
+    label: 'Coupons',
+    href: '/coupons',
+    icon: <AwardIcon size={20} />,
+  },
+   {
+    label: 'Disbursements',
+    href: '/disbursements',
+    icon: <LucideShoppingCart size={20} />,
+    children: [
+      { label: 'Miscellaneous', href: '/disbursements/miscellaneous' },
+      { label: 'Miscellaneous Approval', href: '/disbursements/miscellaneous-approval' },
+      { label: 'Deposits', href: '/disbursements/deposits' },
+    ],
+  },
   {
     label: 'Stock Management',
     href: '/stock-management/stock',
@@ -90,15 +98,12 @@ const navItems: NavItem[] = [
       { label: 'Items', href: '/setup/items' },
       { label: 'Customers', href: '/setup/customers' },
       { label: 'Suppliers', href: '/setup/suppliers' },
+      { label: 'Financial Institutions', href: '/setup/financial-institutions' },
     ],
   },
   { label: 'Reports', href: '/reports', icon: <BarChart3 size={20} /> },
 ];
 
-// ────────────────────────────────────────────────
-// Route permission filtering
-// Uses flatMap to avoid the type-predicate mismatch.
-// ────────────────────────────────────────────────
 const filterNavByRoutes = (
   items: NavItem[],
   allowedCodes: Set<string>
@@ -127,9 +132,6 @@ const filterNavByRoutes = (
   });
 };
 
-// ────────────────────────────────────────────────
-// Recursive NavItem component
-// ────────────────────────────────────────────────
 const NavItemRenderer = ({
   item,
   level = 0,
@@ -213,39 +215,40 @@ const NavItemRenderer = ({
   );
 };
 
-// ────────────────────────────────────────────────
-// Sidebar
-// ────────────────────────────────────────────────
 export function Sidebar() {
-  const [sessionShop, setSessionShop] = useState<string | null>(null);
   const pathname = usePathname();
-  const { company, user, selectedShop } = useAuth();
+  const { company, user, selectedShop, isLoading } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [sessionShop, setSessionShop] = useState<string | null>(null);
 
-  // Get sessionShop safely on client side
   useEffect(() => {
     setSessionShop(sessionStorage.getItem('selectedShop'));
   }, []);
 
-  // Allowed route codes from the backend
-  const allowedCodes = useMemo(() => {
-    const codes = user?.routes?.map((x: any) => x.code) ?? [];
-    return new Set<string>(codes);
-  }, [user]);
+  // Fallback to module state if React state hasn't caught up yet
+  const authState = getAuthState();
+  const effectiveUser = user?.id ? user : authState.user;
+  const effectiveCompany = company?.id ? company : authState.company;
 
-  // Filter nav items by user's allowed route codes
+  const allowedCodes = useMemo(() => {
+    const codes =
+      (effectiveUser as any)?.routes?.map((x: any) => x.code) ?? [];
+    return new Set<string>(codes);
+  }, [(effectiveUser as any)?.routes]);
+
   const visibleNavItems = useMemo(() => {
-    if (!user?.routes || user.routes.length === 0) return [];
+    if (isLoading) return [];
+    const routes = (effectiveUser as any)?.routes;
+    if (!routes || routes.length === 0) return [];
     return filterNavByRoutes(navItems, allowedCodes);
-  }, [user, allowedCodes]);
+  }, [(effectiveUser as any)?.routes, allowedCodes, isLoading]);
 
   // Auto-expand parent when a child route is active
   useEffect(() => {
     const findActiveMenus = (): string[] => {
       const activeMenus: string[] = [];
 
-      // Direct match on a top-level item
       const topLevelItem = navItems.find((item) => item.href === pathname);
       if (topLevelItem) {
         if (topLevelItem.children && topLevelItem.children.length > 0) {
@@ -254,7 +257,6 @@ export function Sidebar() {
         return activeMenus;
       }
 
-      // Search children / grandchildren
       for (const item of navItems) {
         if (item.children) {
           for (const child of item.children) {
@@ -281,7 +283,9 @@ export function Sidebar() {
     };
 
     const activeMenus = findActiveMenus();
-    setExpandedItems((prev) => [...new Set([...prev, ...activeMenus])]);
+    if (activeMenus.length > 0) {
+      setExpandedItems((prev) => [...new Set([...prev, ...activeMenus])]);
+    }
   }, [pathname]);
 
   const toggleExpanded = (label: string) => {
@@ -306,7 +310,6 @@ export function Sidebar() {
 
   const NavContent = () => (
     <div className="flex flex-col h-screen">
-      {/* Logo / Company */}
       <div className="p-4 border-b border-border h-16">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
@@ -314,16 +317,17 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-semibold text-xs text-muted-foreground truncate">
-              {company?.name || 'Company Name'}
+              {(effectiveCompany as any)?.name || 'Company Name'}
             </h2>
             <p className="font-semibold text-foreground truncate">
-              {user?.locations?.find((x: any) => x.id == (selectedShop || sessionShop))?.name}
+              {(effectiveUser as any)?.locations?.find(
+                (x: any) => x.id == (selectedShop || sessionShop)
+              )?.name ?? ''}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-1">
           {visibleNavItems.map((item) => (
@@ -340,7 +344,6 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-border p-3">
         <Link
           href="/dashboard/settings"
@@ -356,7 +359,6 @@ export function Sidebar() {
 
   return (
     <div className="bg-sidebar">
-      {/* Mobile toggle */}
       <button
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
@@ -364,7 +366,6 @@ export function Sidebar() {
         <Menu size={20} />
       </button>
 
-      {/* Mobile overlay */}
       {isMobileOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
@@ -372,7 +373,6 @@ export function Sidebar() {
         />
       )}
 
-      {/* Mobile sidebar */}
       <aside
         className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
@@ -387,7 +387,6 @@ export function Sidebar() {
         <NavContent />
       </aside>
 
-      {/* Desktop sidebar */}
       <aside className="hidden lg:block w-72 border-r border-sidebar-border sticky top-0">
         <NavContent />
       </aside>

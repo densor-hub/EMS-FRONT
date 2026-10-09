@@ -4,7 +4,7 @@ interface AppConfiguration {
     barCodePrinterSize?: number,
     receiptPrinterSize?: number,
     currency?: string 
-    pampaymentMethods? : IdAndName[],
+    paymentMethods? : IdAndName[],
     categories : IdAndName[] ,
     unitOfMeasurements : IdAndName[],
     transactionTypes : IdAndName[]  
@@ -55,7 +55,7 @@ export const config : AppConfiguration = {
     barCodePrinterSize : 57,
     receiptPrinterSize: 57,
     currency : "GHS",
-    pampaymentMethods: paymentMethods,
+    paymentMethods: paymentMethods,
     unitOfMeasurements: UNITS,
     categories: CATEGORIES,
     transactionTypes: transactionTypes

@@ -69,6 +69,53 @@ export const numericCurrentDate = (format: string): string => {
   }
 }
 
+
+export const numericDate = (date: string, format: string): string => {
+  if (!date) return '';
+
+  // Take only the date portion so a trailing time/zone can't shift the day.
+  const datePart = String(date).split('T')[0];
+
+  // Parse at noon local — safe in every timezone.
+  const parsed = new Date(`${datePart}T12:00:00`);
+  if (isNaN(parsed.getTime())) return '';
+
+  const yyyy = String(parsed.getFullYear());
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+
+  switch (format?.toLowerCase().trim()) {
+    case 'yyyy-mm-dd':
+      return `${yyyy}-${mm}-${dd}`;
+    case 'mm-dd-yyyy':
+      return `${mm}-${dd}-${yyyy}`;
+    default:
+      return `${dd}-${mm}-${yyyy}`;
+  }
+};
+
+
+export const lastDayOfYear = (date: string | Date): string => {
+  if (!date) return '';
+
+  const datePart =
+    date instanceof Date
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      : String(date).split('T')[0];
+
+  const parsed = new Date(`${datePart}T12:00:00`);
+  if (isNaN(parsed.getTime())) return '';
+
+  // Dec 31 of the same year, at noon local
+  const lastDay = new Date(parsed.getFullYear(), 11, 31, 12, 0, 0);
+
+  const yyyy = String(lastDay.getFullYear());
+  const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
+  const dd = String(lastDay.getDate()).padStart(2, '0');
+
+  return `${yyyy}-${mm}-${dd}`;  // always YYYY-MM-DD
+};
+
 // ---------- Numbers ----------
 
 export const formatNumberWithCommas = (number: string): string => {

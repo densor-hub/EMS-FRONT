@@ -252,13 +252,13 @@ export function ItemSelection({
                 <div className={`flex items-center gap-2 text-sm ${stockLevel.availableQuantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   <CheckCircle className="w-4 h-4" />
                   <span>
-                    {stockLevel.availableQuantity} units available
+                    {stockLevel.availableQuantity} available
                     {stockLevel.availableQuantity === 0 && (
                       <span className="ml-1 font-semibold">(Out of stock)</span>
                     )}
-                    {stockLevel.reorderLevel > 0 && stockLevel.availableQuantity <= stockLevel.reorderLevel && stockLevel.availableQuantity > 0 && (
+                    {(stockLevel.actualQuantity <= stockLevel.reorderLevel) && stockLevel.availableQuantity > 0 && (
                       <span className="ml-1 text-yellow-600 font-semibold">
-                        (Reorder level: {stockLevel.reorderLevel})
+                        (Actual Qty : {stockLevel.actualQuantity})
                       </span>
                     )}
                   </span>

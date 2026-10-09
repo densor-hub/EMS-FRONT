@@ -12,9 +12,11 @@ interface CustomDatePickerProps {
   onChange?: (value: string) => void
   readOnly?: boolean
   showBorder?: boolean
-  minValue?: string
-  maxValue?: string
+  minValue?: number | string | undefined
+  maxValue?: number | string | undefined
   className?: string
+  ignoreMax?: boolean
+  ignoreMin?: boolean
 }
 
 export default function CustomDatePicker({
@@ -28,16 +30,16 @@ export default function CustomDatePicker({
   minValue,
   maxValue,
   className,
+  ignoreMax = false,
+  ignoreMin = false,
 }: CustomDatePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dateValue, setDateValue] = useState<string>(defaultValue ?? '')
 
-  // Keep local state in sync when the parent supplies a new defaultValue
   useEffect(() => {
     setDateValue(defaultValue ?? '')
   }, [defaultValue])
 
-  // Desktop convenience — showPicker() is not implemented on iOS Safari
   const handleWrapperClick = () => {
     if (readOnly) return
     const input = inputRef.current
@@ -45,7 +47,7 @@ export default function CustomDatePicker({
     try {
       input.showPicker()
     } catch {
-      /* the native input underneath will handle the tap on mobile */
+      /* native input handles the tap on mobile */
     }
   }
 
@@ -58,17 +60,20 @@ export default function CustomDatePicker({
     <div
       onClick={handleWrapperClick}
       className={[
-        'relative w-full mb-2.5 cursor-pointer',
+        // 👇 w-full, box-border, and NO extra padding that shifts the field
+        'relative w-full box-border cursor-pointer',
         readOnly && 'cursor-default',
+        // 👇 user className is applied here, but strip padding classes that misalign the inner field
         className ?? '',
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {/* Visible field */}
+      {/* Visible field — now guaranteed to fill the wrapper */}
       <div
         className={[
-          'relative flex h-8 sm:h-9 w-full min-w-[150px] items-center justify-between px-2',
+          'flex h-8 sm:h-9 w-full min-w-[150px] items-center justify-between',
+          'px-2',                                    // 👈 internal padding for the field
           'border-2 border-[#cad1d7] text-sm',
           !readOnly || showBorder ? 'rounded-md' : 'rounded-none',
           readOnly && showBorder ? 'bg-[rgba(203,202,219,0.34)]' : 'bg-white',
@@ -76,11 +81,12 @@ export default function CustomDatePicker({
           .filter(Boolean)
           .join(' ')}
       >
-        {/* Displayed value */}
         <span
           className={[
             'pointer-events-none select-none truncate',
-            hasValue && readOnly ? 'text-blue-600 text-xs sm:text-sm' : 'text-[#64748b] text-xs sm:text-sm',
+            hasValue && readOnly
+              ? 'text-blue-600 text-xs sm:text-sm'
+              : 'text-[#64748b] text-xs sm:text-sm',
           ]
             .filter(Boolean)
             .join(' ')}
@@ -90,8 +96,6 @@ export default function CustomDatePicker({
 
         <Calendar className="pointer-events-none shrink-0" size={16} />
 
-        {/* The native date input covers the whole field.
-            On iOS Safari, a real tap on this input opens the native picker. */}
         {!readOnly && (
           <input
             ref={inputRef}
@@ -99,8 +103,8 @@ export default function CustomDatePicker({
             name={name}
             type="date"
             value={dateValue}
-            min={minValue}
-            max={maxValue ?? numericCurrentDate('yyyy-mm-dd')}
+            min={!ignoreMin ? minValue : ''}
+            max={maxValue ?? (!ignoreMax ? numericCurrentDate('yyyy-mm-dd') : '')}
             onChange={(e) => {
               setDateValue(e.target.value)
               onChange?.(e.target.value)

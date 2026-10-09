@@ -1,7 +1,7 @@
 // app/transactions/delivery/page.tsx
 'use client'
 
-import React, { Suspense, useEffect, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import QRScanner from '@/components/util/QRScanner'
 import { Header } from '@/components/dashboard/header'
 import { Transaction } from '@/lib/types'
@@ -14,7 +14,7 @@ import { LoadingOverlay } from '@/components/SkeletonLoading'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Calendar, RefreshCw, ScanLine, Package } from 'lucide-react'
+import { Calendar, RefreshCw, ScanLine, Package, Hash } from 'lucide-react'
 
 // ---- Matches the API schema ----
 interface SaleDeliveryBacklog {
@@ -82,12 +82,20 @@ export default function DeliveryPage() {
   const [isLoadingBacklogs, setIsLoadingBacklogs] = useState(false)
   const [backlogError, setBacklogError] = useState<string | null>(null)
 
+  // ---- Daily count number filter ----
+  const [dailyCount, setDailyCount] = useState<string>('')
+  const [notFoundNumber, setNotFoundNumber] = useState<string | null>(null)
+
   // ---- Fetch backlogs on shop / date change ----
   useEffect(() => {
     if (!currentShopId) return
     void loadBacklogs(currentShopId, selectedDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShopId, selectedDate])
+
+  useEffect(() => {
+    if (receiptData === null) setShowScanner(false)
+  }, [receiptData])
 
   const loadBacklogs = async (shopId: string, saleDate: string) => {
     setIsLoadingBacklogs(true)
@@ -176,8 +184,41 @@ export default function DeliveryPage() {
     setShowScanner(true)
   }
 
+  // ---- Filtering ----
+  const trimmedDailyCount = dailyCount.trim()
+  const hasFilter = trimmedDailyCount.length > 0
+
+  // Match on dailyCountNumber (numeric comparison, tolerant of leading zeros)
+  const visibleBacklogs = useMemo(() => {
+    if (!hasFilter) return backlogs
+    const target = Number(trimmedDailyCount)
+    if (Number.isNaN(target)) return []
+    return backlogs.filter((b) => Number(b.dailyCountNumber) === target)
+  }, [backlogs, hasFilter, trimmedDailyCount])
+
+  // Toast once when the typed number doesn't exist
+  useEffect(() => {
+    if (!hasFilter) {
+      setNotFoundNumber(null)
+      return
+    }
+    if (isLoadingBacklogs) return
+    if (visibleBacklogs.length === 0 && notFoundNumber !== trimmedDailyCount) {
+      setNotFoundNumber(trimmedDailyCount)
+      toastErrors(
+        toast,
+        `No backlog found for #${trimmedDailyCount}.`,
+        'Not Found'
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFilter, trimmedDailyCount, visibleBacklogs.length, isLoadingBacklogs])
+
   const pendingCount = backlogs.filter((b) => !b.isDelivered).length
   const deliveredCount = backlogs.filter((b) => b.isDelivered).length
+
+  // Clickable only when a filter is active AND at least one match exists
+  const isClickEnabled = hasFilter && visibleBacklogs.length > 0
 
   return (
     <Suspense fallback={<LoadingOverlay />}>
@@ -188,7 +229,7 @@ export default function DeliveryPage() {
 
         {/* ---- Toolbar ---- */}
         <div className="mt-3 sm:mt-4 mb-3 sm:mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2 sm:gap-3">
-          {/* Date input — full width on mobile */}
+          {/* Date */}
           <div className="space-y-1 w-full sm:w-auto">
             <Label htmlFor="saleDate" className="text-xs text-muted-foreground">
               Sale Date
@@ -205,7 +246,32 @@ export default function DeliveryPage() {
             </div>
           </div>
 
-          {/* Today + Refresh — side by side on mobile */}
+          {/* Daily Count Number */}
+          <div className="space-y-1 w-full sm:w-auto">
+            <Label htmlFor="dailyCount" className="text-xs text-muted-foreground">
+              Daily Count Number
+            </Label>
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="dailyCount"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                value={dailyCount}
+                onChange={(e) => {
+                  // digits only
+                  const v = e.target.value.replace(/[^0-9]/g, '')
+                  setDailyCount(v)
+                }}
+                placeholder="Enter number"
+                className="pl-10 bg-white border-border w-full sm:w-[180px]"
+              />
+            </div>
+          </div>
+
+          {/* Today + Refresh */}
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
               type="button"
@@ -230,7 +296,7 @@ export default function DeliveryPage() {
             </Button>
           </div>
 
-          {/* Scan — full width on mobile, right-aligned on desktop */}
+          {/* Scan */}
           <div className="w-full sm:ml-auto sm:w-auto">
             <Button
               type="button"
@@ -242,6 +308,13 @@ export default function DeliveryPage() {
             </Button>
           </div>
         </div>
+
+        {/* ---- Hint when no number entered ---- */}
+        {!hasFilter && backlogs.length > 0 && (
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3 text-xs sm:text-sm text-muted-foreground">
+            Enter a daily count number to enable delivery cards.
+          </div>
+        )}
 
         {/* ---- Counts ---- */}
         {backlogs.length > 0 && (
@@ -266,20 +339,24 @@ export default function DeliveryPage() {
         )}
 
         {/* ---- Empty state ---- */}
-        {backlogs.length === 0 && !isLoadingBacklogs && !backlogError && (
+        {visibleBacklogs.length === 0 && !isLoadingBacklogs && !backlogError && (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-12 sm:py-16 text-center px-4">
             <Package className="w-10 h-10 text-muted-foreground mb-3" />
-            <p className="text-sm font-medium text-foreground">No pending deliveries</p>
+            <p className="text-sm font-medium text-foreground">
+              {hasFilter ? 'No matching backlog' : 'No pending deliveries'}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Nothing to deliver for {formatDate(selectedDate)}.
+              {hasFilter
+                ? `No backlog found for #${trimmedDailyCount}.`
+                : `Nothing to deliver for ${formatDate(selectedDate)}.`}
             </p>
           </div>
         )}
 
         {/* ---- Backlog grid ---- */}
-        {backlogs.length > 0 && (
+        {visibleBacklogs.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-            {[...backlogs]
+            {[...visibleBacklogs]
               .sort((a, b) => {
                 if (a.isDelivered !== b.isDelivered) {
                   return a.isDelivered ? 1 : -1
@@ -293,7 +370,12 @@ export default function DeliveryPage() {
                 <BacklogCard
                   key={item.saleDeliveryRequestId}
                   item={item}
-                  onOpen={() => handleOpenBacklog(item)}
+                  onOpen={() => {
+                    if (!isClickEnabled) return
+                    handleOpenBacklog(item)
+                  }}
+                  clickable={isClickEnabled}
+                  highlighted={hasFilter && visibleBacklogs.length > 0}
                 />
               ))}
           </div>
@@ -333,24 +415,49 @@ export default function DeliveryPage() {
 function BacklogCard({
   item,
   onOpen,
+  clickable = true,
+  highlighted = false,
 }: {
   item: SaleDeliveryBacklog
   onOpen: () => void
+  clickable?: boolean
+  highlighted?: boolean
 }) {
   const isDelivered = item.isDelivered
+
+  // Base look depends ONLY on delivered state — never on clickability.
+  // Delivered → greyed. Not delivered → lively.
+  const baseLook = isDelivered
+    ? 'border-border bg-muted/70 opacity-70 grayscale'
+    : 'border-border bg-card shadow-sm'
+
+  // Hover / cursor behavior depends on whether clicks are enabled.
+  const interactive = clickable
+    ? isDelivered
+      ? 'cursor-pointer hover:opacity-90 hover:scale-[1.03]'
+      : 'cursor-pointer hover:shadow-lg hover:border-primary/40 hover:scale-[1.03]'
+    : 'cursor-not-allowed'
+
+  // Extra emphasis when the user searched and this is the match.
+  const highlightLook = highlighted
+    ? isDelivered
+      ? 'ring-2 ring-primary/40'
+      : 'ring-2 ring-primary shadow-xl border-primary/60 scale-[1.03]'
+    : ''
 
   return (
     <button
       type="button"
       onClick={onOpen}
+      aria-disabled={!clickable}
       className={[
-        'group w-full text-left rounded-xl border p-3 sm:p-4 lg:p-5 transition-all duration-200 ease-out focus:outline-none focus:ring-2',
-        isDelivered
-          ? 'border-border bg-muted/70 opacity-70 hover:opacity-90 hover:scale-[1.03] grayscale'
-          : 'border-border bg-card shadow-sm hover:shadow-lg hover:border-primary/40 hover:scale-[1.03] focus:ring-primary/40',
+        'group w-full text-left rounded-xl border p-3 sm:p-4 lg:p-5 transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-primary/40',
+        baseLook,
+        interactive,
+        highlightLook,
       ].join(' ')}
     >
-      {/* Number badge — smaller on mobile */}
+      {/* Number badge */}
       <div className="flex items-center justify-center py-1 sm:py-2">
         <div
           className={[

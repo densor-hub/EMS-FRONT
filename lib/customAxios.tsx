@@ -295,17 +295,39 @@ export const login = async (email: string, password: string): Promise<any> => {
       { _skipAuthCheck: true, _skipRefresh: true } as any
     );
 
-    if (response.data.accessToken) {
-      accessToken = response.data.accessToken;
-      accessTokenExpiry = new Date(response.data.accessTokenExpires);
-      safeSession.set('accessToken', accessToken??"");
+    const data = response.data;
+
+    if (data.accessToken) {
+      accessToken = data.accessToken;
+      accessTokenExpiry = data.accessTokenExpires
+        ? new Date(data.accessTokenExpires)
+        : null;
+      safeSession.set('accessToken', accessToken ?? '');
     }
 
-    if (response.data.user) {
-      updateAuthState(response.data.user, response.data.company);
-    }
+    // Backend returns these at the TOP LEVEL of the response — not nested under `user`.
+    const fullName = data.fullName || '';
+    const nameParts = fullName.split(' ').filter(Boolean);
 
-    // Cache success so the next page's performInitialAuthCheck short-circuits
+    const userData: Partial<User> = {
+      id: data.id,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      companyId: data.company?.id,
+      email: data.email,
+      phone: data.phoneNumber ?? data.phone,
+      role: data.role,
+      locations: data.locations ?? [],
+      routes: data.routes ?? [],
+    };
+
+    const companyData: Partial<Company> = {
+      id: data.company?.id,
+      name: data.company?.name,
+    };
+
+    updateAuthState(userData, companyData);
+
     initialAuthCheckResult = true;
     initialAuthCheckDone = true;
     initialAuthCheckPromise = Promise.resolve(true);

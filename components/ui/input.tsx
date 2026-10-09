@@ -6,25 +6,28 @@ interface InputProps extends React.ComponentProps<'input'> {}
 
 function Input({ className, type, value, onChange, id, name, placeholder, ...props }: InputProps) {
   // ---------- Date variant ----------
-  if (type === 'date') {
-    return (
-      <CustomDatePicker
-        id={id}
-        name={name}
-        placeholder={placeholder ?? 'Select Date'}
-        defaultValue={typeof value === 'string' ? value : undefined}
-        onChange={(nextValue) => {
-          // CustomDatePicker emits a YYYY-MM-DD string.
-          // Shape it like a React change event so callers that expect
-          // `e.target.value` keep working.
-          onChange?.({
-            target: { value: nextValue, name },
-          } as React.ChangeEvent<HTMLInputElement>)
-        }}
-        className={className}
-      />
-    )
-  }
+ if (type === 'date') {
+  return (
+    <CustomDatePicker
+      id={id}
+      name={name}
+      placeholder={placeholder ?? 'Select Date'}
+      defaultValue={typeof value === 'string' ? value : undefined}
+      minValue={props?.min}
+      maxValue={props?.max}
+      onChange={(nextValue) => {
+        onChange?.({
+          target: { value: nextValue, name },
+        } as React.ChangeEvent<HTMLInputElement>)
+      }}
+      className={cn(
+        // Keep only visual classes, drop padding that would shift the field
+        'bg-white border-border text-xs sm:text-sm',
+        className?.replace(/\bpl-\d+\b|\bsm:pl-\d+\b|\bpr-\d+\b|\bsm:pr-\d+\b/g, '').trim()
+      )}
+    />
+  )
+}
 
   // ---------- Regular variant ----------
   return (
