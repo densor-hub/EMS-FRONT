@@ -344,7 +344,7 @@ export default function CouponsPage() {
           onAdd={() => openModal()}
           addLabel="Generate Coupons"
           emptyMessage="No coupons found. Generate your first batch."
-          height="h-[calc(100vh-260px)] sm:h-[calc(100vh-238px)]"
+          height="h-[calc(100vh-320px)] sm:h-[calc(100vh-280px)]"
           onRowClick={(coupon) => openModal(coupon)}
         />
       </div>

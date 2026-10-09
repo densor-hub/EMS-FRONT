@@ -27,7 +27,6 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className} ${courierPrime.variable}`}>
       <body>
         <AuthProvider>
-          
           <Suspense  fallback={<LoadingOverlay/>}>
             {children}
           </Suspense>
