@@ -249,7 +249,7 @@ export default function PurcahsePage() {
         title="Purchases from suppliers"
         // description="Suppliers Transactions"
       />
-      <div className="relative" >
+      <div className="relative mt-2" >
           {!modalOpen &&
             <CardContent className="m-0 p-0 overflow-x-auto">
               <DataTable
@@ -260,6 +260,7 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                 emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
+                 height='h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]'
               />
             </CardContent>}
 

@@ -14,8 +14,8 @@ import {
   logout,
   resetAuthCheck,
 } from './customAxios';
-import { LoadingOverlay } from '@/components/SkeletonLoading';
-import { useToaster } from '@/components/util/CustomToast';
+// import { LoadingOverlay } from '@/components/SkeletonLoading';
+// import { useToaster } from '@/components/util/CustomToast';
 import { useRouter } from 'next/navigation';
 import { publicPaths } from '@/components/util/AppConfig';
 
@@ -34,7 +34,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const toast = useToaster();
+  // const toast = useToaster();
   const router = useRouter();
   const [user, setUser] = useState<Partial<User>>({});
   const [company, setCompany] = useState<Partial<Company>>({});

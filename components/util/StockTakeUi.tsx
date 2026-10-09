@@ -530,7 +530,7 @@ export default function StockTakeUI() {
           onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
-          height="h-[calc(100vh-335px)] md:h-[calc(100vh-225px)]"
+          height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
         />
       </div>
 

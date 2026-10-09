@@ -564,6 +564,7 @@ export default function PurchasePage() {
               addLabel="Add Purchase"
               emptyMessage="No data found."
               onRowClick={(row) => openTransactionDetails(row)}
+               height='h-[calc(100vh-280px)] sm:h-[calc(100vh-250px)]'
             />
           </CardContent>
 

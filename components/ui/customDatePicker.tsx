@@ -61,7 +61,7 @@ export default function CustomDatePicker({
       onClick={handleWrapperClick}
       className={[
         // 👇 w-full, box-border, and NO extra padding that shifts the field
-        'relative w-full box-border cursor-pointer',
+        'relative w-full cursor-pointer',
         readOnly && 'cursor-default',
         // 👇 user className is applied here, but strip padding classes that misalign the inner field
         className ?? '',

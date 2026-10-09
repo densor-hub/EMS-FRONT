@@ -500,7 +500,7 @@ export default function PurcahsePage() {
         description="shops Transactions"
       />
 
-      <div className="relative">
+      <div className="relative mt-2">
          {/* <div className="space-y-2 md:col-span-4 p-2">
             <Label htmlFor="item" className="text-foreground">
               Select Shop <span className="text-destructive">*</span>
@@ -551,6 +551,7 @@ export default function PurcahsePage() {
             addLabel="Add Purchase"
             emptyMessage="No data found."
             onRowClick={(row) => openTransactionDetails(row)}
+             height='h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]'
           />
         </CardContent>}
 

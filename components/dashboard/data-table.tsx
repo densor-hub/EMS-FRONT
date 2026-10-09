@@ -43,7 +43,7 @@ export function DataTable<T extends { id: string }>({
   onRowClick,
   addLabel = 'Add New',
   emptyMessage = 'No data found',
-  height = "h-[calc(100vh-260px)]"
+  height = "h-[calc(100vh-300px)]"
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);

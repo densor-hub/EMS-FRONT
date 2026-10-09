@@ -22,8 +22,8 @@ function Input({ className, type, value, onChange, id, name, placeholder, ...pro
       }}
       className={cn(
         // Keep only visual classes, drop padding that would shift the field
-        'bg-white border-border text-xs sm:text-sm',
-        className?.replace(/\bpl-\d+\b|\bsm:pl-\d+\b|\bpr-\d+\b|\bsm:pr-\d+\b/g, '').trim()
+        'bg-white  text-xs sm:text-sm',
+        // className?.replace(/\bpl-\d+\b|\bsm:pl-\d+\b|\bpr-\d+\b|\bsm:pr-\d+\b/g, '').trim()
       )}
     />
   )

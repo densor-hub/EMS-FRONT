@@ -15,7 +15,7 @@ export interface SelectOption {
   label: string;
   disabled?: boolean;
   icon?: ReactNode;
-  discriptionLabel?: string
+  discriptionLabel?: string;
 }
 
 export interface CustomSelectProps {
@@ -25,18 +25,18 @@ export interface CustomSelectProps {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   onOptionSelect?: (option: SelectOption) => void;
-  
+
   // Placeholder props
   placeholder?: string;
   searchPlaceholder?: string;
   label?: string;
-  
+
   // Styling props
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
   itemClassName?: string;
-  
+
   // Behavior props
   disabled?: boolean;
   required?: boolean;
@@ -44,18 +44,18 @@ export interface CustomSelectProps {
   searchable?: boolean;
   clearable?: boolean;
   showSelectedIcon?: boolean;
-  
+
   // Size props
   size?: 'sm' | 'md' | 'lg';
-  
+
   // Render props
   renderItem?: (option: SelectOption) => ReactNode;
   renderSelected?: (option: SelectOption) => ReactNode;
-  
+
   // Error props
   error?: string;
   success?: string;
-  
+
   // Event props
   onBlur?: () => void;
   onFocus?: () => void;
@@ -126,14 +126,15 @@ export function CustomSelect({
     setSearchTerm(e.target.value);
   };
 
+  // ---------- Responsive size helpers ----------
   const getSizeClasses = () => {
     switch (size) {
       case 'sm':
         return 'h-8 text-xs';
       case 'lg':
-        return 'h-12 text-base';
+        return 'h-12 text-xs sm:text-base';
       default:
-        return 'h-10 text-sm';
+        return 'h-10 text-xs sm:text-sm';
     }
   };
 
@@ -142,9 +143,9 @@ export function CustomSelect({
       case 'sm':
         return 'h-3 w-3';
       case 'lg':
-        return 'h-5 w-5';
+        return 'h-4 w-4 sm:h-5 sm:w-5';
       default:
-        return 'h-4 w-4';
+        return 'h-3.5 w-3.5 sm:h-4 sm:w-4';
     }
   };
 
@@ -209,32 +210,32 @@ export function CustomSelect({
             </SelectValue>
 
             {clearable && selectedValue && !disabled && (
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation(); // Stop the event from reaching the trigger
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClear();
-              }}
-              className="ml-2 rounded-full p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <svg
-                className="h-3 w-3 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              <button
+                type="button"
+                onPointerDown={(e) => {
+                  e.stopPropagation(); // Stop the event from reaching the trigger
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClear();
+                }}
+                className="ml-2 rounded-full p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          )}
+                <svg
+                  className="h-3 w-3 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </SelectTrigger>
 
@@ -252,7 +253,7 @@ export function CustomSelect({
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={handleSearch}
-                className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-xs sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -260,7 +261,7 @@ export function CustomSelect({
 
           {/* No results */}
           {filteredOptions.length === 0 && (
-            <div className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div className="px-3 py-6 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
               No options found
             </div>
           )}
@@ -272,7 +273,7 @@ export function CustomSelect({
               value={option.value}
               disabled={option.disabled}
               className={cn(
-                'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none transition-colors',
+                'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-xs sm:text-sm outline-none transition-colors',
                 'hover:bg-gray-100 dark:hover:bg-gray-800',
                 isSelected(option.value) && 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
                 option.disabled && 'cursor-not-allowed opacity-50',
@@ -282,15 +283,18 @@ export function CustomSelect({
               {renderItem ? (
                 renderItem(option)
               ) : (
-                <div className=" w-full flex items-center gap-2 justfiy-between">
-                  <span className='flex items-center '>
+                <div className="w-full flex items-center gap-2 justfiy-between">
+                  <span className="flex items-center">
                     {option.icon && (
-                    <span className={cn('flex-shrink-0', getIconSize())}>
-                      {option.icon}
-                    </span>
+                      <span className={cn('flex-shrink-0', getIconSize())}>
+                        {option.icon}
+                      </span>
                     )}
-                    {option.label}  
-                  </span> {option?.discriptionLabel &&  <span className='text-xs'> | {option?.discriptionLabel}</span>}
+                    {option.label}
+                  </span>
+                  {option?.discriptionLabel && (
+                    <span className="text-[10px] sm:text-xs"> | {option?.discriptionLabel}</span>
+                  )}
                 </div>
               )}
             </SelectItem>
@@ -298,7 +302,7 @@ export function CustomSelect({
 
           {/* Loading state */}
           {loading && (
-            <div className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div className="px-3 py-6 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
               <div className="flex items-center justify-center gap-2">
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
                 Loading...

@@ -392,7 +392,7 @@ export default function FinancialServiceProviderPage() {
           onAdd={() => openModal()}
           addLabel="Add Provider"
           emptyMessage="No data found."
-          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
+          height="h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]"
           onRowClick={(data) => openModal(data)}
         />
       </div>

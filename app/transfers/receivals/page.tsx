@@ -480,14 +480,9 @@ export default function PurcahsePage() {
     );
   };
 
-  if (loading) {
-    return (
-      <LoadingOverlay />
-    );
-  }
-
   return (
     <div className=" w-full overflow-x-hidden">
+      {loading && <LoadingOverlay/>}
       <Header
         title="Stock Transfers & Deliveries"
         description="shops Transactions"
@@ -512,9 +507,24 @@ export default function PurcahsePage() {
                 ))}
               </SelectContent>
             </Select>
+             {/* <CustomSelect
+                options={shops?.map((x) => ({
+                  value: x.id.toString(),
+                  label: x.name,
+                  // discriptionLabel :x?.phone  + ", " + (x?.address?.length > 20 ? (x?.address?.slice(0, 20) + "..."): x?.address)
+                }))}
+                value={selectedShopForStockTrans}
+                onValueChange={setselectedShopForStockTrans}
+                placeholder="Select Shop"
+                required={true}
+                searchable={true}
+                clearable={true}
+                size="md"
+                className='w-[300px]'
+              />  */}
           </div>}
 
-         <div className='m-1 lg:m-2 flex justify-center items-center'>
+         {/* <div className='m-1 lg:m-2 flex justify-center items-center'>
            {!modalOpen && <Button className="w-[98%]  m-auto lg:m-0 relative bottom-2 lg:bottom-0 sm:w-full sm:w-auto" onClick={() => {
             if (!selectedShopForStockTrans) {
               toast.info({
@@ -526,9 +536,9 @@ export default function PurcahsePage() {
             setModalOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-2" />
-            New Request
+            New Receival
           </Button>}
-         </div>
+         </div> */}
         </div>
 
           {!modalOpen &&
@@ -541,7 +551,8 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                 emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
-                height="h-[calc(100vh-315px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
+                // height="h-[calc(100vh-350px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
+                 height='h-[calc(100vh-330px)] sm:h-[calc(100vh-310px)]'
               />
             </CardContent>}
 

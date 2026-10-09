@@ -250,42 +250,45 @@ export default function PurcahsePage() {
         title="Purchases from suppliers"
         // description="Suppliers Transactions"
       />
-      <div className="relative" >
-        <div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" >
-           <div className="space-y-2 md:col-span-4 p-1">
-             <Label htmlFor="item" className="text-foreground">
-                Select Shop <span className="text-destructive">*</span>
-              </Label>
-              <CustomSelect
-                options={suppliers?.map((x) => ({
-                  value: x.id.toString(),
-                  label: x.supplierCompanyName,
-                }))}
-                value={selectedSupplier}
-                onValueChange={setselectedSupplier}
-                placeholder="Select Shop"
-                required={true}
-                searchable={true}
-                clearable={true}
-                size="md"
-                className='w-[300px]'
-              /> 
-            </div>
+      <div className="relative">
+  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 sm:gap-4 mb-2">
+    <div className="w-full sm:w-auto sm:flex-1 sm:max-w-[320px] p-1">
+      <CustomSelect
+        options={suppliers?.map((x) => ({
+          value: x.id.toString(),
+          label: x.supplierCompanyName,
+        }))}
+        value={selectedSupplier}
+        onValueChange={setselectedSupplier}
+        placeholder="Select Supplier"
+        required={true}
+        searchable={true}
+        clearable={true}
+        size="md"
+      />
+    </div>
 
-          {!modalOpen && <Button className="w-auto relative top-7" onClick={() => {
-            if (!selectedSupplier) {
-              toast.info({
-                title: 'Select Suppliers',
-                description: 'Please select Suppliers to add',
-              });
-              return;
-            }
-            setModalOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </Button>}
-        </div>
+    {!modalOpen && (
+     <div>
+       <Button
+        className="w-[95%] m-auto sm:w-auto relative right-2 "
+        onClick={() => {
+          if (!selectedSupplier) {
+            toast.info({
+              title: 'Select Suppliers',
+              description: 'Please select Suppliers to add',
+            });
+            return;
+          }
+          setModalOpen(true);
+        }}
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        New
+      </Button>
+      </div>
+    )}
+  </div>
 
           {!modalOpen &&
             <CardContent className="m-0 p-0 overflow-x-auto">
@@ -297,6 +300,7 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                 emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
+                 height='h-[calc(100vh-350px)] sm:h-[calc(100vh-300px)]'
               />
             </CardContent>}
 

@@ -176,7 +176,7 @@ export default function PurcahsePage() {
       render: (value: Transaction) => (
         <div className="flex items-center gap-2">
           {/* <User className="h-4 w-4 text-muted-foreground" /> */}
-          <span className="font-medium">{ <StatusBadge status={value?.status} className='h-7  text-xs' heartbeat={value?.status?.toLocaleLowerCase() === "approved" || value?.status?.toLocaleLowerCase() === "declined" }/> }</span>
+          <span className="font-medium">{ <StatusBadge status={value?.status}  className='h-7  text-xs' heartbeat={false}/> }</span>
         </div>
       ),
     },
@@ -493,32 +493,36 @@ export default function PurcahsePage() {
         description="shops Transactions"
       />
 
-      <div className="relative">
-        <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4">
-          {!modalOpen &&
-           <div className="space-y-2 md:col-span-4 m-2">
-              <Label htmlFor="item" className="text-foreground">
-                Request From <span className="text-destructive">*</span>
-              </Label>
-              <CustomSelect
-                options={shops?.map((x) => ({
-                  value: x.id.toString(),
-                  label: x.name,
-                }))}
-                value={selectedShopForStockTrans}
-                onValueChange={setselectedShopForStockTrans}
-                placeholder="Select Shop"
-                required={true}
-                searchable={true}
-                clearable={true}
-                size="md"
-                className='w-[300px]'
-              />
-            </div>
-          }
+     <div className="relative">
+  <div className="flex flex-row items-end gap-2 sm:gap-4 m-2">
+    {/* Select — 70% */}
+    {!modalOpen && (
+      <div className="space-y-2 basis-[70%] grow min-w-0">
+        <Label htmlFor="item" className="text-foreground">
+          Request From <span className="text-destructive">*</span>
+        </Label>
+        <CustomSelect
+          options={shops?.map((x) => ({
+            value: x.id.toString(),
+            label: x.name,
+          }))}
+          value={selectedShopForStockTrans}
+          onValueChange={setselectedShopForStockTrans}
+          placeholder="Select Shop"
+          required={true}
+          searchable={true}
+          clearable={true}
+          size="sm"
+        />
+      </div>
+    )}
 
-         <div className='m-1 lg:m-2 flex justify-center items-center'>
-           {!modalOpen && <Button className="w-[98%]  m-auto lg:m-0 relative bottom-2 lg:bottom-0 sm:w-full sm:w-auto" onClick={() => {
+    {/* Button — 30% */}
+    {!modalOpen && (
+      <div className="basis-[30%] grow min-w-0 flex items-end">
+        <Button
+          className="w-full"
+          onClick={() => {
             if (!selectedShopForStockTrans) {
               toast.info({
                 title: 'Select shops',
@@ -527,12 +531,14 @@ export default function PurcahsePage() {
               return;
             }
             setModalOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </Button>}
-         </div>
-        </div>
+          }}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          New
+        </Button>
+      </div>
+    )}
+  </div>
 
           {!modalOpen &&
             <CardContent className="m-0 p-0 overflow-x-auto">
@@ -544,7 +550,8 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
-                height="h-[calc(100vh-315px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
+                // height="h-[calc(100vh-330px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
+                 height='h-[calc(100vh-330px)] sm:h-[calc(100vh-310px)]'
               />
             </CardContent>}
 

@@ -249,7 +249,7 @@ export default function PurcahsePage() {
         title="Purchases from suppliers"
         // description="Suppliers Transactions"
       />
-      <div className="relative" >
+      <div className="relative mt-2" >
         {/* {<div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" >
           <div className="mt-2 w-full sm:w-[300px] px-2"  >
             <Label htmlFor="item" className="text-foreground text-sm">Select Supplier</Label>
@@ -297,6 +297,7 @@ export default function PurcahsePage() {
                 addLabel="Add Purchase"
                 emptyMessage=""
                 onRowClick={(row) => openTransactionDetails(row)}
+                 height='h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]'
               />
             </CardContent>}
 

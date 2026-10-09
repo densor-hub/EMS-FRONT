@@ -78,13 +78,13 @@ const StockLevelUi = ({ stockLevel, loading, itemId, className }: StockLevelUiPr
                         {availableQuantity === 0 && (
                             <span className="text-destructive text-[10px] text-xs bg-destructive/10 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 sm:gap-1">
                                 <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                                Out of Stock!
+                                {/* Out of Stock! */}
                             </span>
                         )}
                         {availableQuantity > 0 && availableQuantity < 5 && (
                             <span className="text-yellow-600 text-[10px] text-xs bg-yellow-100 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 sm:gap-1">
                                 <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                                Low Stock!
+                                {/* Low Stock! */}
                             </span>
                         )}
                     </div>

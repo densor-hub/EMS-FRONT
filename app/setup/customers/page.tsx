@@ -251,7 +251,7 @@ export default function CustomersPage() {
           onAdd={() => openModal()}
           addLabel="Add Customer"
           emptyMessage="No data found."
-          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
+          height="h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]"
           onRowClick={(data) => openModal(data)}
         />
       </div>

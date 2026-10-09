@@ -331,7 +331,7 @@ export default function EmployeesPage() {
           addLabel="Add Employee"
           emptyMessage="No data found."
           onRowClick={(emp) => openModal(emp)}
-          height="h-[calc(100vh-220px)] sm:h-[calc(100vh-198px)]"
+          height="h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]"
         />
       </div>
 

@@ -426,7 +426,7 @@ export default function DisbursementPage() {
       <div className="min-h-screen w-full overflow-x-hidden">
         <Header title="Disbursements" />
 
-        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 px-4 pt-2">
+        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 px-4 pt-2 mb-2">
           <div className="w-full sm:w-[260px]">
             <CustomSelect
               options={filterOptions}
@@ -454,6 +454,7 @@ export default function DisbursementPage() {
               columns={columns}
               emptyMessage="No disbursements found."
               onRowClick={(row) => openDetails(row as Disbursement)}
+              height='h-[calc(100vh-270px)] sm:h-[calc(100vh-198px)]'
             />
           </CardContent>
 

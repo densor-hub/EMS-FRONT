@@ -14,7 +14,7 @@ import {
   Menu,
   X,
   ChevronDown,
-  LucideChartNetwork,
+  // LucideChartNetwork,
   LucideShoppingCart,
   SendToBackIcon,
   PlusCircleIcon,
@@ -361,9 +361,9 @@ export function Sidebar() {
     <div className="bg-sidebar">
       <button
         onClick={() => setIsMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
+        className="lg:hidden fixed mt-1.5 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
       >
-        <Menu size={20} />
+        <Menu size={12}/>
       </button>
 
       {isMobileOpen && (

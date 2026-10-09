@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatusBadge = ({ status, className = '', heartbeat= true }) => {
+const StatusBadge = ({ status, className = '', heartbeat = true }) => {
   const statusConfig = {
     Pending: {
       bg: 'bg-amber-50',
@@ -55,10 +55,10 @@ const StatusBadge = ({ status, className = '', heartbeat= true }) => {
 
   return (
     <span className={`
-      inline-flex items-center gap-2.5
-      px-4 py-2
+      inline-flex items-center gap-1.5 sm:gap-2.5
+      px-2 py-1 sm:px-2 sm:py-1
       rounded-full
-      text-sm font-semibold
+      text-xs sm:text-sm font-semibold
       ${config.bg}
       ${config.text}
       ${config.border}
@@ -66,29 +66,31 @@ const StatusBadge = ({ status, className = '', heartbeat= true }) => {
       shadow-md
       ${className}
     `}>
-      {heartbeat && <span className="relative flex h-3 w-3">
-        <span 
-          className={`
-            absolute inline-flex h-full w-full
-            rounded-full
-            ${config.dotBg}
-            opacity-60
-          `}
-          style={{
-            animation: 'pulse-ring 1.2s ease-in-out infinite',
-          }}
-        />
-        <span 
-          className={`
-            relative inline-flex rounded-full
-            h-3 w-3
-            ${config.dotBg}
-          `}
-          style={{
-            animation: 'heartbeat 1.2s ease-in-out infinite',
-          }}
-        />
-      </span>}
+      {heartbeat && (
+        <span className="relative flex h-2 w-2 sm:h-3 sm:w-3">
+          <span
+            className={`
+              absolute inline-flex h-full w-full
+              rounded-full
+              ${config.dotBg}
+              opacity-60
+            `}
+            style={{
+              animation: 'pulse-ring 1.2s ease-in-out infinite',
+            }}
+          />
+          <span
+            className={`
+              relative inline-flex rounded-full
+              h-2 w-2 sm:h-3 sm:w-3
+              ${config.dotBg}
+            `}
+            style={{
+              animation: 'heartbeat 1.2s ease-in-out infinite',
+            }}
+          />
+        </span>
+      )}
       {status}
     </span>
   );

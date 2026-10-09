@@ -257,7 +257,7 @@ export default function PurcahsePage() {
             </Select>
           </div>
 
-          {!modalOpen && <Button className="w-auto relative top-7" onClick={() => {
+          {!modalOpen && <Button className="w-auto relative top-7 mx-2" onClick={() => {
             if (!selectedCustomer) {
               toast.info({
                 title: 'Select Customer',
@@ -268,7 +268,7 @@ export default function PurcahsePage() {
             setModalOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-2" />
-            New Sale
+            New 
           </Button>}
         </div>
 

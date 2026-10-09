@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { LoadingOverlay } from '../SkeletonLoading';
+import {DynamicBreadcrumb} from '../util/Breadcrumb';
+import { BreadcrumbPage } from '../ui/breadcrumb';
 
 interface HeaderProps {
   title: string;
@@ -65,7 +67,7 @@ export function Header({ title, description }: HeaderProps) {
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border p-0 h-16">
         <div className="flex items-center justify-between px-2 pt-2">
           {/* Title — hidden on mobile */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" >
             <h1 className="hidden sm:block text-sm md:text-xl lg:text-2xl font-semibold text-foreground truncate">
               {title}
             </h1>
@@ -172,7 +174,12 @@ export function Header({ title, description }: HeaderProps) {
             </DropdownMenu>
           </div>
         </div>
+      <DynamicBreadcrumb/>
+
       </header>
+      
+      {/* <>I neead breadcrump here</> */}
+      {/* <BreadcrumbPage/> */}
     </>
   );
 }
