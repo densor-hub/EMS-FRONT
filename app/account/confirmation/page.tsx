@@ -216,7 +216,7 @@ function ConfirmationContent() {
             </p>
             <Button
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/auth/login')}
             >
               Continue to sign in
             </Button>
