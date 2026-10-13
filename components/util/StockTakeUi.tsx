@@ -637,7 +637,7 @@ export default function StockTakeUI() {
                                         </Button>
                                       )}
                                     </TableCell>
-                                    <TableCell className="font-medium text-xs sm:text-sm max-w-[80px] sm:max-w-none truncate">
+                                   <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
                                     <TableCell className="text-center">
