@@ -22,8 +22,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
- 
-  Search,
   Calendar,
   Clock,
   Package,
@@ -91,7 +89,7 @@ interface VerificationFormData {
 export default function StockVerificationUi() {
   const toast = useToaster()
   const { user, selectedShop } = useAuth();
-  
+
   // State
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -100,13 +98,13 @@ export default function StockVerificationUi() {
   const [selectedRecord, setSelectedRecord] = useState<StockLockDown | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
-  
+
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
     currentPage: 1,
@@ -152,14 +150,13 @@ export default function StockVerificationUi() {
   const getPendingSubmission = useCallback((itemId: string) => {
     const item = getItemById(itemId);
     if (!item || !item.submissions) return null;
-    // Find the first pending submission (you might want to adjust this logic)
     return item.submissions.find(sub => sub.status === 'Pending' || sub.status === 'In Progress') || null;
   }, [getItemById]);
 
-  // Fetch stock lockdown data
+  // Fetch stock lockdown list
   const fetchStockLockDowns = useCallback(async () => {
     const locationId = getSelectedShop();
-    
+
     if (!locationId) {
       toast.error({
         title: 'No shop selected',
@@ -173,15 +170,15 @@ export default function StockVerificationUi() {
     try {
       const params = new URLSearchParams();
       params.append('LocationId', locationId);
-      
+
       const start = startDate;
       const end = endDate;
-      
+
       params.append('StartDate', start);
       params.append('EndDate', end);
 
       const response = await axiosInstance.get(`/StockLockDown?${params.toString()}`);
-      
+
       if (response?.data) {
         const data = Array.isArray(response.data) ? response.data : [response.data];
         setStockLockDowns(data);
@@ -216,14 +213,19 @@ export default function StockVerificationUi() {
     }, 100);
   }, [fetchStockLockDowns]);
 
-  // Fetch detailed stock lockdown by ID
-  const fetchStockLockDownDetail = useCallback(async (id: string) => {
+  // Fetches the detail data only. No side effects on modal state.
+  const loadStockLockDownDetail = useCallback(async (id: string) => {
+    const response = await axiosInstance.get(`/StockLockDown/${id}`);
+    return response?.data ?? null;
+  }, []);
+
+  // Opens the details modal (used from row click).
+  const openStockLockDownDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
     try {
-      const response = await axiosInstance.get(`/StockLockDown/${id}`);
-      
-      if (response?.data) {
-        setSelectedRecord(response.data);
+      const data = await loadStockLockDownDetail(id);
+      if (data) {
+        setSelectedRecord(data);
         setExpandedItems(new Set());
         setIsModalOpen(true);
       }
@@ -236,7 +238,7 @@ export default function StockVerificationUi() {
     } finally {
       setLoadingDetail(false);
     }
-  }, []);
+  }, [loadStockLockDownDetail]);
 
   // Toggle item expansion
   const toggleItemExpansion = useCallback((itemId: string) => {
@@ -263,8 +265,7 @@ export default function StockVerificationUi() {
   // Handle verification action (Approve or Decline)
   const handleVerificationAction = useCallback((action: 'approve' | 'decline') => {
     setVerificationAction(action);
-    
-    // If declining, check if remarks are entered
+
     if (action === 'decline' && !remarks.trim()) {
       toast.error({
         title: 'Remarks required',
@@ -272,8 +273,7 @@ export default function StockVerificationUi() {
       });
       return;
     }
-    
-    // Proceed with verification
+
     if (selectedSubmissionId) {
       handleConfirmVerification(action);
     }
@@ -290,7 +290,7 @@ export default function StockVerificationUi() {
     }
 
     const status = action === 'approve' ? 1 : 2;
-    
+
     if (action === 'decline' && !remarks.trim()) {
       toast.error({
         title: 'Remarks required',
@@ -308,22 +308,30 @@ export default function StockVerificationUi() {
     setIsVerifying(true);
     try {
       const response = await axiosInstance.put('/StockLockDown/Verify', payload);
-      
+
       if (response?.status === 200 || response?.status === 201) {
         toast.success({
           title: `Submission ${action === 'approve' ? 'Approved' : 'Declined'} successfully`,
           description: `The submission has been ${action === 'approve' ? 'approved' : 'declined'}`,
         });
-        // Close confirm modal
+
+        // Close confirm modal and reset its own state
         setShowConfirmModal(false);
-        // Reset states
         setSelectedSubmissionId(null);
         setSelectedItemId(null);
         setRemarks("");
         setVerificationAction(null);
-        // Refresh the detail data
+
+        // Refresh the detail data ONLY. Do NOT reopen the details modal.
         if (selectedRecord) {
-          await fetchStockLockDownDetail(selectedRecord.id);
+          try {
+            const refreshed = await loadStockLockDownDetail(selectedRecord.id);
+            if (refreshed) {
+              setSelectedRecord(refreshed);
+            }
+          } catch (err) {
+            console.error("Failed to refresh detail after verification:", err);
+          }
         }
       }
     } catch (error: any) {
@@ -335,7 +343,7 @@ export default function StockVerificationUi() {
     } finally {
       setIsVerifying(false);
     }
-  }, [selectedSubmissionId, remarks, fetchStockLockDownDetail, selectedRecord]);
+  }, [selectedSubmissionId, remarks, loadStockLockDownDetail, selectedRecord]);
 
   // Handle cancel verification
   const handleCancelVerification = useCallback(() => {
@@ -359,12 +367,12 @@ export default function StockVerificationUi() {
     }
 
     const searchLower = searchTerm.toLowerCase().trim();
-    const filtered = stockLockDowns.filter(item => 
+    const filtered = stockLockDowns.filter(item =>
       item.transactionNumber?.toLowerCase().includes(searchLower) ||
       item.locationName?.toLowerCase().includes(searchLower) ||
       item.id?.toLowerCase().includes(searchLower)
     );
-    
+
     setFilteredData(filtered);
     setPagination(prev => ({
       ...prev,
@@ -408,10 +416,10 @@ export default function StockVerificationUi() {
       'Completed': { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
       'Failed': { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
     };
-    
+
     const defaultStatus = { color: 'bg-gray-100 text-gray-800', icon: <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" /> };
     const statusInfo = statusMap[status] || defaultStatus;
-    
+
     return (
       <span className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusInfo.color}`}>
         {statusInfo.icon}
@@ -495,22 +503,22 @@ export default function StockVerificationUi() {
     <div className="bg-gradient-to-br from-slate-50/80 via-white/80 to-gray-100/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto">
         {/* Search and Filter Section */}
-       <div className="m-2">
-         <StockFilterBar
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          startDate={startDate}
-          onStartDateChange={setStartDate}
-          endDate={endDate}
-          onEndDateChange={setEndDate}
-          onApply={handleSearch}
-          onClear={clearFilters}
-          isApplying={isApplyingFilters}
-          searchPlaceholder="Search by transaction #, location, or ID..."
-          applyLabel="Apply Filters"
-          clearLabel="Clear All"
-        />
-       </div>
+        <div className="m-2">
+          <StockFilterBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            endDate={endDate}
+            onEndDateChange={setEndDate}
+            onApply={handleSearch}
+            onClear={clearFilters}
+            isApplying={isApplyingFilters}
+            searchPlaceholder="Search by transaction #, location, or ID..."
+            applyLabel="Apply Filters"
+            clearLabel="Clear All"
+          />
+        </div>
 
         {/* Results Table - Using DataTable */}
         <DataTable
@@ -519,16 +527,16 @@ export default function StockVerificationUi() {
           columns={columns}
           addLabel="Refresh"
           emptyMessage="No data found."
-          onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
+          onRowClick={(row: any) => openStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
           height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
         />
       </div>
 
-      {/* Detail Modal - Mobile Responsive */}
+      {/* Detail Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent 
+        <DialogContent
           className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-3 sm:p-6 md:p-6"
           style={{ maxWidth: '1000px', width: '95vw' }}
         >
@@ -549,7 +557,7 @@ export default function StockVerificationUi() {
             </div>
           ) : selectedRecord ? (
             <div className="space-y-3 sm:space-y-6 h-[calc(95vh-80px)] overflow-y-auto">
-              {/* Header Information - Mobile Responsive Grid */}
+              {/* Header Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-4 bg-muted/30 rounded-lg">
                 <div className="min-w-0">
                   <Label className="text-[10px] sm:text-xs text-muted-foreground uppercase">Location</Label>
@@ -574,7 +582,7 @@ export default function StockVerificationUi() {
                 </div>
               </div>
 
-              {/* Items Section - Table with horizontal scroll on mobile */}
+              {/* Items Section */}
               <div>
                 {selectedRecord.items && selectedRecord.items.length > 0 ? (
                   <>
@@ -593,10 +601,10 @@ export default function StockVerificationUi() {
                             <TableRow className="bg-muted/50">
                               <TableHead className="w-8 sm:w-10"></TableHead>
                               <TableHead className="text-xs sm:text-sm">Item Name</TableHead>
-                              <TableHead className="text-xs sm:text-sm">Item Code</TableHead>
+                              {/* <TableHead className="text-xs sm:text-sm">Item Code</TableHead> */}
                               <TableHead className="text-xs sm:text-sm">Status</TableHead>
-                              <TableHead className="text-center text-xs sm:text-sm"># of Packs</TableHead>
-                              <TableHead className="text-center text-xs sm:text-sm">Add. Pieces</TableHead>
+                              {/* <TableHead className="text-center text-xs sm:text-sm"># of Packs</TableHead> */}
+                              <TableHead className="text-center text-xs sm:text-sm">Counted </TableHead> {/*Pieces*/}
                               <TableHead className="text-center text-xs sm:text-sm">Action</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -605,18 +613,16 @@ export default function StockVerificationUi() {
                               const isExpanded = expandedItems.has(item.id);
                               const pendingSubmission = getPendingSubmission(item.id);
                               const recentStatus = getRecentSubmissionStatus(item);
-                              
-                              // Get values from pending submission or use defaults
+
                               const defaultPacks = pendingSubmission?.physicalUnitOfMeasureQuantity ?? 0;
                               const defaultPieces = pendingSubmission?.physicalAdditionalPiecesQuantity ?? 0;
-                              
-                              // Check if there's a pending submission to verify
-                              const hasPendingSubmission = pendingSubmission !== null && 
+
+                              const hasPendingSubmission = pendingSubmission !== null &&
                                 (pendingSubmission.status === 'Pending' || pendingSubmission.status === 'In Progress');
 
                               return (
                                 <React.Fragment key={item.id}>
-                                  <TableRow 
+                                  <TableRow
                                     className={`hover:bg-muted/30 transition-colors ${hasPendingSubmission ? 'bg-blue-50/50' : ''}`}
                                   >
                                     <TableCell>
@@ -638,12 +644,12 @@ export default function StockVerificationUi() {
                                     <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
-                                    <TableCell>
+                                    {/* <TableCell>
                                       <span className="flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm">
                                         <Hash className="w-3 h-3 text-muted-foreground" />
                                         {item.itemCode || 'N/A'}
                                       </span>
-                                    </TableCell>
+                                    </TableCell> */}
                                     <TableCell>
                                       {recentStatus ? (
                                         getStatusBadge(recentStatus)
@@ -656,7 +662,7 @@ export default function StockVerificationUi() {
                                         <span className="text-[10px] sm:text-xs text-muted-foreground">No Submissions</span>
                                       )}
                                     </TableCell>
-                                    <TableCell className="text-center">
+                                    {/* <TableCell className="text-center">
                                       <Input
                                         type="text"
                                         value={formatNumber(defaultPacks)}
@@ -664,7 +670,7 @@ export default function StockVerificationUi() {
                                         className="w-16 sm:w-24 mx-auto text-center text-xs sm:text-sm h-7 sm:h-10 bg-muted/50 cursor-not-allowed"
                                         onClick={(e) => e.stopPropagation()}
                                       />
-                                    </TableCell>
+                                    </TableCell> */}
                                     <TableCell className="text-center">
                                       <Input
                                         type="text"
@@ -697,7 +703,7 @@ export default function StockVerificationUi() {
                                       </Button>
                                     </TableCell>
                                   </TableRow>
-                                  
+
                                   {/* Expanded Submissions Row */}
                                   {isExpanded && item.submissions && item.submissions.length > 0 && (
                                     <TableRow>
@@ -721,12 +727,12 @@ export default function StockVerificationUi() {
                                                       <span className="text-muted-foreground">Total {currentItem?.unitOfMeasure || 'UOM'}:</span>
                                                       <span className="font-medium">{formatNumber(submission.physicalUnitOfMeasureQuantity)}</span>
                                                     </div>
-                                                    <div>
+                                                    {/* <div>
                                                       <span className="text-muted-foreground"><i>Qty/{currentItem?.unitOfMeasure || 'UOM'}:</i></span>
                                                       <span className="font-medium">{formatNumber(currentItem?.quantityPerUnitOfMeasure || 0)}</span>
-                                                    </div>
+                                                    </div> */}
                                                     <div>
-                                                      <span className="text-muted-foreground">Add. Pieces:</span>
+                                                      <span className="text-muted-foreground">Pieces:</span>
                                                       <span className="font-medium">{formatNumber(submission.physicalAdditionalPiecesQuantity)}</span>
                                                     </div>
                                                   </div>
@@ -792,12 +798,12 @@ export default function StockVerificationUi() {
                 const item = getItemById(selectedItemId);
                 const pendingSubmission = getPendingSubmission(selectedItemId);
                 if (!pendingSubmission || !item) return null;
-                
+
                 const packs = pendingSubmission.physicalUnitOfMeasureQuantity || 0;
                 const pieces = pendingSubmission.physicalAdditionalPiecesQuantity || 0;
                 const quantityPerUnit = item.quantityPerUnitOfMeasure || 0;
                 const totalInPieces = (quantityPerUnit * packs) + pieces;
-                
+
                 return (
                   <>
                     <div className="text-xs sm:text-sm mt-1">
@@ -805,16 +811,16 @@ export default function StockVerificationUi() {
                       <span className="font-medium ml-1">{item.itemName}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 text-sm mb-5">
-                      <div>
+                      {/* <div>
                         <span className="text-muted-foreground text-xs sm:text-sm"># of {item?.unitOfMeasure || 'Packs'}:</span>
                         <p className="font-medium text-sm sm:text-base">{formatNumber(packs)}</p>
-                      </div>
-                      <div>
+                      </div> */}
+                      {/* <div>
                         <span className="text-muted-foreground text-xs sm:text-sm">Qty/{item?.unitOfMeasure || 'Pack'}:</span>
                         <p className="font-medium text-sm sm:text-base">{formatNumber(quantityPerUnit)}</p>
-                      </div>
+                      </div> */}
                       <div className="col-span-2 sm:col-span-1">
-                        <span className="text-muted-foreground text-xs sm:text-sm">Add. Pieces:</span>
+                        <span className="text-muted-foreground text-xs sm:text-sm">Pieces:</span>
                         <p className="font-medium text-sm sm:text-base">{formatNumber(pieces)}</p>
                       </div>
                     </div>
@@ -827,7 +833,7 @@ export default function StockVerificationUi() {
               })()}
             </div>
           )}
-          
+
           <div className="py-4">
             <Label htmlFor="remarks" className="text-sm font-medium mb-2 block">
               Remarks {verificationAction === 'decline' && <span className="text-red-500">*</span>}
@@ -844,12 +850,12 @@ export default function StockVerificationUi() {
             )}
           </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex flex-row gap-2">
             <Button
               variant="outline"
               onClick={handleCancelVerification}
               disabled={isVerifying}
-              className="w-full sm:w-auto"
+              className="hidden sm:block sm:w-auto"
             >
               Cancel
             </Button>
@@ -857,7 +863,7 @@ export default function StockVerificationUi() {
               variant="destructive"
               onClick={() => handleVerificationAction('decline')}
               disabled={isVerifying || !remarks.trim()}
-              className="w-full sm:w-auto"
+              className="flex-1"
             >
               {isVerifying && verificationAction === 'decline' ? (
                 <>
@@ -871,7 +877,7 @@ export default function StockVerificationUi() {
             <Button
               onClick={() => handleVerificationAction('approve')}
               disabled={isVerifying}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
             >
               {isVerifying && verificationAction === 'approve' ? (
                 <>

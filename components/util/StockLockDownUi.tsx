@@ -39,6 +39,7 @@ const parseFormattedNumber = (value: string): number => {
 };
 
 // Define columns OUTSIDE component to prevent recreation
+// Shared columns (for other screens if used elsewhere)
 const columns: CartColumn<CartItem>[] = [
   {
     key: 'name',
@@ -46,25 +47,42 @@ const columns: CartColumn<CartItem>[] = [
     align: 'left',
     width: '40%',
   },
-  {
-    key: 'code',
-    header: 'Code',
-    align: 'center',
-    width: '15%',
-    render: (item) => item.code?.slice(0, 5) || 'N/A',
-  },
-  {
-    key: 'unitOfMeasureName',
-    header: 'Unit',
-    align: 'center',
-    width: '20%',
-    render: (item) => item.unitOfMeasureName || item.unitOfMeasure || 'N/A',
-  },
+  // {
+  //   key: 'code',
+  //   header: 'Code',
+  //   align: 'center',
+  //   width: '15%',
+  //   render: (item) => item.code?.slice(0, 5) || 'N/A',
+  // },
+  // {
+  //   key: 'unitOfMeasureName',
+  //   header: 'Unit',
+  //   align: 'center',
+  //   width: '20%',
+  //   render: (item) => item.unitOfMeasureName || item.unitOfMeasure || 'N/A',
+  // },
   {
     key: 'availableQuantity',
     header: 'Available',
     align: 'center',
     width: '20%',
+    render: (item) => item.availableQuantity ?? item.stockLevel?.availableQuantity ?? 0,
+  },
+];
+
+// Stock Lock specific columns — no Code, no Unit
+const stockLockColumns: CartColumn<CartItem>[] = [
+  {
+    key: 'name',
+    header: 'Item',
+    align: 'left',
+    width: '70%',
+  },
+  {
+    key: 'availableQuantity',
+    header: 'Available',
+    align: 'center',
+    width: '30%',
     render: (item) => item.availableQuantity ?? item.stockLevel?.availableQuantity ?? 0,
   },
 ];
@@ -92,7 +110,13 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
   const isLoadingRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  
+  // Items available in the dropdown = all items minus those already in the cart
+  const availableItems = useMemo(() => {
+    if (stockLockItems.length === 0) return items;
+    const lockedIds = new Set(stockLockItems.map(ci => ci.id));
+    return items.filter(item => !lockedIds.has(item.id));
+  }, [items, stockLockItems]);
+
   const isFormValid = useMemo(() => {
     const hasItems = stockLockItems.length > 0;
     const hasTransactionDate = !!transactionDate;
@@ -202,6 +226,15 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
     setTurnAroundTime("00:00");
   }, []);
 
+  // Clear the dropdown selection if the selected item is no longer in availableItems
+  useEffect(() => {
+    if (selectedItem && !availableItems.some(i => i.id === selectedItem)) {
+      setSelectedItem("");
+      setQuantity("");
+      setStockLevel(null);
+    }
+  }, [availableItems, selectedItem]);
+
   // Validation
   const validateAddItem = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
@@ -209,10 +242,6 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
     if (!selectedItem) {
       newErrors.selectedItem = 'Please select an item';
     }
-    
-    // if ((!quantity || parseFormattedNumber(quantity) <= 0) && !i) {
-    //   newErrors.quantity = 'Please enter a valid quantity';
-    // }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -241,67 +270,65 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
     return Object.keys(newErrors).length === 0;
   }, [stockLockItems.length, transactionDate, turnAroundDate, turnAroundTime]);
 
-  // From your SaleTransactionUI component - EXACT method
+  // Add to cart
+  const addToCart = useCallback(() => {
+    validateAddItem()
 
-  // From your SaleTransactionUI component
-const addToCart = useCallback(() => {
-  validateAddItem()
-
-  const item = items.find(i => i.id === selectedItem);
-  if (!item) {
-    toastErrors(toast, 'The selected item no longer exists',"", false)
-    return;
-  }
-
-
-  const qty = parseFormattedNumber(quantity);
-  
-  const availableQty = stockLevel?.availableQuantity ?? item.quanityInUnit ?? 0;
-  if (qty > availableQty) {
-    toastErrors(toast, `Only ${availableQty} units available. Please reduce the quantity.`,'Insufficient Stock', false)
-    return;
-  }
-  
-  setStockLockItems(prevCart => {
-    const existingIndex = prevCart.findIndex((c) => c.id === selectedItem);
-    
-    if (existingIndex >= 0) {
-      const newCart = [...prevCart];
-      newCart[existingIndex] = {
-        ...newCart[existingIndex],
-        quantity: qty,
-        price: items?.find(x=> x.id  === selectedItem)?.sellingPrice || 0,
-        availableQuantity: stockLevel?.availableQuantity,
-        unitOfMeasure: item.unitOfMeasure,
-
-      };
-      return newCart;
-    } else {
-      return [...prevCart, { 
-        item, 
-        quantity: qty, 
-        price: items?.find(x=> x.id  === selectedItem)?.sellingPrice || 0,
-        deliveredQty: 0,
-         id: item.id,
-        name: item.name,
-        code: item.code,
-        availableQuantity: stockLevel?.availableQuantity,
-        unitOfMeasure: item.unitOfMeasure,
-      }];
+    const item = items.find(i => i.id === selectedItem);
+    if (!item) {
+      toastErrors(toast, 'The selected item no longer exists',"", false)
+      return;
     }
-  });
 
-  setSelectedItem("");
-  setQuantity("");
-  // setUnitPrice("");
-  setStockLevel(null);
-  setErrors(prev => ({ ...prev, selectedItem: '', quantity: '', unitPrice: '' }));
-  
-  toast.success({
-    title: 'Item added',
-    description: `${item.name} (${qty} units) added to cart`,
-  });
-}, [selectedItem, quantity, items, stockLevel, validateAddItem]);
+
+    const qty = parseFormattedNumber(quantity);
+    
+    const availableQty = stockLevel?.availableQuantity ?? item.quanityInUnit ?? 0;
+    if (qty > availableQty) {
+      toastErrors(toast, `Only ${availableQty} units available. Please reduce the quantity.`,'Insufficient Stock', false)
+      return;
+    }
+    
+    setStockLockItems(prevCart => {
+      const existingIndex = prevCart.findIndex((c) => c.id === selectedItem);
+      
+      if (existingIndex >= 0) {
+        const newCart = [...prevCart];
+        newCart[existingIndex] = {
+          ...newCart[existingIndex],
+          quantity: qty,
+          price: items?.find(x=> x.id  === selectedItem)?.sellingPrice || 0,
+          availableQuantity: stockLevel?.availableQuantity,
+          unitOfMeasure: item.unitOfMeasure,
+
+        };
+        return newCart;
+      } else {
+        return [...prevCart, { 
+          item, 
+          quantity: qty, 
+          price: items?.find(x=> x.id  === selectedItem)?.sellingPrice || 0,
+          deliveredQty: 0,
+           id: item.id,
+          name: item.name,
+          code: item.code,
+          availableQuantity: stockLevel?.availableQuantity,
+          unitOfMeasure: item.unitOfMeasure,
+        }];
+      }
+    });
+
+    setSelectedItem("");
+    setQuantity("");
+    setStockLevel(null);
+    setErrors(prev => ({ ...prev, selectedItem: '', quantity: '', unitPrice: '' }));
+    
+    toast.success({
+      title: 'Item added',
+      description: `${item.name} (${qty} units) added to cart`,
+    });
+  }, [selectedItem, quantity, items, stockLevel, validateAddItem]);
+
   const removeItem = useCallback((item: CartItem, index: number) => {
     setStockLockItems(prev => prev.filter((_, i) => i !== index));
     toast.info({
@@ -416,7 +443,7 @@ const addToCart = useCallback(() => {
         {/* Left Column - Items Selection */}
         <div className="lg:col-span-3 space-y-2 mb-0 m-2 ">
           <ItemSelection
-            items={items}
+            items={availableItems}
             selectedItem={selectedItem}
             setSelectedItem={setSelectedItem}
             quantity={quantity}

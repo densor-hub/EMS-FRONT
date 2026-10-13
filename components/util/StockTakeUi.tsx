@@ -90,7 +90,7 @@ interface SubmissionFormData {
 export default function StockTakeUI() {
   const toast = useToaster()
   const { user, selectedShop } = useAuth();
-  
+
   // State
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -99,13 +99,13 @@ export default function StockTakeUI() {
   const [selectedRecord, setSelectedRecord] = useState<StockLockDown | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
-  
+
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
     currentPage: 1,
@@ -142,7 +142,6 @@ export default function StockTakeUI() {
   // Get the most recent submission status
   const getRecentSubmissionStatus = useCallback((item: StockLockDownItem) => {
     if (!item.submissions || item.submissions.length === 0) return null;
-    // Assuming submissions are in chronological order (oldest to newest)
     const recentSubmission = item.submissions[item.submissions.length - 1];
     return recentSubmission.status;
   }, []);
@@ -150,15 +149,15 @@ export default function StockTakeUI() {
   // Check if item is locked (Approved or Pending status)
   const isItemLocked = useCallback((item: StockLockDownItem) => {
     if (!item.submissions) return false;
-    return item.submissions.some(sub => 
+    return item.submissions.some(sub =>
       sub.status === 'Approved' || sub.status === 'Pending'
     );
   }, []);
 
-  // Fetch stock lockdown data
+  // Fetch stock lockdown list
   const fetchStockLockDowns = useCallback(async () => {
     const locationId = getSelectedShop();
-    
+
     if (!locationId) {
       toast.error({
         title: 'No shop selected',
@@ -170,18 +169,17 @@ export default function StockTakeUI() {
     setIsApplyingFilters(true);
     setLoading(true);
     try {
-      // Build query parameters
       const params = new URLSearchParams();
       params.append('LocationId', locationId);
-      
+
       const start = startDate ;
       const end = endDate;
-      
+
       params.append('StartDate', start);
       params.append('EndDate', end);
 
       const response = await axiosInstance.get(`/StockLockDown?${params.toString()}`);
-      
+
       if (response?.data) {
         const data = Array.isArray(response.data) ? response.data : [response.data];
         setStockLockDowns(data);
@@ -211,23 +209,26 @@ export default function StockTakeUI() {
     setSearchTerm("");
     setStartDate("");
     setEndDate("");
-    // Reset to today's date and refetch
-    // Fetch after clearing
     setTimeout(() => {
       fetchStockLockDowns();
     }, 100);
   }, [fetchStockLockDowns]);
 
-  // Fetch detailed stock lockdown by ID
-  const fetchStockLockDownDetail = useCallback(async (id: string) => {
+  // Fetches the detail data only. No side effects on modal or form state.
+  const loadStockLockDownDetail = useCallback(async (id: string) => {
+    const response = await axiosInstance.get(`/StockLockDown/${id}`);
+    return response?.data ?? null;
+  }, []);
+
+  // Opens the details modal (used from row click).
+  const openStockLockDownDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
     try {
-      const response = await axiosInstance.get(`/StockLockDown/${id}`);
-      
-      if (response?.data) {
-        setSelectedRecord(response.data);
-        setExpandedItems(new Set()); // Reset expanded items when opening new modal
-        setSubmissionData({}); // Reset submission data
+      const data = await loadStockLockDownDetail(id);
+      if (data) {
+        setSelectedRecord(data);
+        setExpandedItems(new Set());
+        setSubmissionData({});
         setIsModalOpen(true);
       }
     } catch (error: any) {
@@ -239,7 +240,7 @@ export default function StockTakeUI() {
     } finally {
       setLoadingDetail(false);
     }
-  }, []);
+  }, [loadStockLockDownDetail]);
 
   // Toggle item expansion
   const toggleItemExpansion = useCallback((itemId: string) => {
@@ -309,24 +310,35 @@ export default function StockTakeUI() {
     setIsSubmitting(true);
     try {
       const response = await axiosInstance.post('/StockLockDown/Submit-Stock', payload);
-      
+
       if (response?.status === 200  || response?.status === 201) {
         toast.success({
           title: 'Submission successful',
           description: 'Your stock submission has been sent for review',
         });
-        // Close confirm modal
+
+        // Close confirm modal and reset its own state
         setShowConfirmModal(false);
-        // Reset submission data for this item
+
+        // Clear this item's input
         setSubmissionData(prev => {
           const newData = { ...prev };
           delete newData[selectedItemId];
           return newData;
         });
-        // Refresh the detail data
-        if (selectedRecord) {
-          await fetchStockLockDownDetail(selectedRecord.id);
+
+        // Refresh the detail data ONLY. Do NOT reopen the details modal.
+        try {
+          const refreshed = await loadStockLockDownDetail(selectedRecord.id);
+          if (refreshed) {
+            setSelectedRecord(refreshed);
+          }
+        } catch (err) {
+          console.error("Failed to refresh detail after submission:", err);
         }
+
+        setSelectedItemId(null);
+        setRemarks("");
       }
     } catch (error: any) {
       console.error("Error submitting stock:", error);
@@ -337,7 +349,7 @@ export default function StockTakeUI() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedItemId, selectedRecord, submissionData, remarks,  fetchStockLockDownDetail]);
+  }, [selectedItemId, selectedRecord, submissionData, remarks, loadStockLockDownDetail]);
 
   // Handle cancel submission
   const handleCancelSubmission = useCallback(() => {
@@ -359,12 +371,12 @@ export default function StockTakeUI() {
     }
 
     const searchLower = searchTerm.toLowerCase().trim();
-    const filtered = stockLockDowns.filter(item => 
+    const filtered = stockLockDowns.filter(item =>
       item.transactionNumber?.toLowerCase().includes(searchLower) ||
       item.locationName?.toLowerCase().includes(searchLower) ||
       item.id?.toLowerCase().includes(searchLower)
     );
-    
+
     setFilteredData(filtered);
     setPagination(prev => ({
       ...prev,
@@ -416,10 +428,10 @@ export default function StockTakeUI() {
       'Approved': { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
       'Rejected': { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
     };
-    
+
     const defaultStatus = { color: 'bg-gray-100 text-gray-800', icon: <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" /> };
     const statusInfo = statusMap[status] || defaultStatus;
-    
+
     return (
       <span className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusInfo.color}`}>
         {statusInfo.icon}
@@ -527,7 +539,7 @@ export default function StockTakeUI() {
           columns={columns}
           addLabel="Refresh"
           emptyMessage="No data found."
-          onRowClick={(row: any) => fetchStockLockDownDetail(row.id)}
+          onRowClick={(row: any) => openStockLockDownDetail(row.id)}
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
           height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
@@ -536,7 +548,7 @@ export default function StockTakeUI() {
 
       {/* Detail Modal - Mobile Responsive */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent 
+        <DialogContent
           className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-3 sm:p-6 md:p-6"
           style={{ maxWidth: '1000px', width: '95vw' }}
         >
@@ -557,7 +569,7 @@ export default function StockTakeUI() {
             </div>
           ) : selectedRecord ? (
             <div className="space-y-3 sm:space-y-6 h-[calc(95vh-80px)] overflow-y-auto">
-              {/* Header Information - Mobile Responsive Grid */}
+              {/* Header Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-4 bg-muted/30 rounded-lg">
                 <div className="min-w-0">
                   <Label className="text-[10px] sm:text-xs text-muted-foreground uppercase">Location</Label>
@@ -582,12 +594,12 @@ export default function StockTakeUI() {
                 </div>
               </div>
 
-              {/* Items Section - Table with horizontal scroll on mobile */}
+              {/* Items Section */}
               <div>
                 {selectedRecord.items && selectedRecord.items.length > 0 ? (
                   <>
                     <div className="mb-2 sm:mb-4 text-xs sm:text-sm text-muted-foreground">
-                      Enter either packs, pieces, or both if applicable, then submit per item.
+                      Enter number of pieces then submit per item.
                       {selectedRecord.items.some(item => isItemLocked(item)) && (
                         <span className="ml-1 sm:ml-2 text-amber-600">
                           (Locked items cannot be edited)
@@ -601,11 +613,12 @@ export default function StockTakeUI() {
                             <TableRow className="bg-muted/50">
                               <TableHead className="w-8 sm:w-10"></TableHead>
                               <TableHead className="text-xs sm:text-sm">Item Name</TableHead>
-                              <TableHead className="text-center text-xs sm:text-sm"># of Packs</TableHead>
-                              <TableHead className="text-center text-xs sm:text-sm"># Pieces</TableHead>
+                              {/* <TableHead className="text-center text-xs sm:text-sm"># of Packs</TableHead> */}
+                              <TableHead className="text-left text-xs sm:text-sm w-20 sm:w-full  sm:text-center"># Pieces</TableHead>
+                              <TableHead className="text-left text-xs sm:text-sm w-20 sm:w-full  sm:text-center" >Action</TableHead>
                               <TableHead className="text-xs sm:text-sm">Status</TableHead>
-                              <TableHead className="text-xs sm:text-sm">Item Code</TableHead>
-                              <TableHead className="text-center text-xs sm:text-sm">Action</TableHead>
+                              {/* <TableHead className="text-xs sm:text-sm">Item Code</TableHead> */}
+
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -618,7 +631,7 @@ export default function StockTakeUI() {
 
                               return (
                                 <React.Fragment key={item.id}>
-                                  <TableRow 
+                                  <TableRow
                                     className={`hover:bg-muted/30 transition-colors ${isLocked ? 'bg-amber-50/50' : ''}`}
                                   >
                                     <TableCell>
@@ -637,10 +650,10 @@ export default function StockTakeUI() {
                                         </Button>
                                       )}
                                     </TableCell>
-                                   <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
+                                   <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words w-[120px] sm:w-[240px]" >
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
-                                    <TableCell className="text-center">
+                                    {/* <TableCell className="text-center">
                                       <Input
                                         type="number"
                                         min="0"
@@ -653,8 +666,8 @@ export default function StockTakeUI() {
                                         readOnly={isLocked}
                                         disabled={isLocked}
                                       />
-                                    </TableCell>
-                                    <TableCell className="text-center">
+                                    </TableCell> */}
+                                    <TableCell className="text-left sm:text-center">
                                       <Input
                                         type="number"
                                         min="0"
@@ -668,25 +681,8 @@ export default function StockTakeUI() {
                                         disabled={isLocked}
                                       />
                                     </TableCell>
-                                    <TableCell>
-                                      {recentStatus ? (
-                                        getStatusBadge(recentStatus)
-                                      ) : item.isEscalated ? (
-                                        <span className="inline-flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] sm:text-xs">
-                                          <AlertCircle className="w-2 h-2 sm:w-3 sm:h-3" />
-                                          Escalated
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] sm:text-xs text-muted-foreground">No Submissions</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className="flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm">
-                                        <Hash className="w-3 h-3 text-muted-foreground" />
-                                        {item.itemCode || 'N/A'}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
+
+                                    <TableCell className="text-left  sm:text-center">
                                       <Button
                                         size="sm"
                                         className="h-7 sm:h-10 px-2 sm:px-4 text-xs sm:text-sm"
@@ -706,8 +702,28 @@ export default function StockTakeUI() {
                                         )}
                                       </Button>
                                     </TableCell>
+
+                                    <TableCell>
+                                      {recentStatus ? (
+                                        getStatusBadge(recentStatus)
+                                      ) : item.isEscalated ? (
+                                        <span className="inline-flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] sm:text-xs">
+                                          <AlertCircle className="w-2 h-2 sm:w-3 sm:h-3" />
+                                          Escalated
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] sm:text-xs text-muted-foreground">No Submissions</span>
+                                      )}
+                                    </TableCell>
+                                    {/* <TableCell>
+                                      <span className="flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm">
+                                        <Hash className="w-3 h-3 text-muted-foreground" />
+                                        {item.itemCode || 'N/A'}
+                                      </span>
+                                    </TableCell> */}
+                                    
                                   </TableRow>
-                                  
+
                                   {/* Expanded Submissions Row */}
                                   {isExpanded && item.submissions && item.submissions.length > 0 && (
                                     <TableRow>
@@ -804,7 +820,7 @@ export default function StockTakeUI() {
                 const pieces = parseInt(submissionData[selectedItemId].pieces) || 0;
                 const quantityPerUnit = item?.quantityPerUnitOfMeasure || 0;
                 const totalInPieces = (quantityPerUnit * packs) + pieces;
-                
+
                 return (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 text-sm mb-5">
@@ -830,7 +846,7 @@ export default function StockTakeUI() {
               })()}
             </div>
           )}
-          
+
           <div className="py-4">
             <Label htmlFor="remarks" className="text-sm font-medium mb-2 block">
               Remarks
@@ -844,19 +860,19 @@ export default function StockTakeUI() {
             />
           </div>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-row gap-2">
             <Button
               variant="outline"
               onClick={handleCancelSubmission}
               disabled={isSubmitting}
-              className="w-full sm:w-auto"
+              className="hidden sm:block sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmSubmission}
               disabled={isSubmitting}
-              className="w-full sm:w-auto"
+              className="flex-1"
             >
               {isSubmitting ? (
                 <>

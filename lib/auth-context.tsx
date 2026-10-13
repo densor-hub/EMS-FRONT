@@ -94,7 +94,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        const authResult = await performInitialAuthCheck();
+        let authResult = await performInitialAuthCheck();
+
+        // One retry with a short delay — covers the "cookie not yet available
+        // on hard reload" race that otherwise strands the user on a protected
+        // page with no menus and no data.
+        if (!authResult && isMounted) {
+          await new Promise((r) => setTimeout(r, 400));
+          if (!isMounted) return;
+          authResult = await performInitialAuthCheck(true);
+        }
+
         if (!isMounted) return;
 
         setIsAuthenticated(!!authResult);
@@ -110,6 +120,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const locations: any[] = (authState.user as any)?.locations ?? [];
           if (locations.length > 0) {
             setSelectedShop(String(locations[0].id));
+          }
+        }
+
+        // If both attempts failed and we're on a protected page, send the
+        // user to login instead of leaving them on a broken screen.
+        if (!authResult) {
+          const path = window.location.pathname?.toLowerCase() || '/';
+          const normalized = path.startsWith('/') ? path.slice(1) : path;
+          if (!publicPaths.includes(normalized)) {
+            router.replace('/auth/login');
           }
         }
       } catch (error) {

@@ -130,11 +130,11 @@ export function CustomSelect({
   const getSizeClasses = () => {
     switch (size) {
       case 'sm':
-        return 'h-8 text-xs';
+        return 'h-8 text-sm';
       case 'lg':
-        return 'h-12 text-xs sm:text-base';
+        return 'h-12 text-base';
       default:
-        return 'h-10 text-xs sm:text-sm';
+        return 'h-10 text-sm sm:text-base';
     }
   };
 
@@ -253,15 +253,25 @@ export function CustomSelect({
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={handleSearch}
-                className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-xs sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                onKeyDown={(e) => {
+                  // Stop Radix from hijacking keystrokes for typeahead navigation
+                  e.stopPropagation();
+                  // Only block Enter — Space should type normally
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                  }
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm sm:text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
             </div>
           )}
 
           {/* No results */}
           {filteredOptions.length === 0 && (
-            <div className="px-3 py-6 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            <div className="px-3 py-6 text-center text-sm sm:text-base text-gray-500 dark:text-gray-400">
               No options found
             </div>
           )}
@@ -273,7 +283,7 @@ export function CustomSelect({
               value={option.value}
               disabled={option.disabled}
               className={cn(
-                'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-xs sm:text-sm outline-none transition-colors',
+                'relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 pl-3 pr-8 text-sm sm:text-base outline-none transition-colors',
                 'hover:bg-gray-100 dark:hover:bg-gray-800',
                 isSelected(option.value) && 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
                 option.disabled && 'cursor-not-allowed opacity-50',
@@ -293,7 +303,7 @@ export function CustomSelect({
                     {option.label}
                   </span>
                   {option?.discriptionLabel && (
-                    <span className="text-[10px] sm:text-xs"> | {option?.discriptionLabel}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground"> | {option?.discriptionLabel}</span>
                   )}
                 </div>
               )}
@@ -302,7 +312,7 @@ export function CustomSelect({
 
           {/* Loading state */}
           {loading && (
-            <div className="px-3 py-6 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            <div className="px-3 py-6 text-center text-sm sm:text-base text-gray-500 dark:text-gray-400">
               <div className="flex items-center justify-center gap-2">
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
                 Loading...
