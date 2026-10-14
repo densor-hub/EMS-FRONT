@@ -5,6 +5,7 @@ import { LoadingOverlay } from '@/components/SkeletonLoading';
 // import { Toaster } from '@/components/ui/toaster';
 import './globals.css'
 import { Suspense } from 'react';
+import IdleTimer from '@/components/util/IdleTimer';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -27,9 +28,11 @@ export default function RootLayout({
     <html lang="en" className={`${inter.className} ${courierPrime.variable}`}>
       <body>
         <AuthProvider>
+          <IdleTimer/>
           <Suspense  fallback={<LoadingOverlay/>}>
             {children}
           </Suspense>
+
           {/* <Toaster /> */}
         </AuthProvider>
       </body>
