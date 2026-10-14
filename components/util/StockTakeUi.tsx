@@ -146,6 +146,13 @@ export default function StockTakeUI() {
     return recentSubmission.status;
   }, []);
 
+
+  //getRecentSubmissionCount
+    const getRecentSubmissionCount = useCallback((item: StockLockDownItem) => {
+    if (!item.submissions || item.submissions.length === 0) return null;
+    const recentSubmission = item.submissions[item.submissions.length - 1];
+    return recentSubmission.totalInPieces;
+  }, []);
   // Check if item is locked (Approved or Pending status)
   const isItemLocked = useCallback((item: StockLockDownItem) => {
     if (!item.submissions) return false;
@@ -447,7 +454,11 @@ export default function StockTakeUI() {
       label: 'Transaction #',
       sortable: true,
       render: (item: StockLockDown) => (
-        <span className="font-medium">{item.transactionNumber || 'N/A'}</span>
+        <>
+        <div className="font-medium">{item.transactionNumber || 'N/A'}</div>
+        <div>Items Count - </div>
+        </>
+
       )
     },
     {
@@ -543,6 +554,7 @@ export default function StockTakeUI() {
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
           height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
+
         />
       </div>
 
@@ -628,11 +640,12 @@ export default function StockTakeUI() {
                               const inputData = submissionData[item.id] || { packs: '', pieces: '' };
                               const isLocked = isItemLocked(item);
                               const recentStatus = getRecentSubmissionStatus(item);
+                              const recentCount = getRecentSubmissionCount(item);
 
                               return (
                                 <React.Fragment key={item.id}>
                                   <TableRow
-                                    className={`hover:bg-muted/30 transition-colors ${isLocked ? 'bg-amber-50/50' : ''}`}
+                                    className={`hover:bg-muted/30 transition-colors  ${isLocked ? 'bg-amber-50/50' : ''}`}
                                   >
                                     <TableCell>
                                       {item.submissions && item.submissions.length > 0 && (
@@ -650,7 +663,7 @@ export default function StockTakeUI() {
                                         </Button>
                                       )}
                                     </TableCell>
-                                   <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words w-[120px] sm:w-[240px]" >
+                                   <TableCell className="font-medium text-xs py-4 sm:text-sm whitespace-normal break-words w-[120px] sm:w-full" >
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
                                     {/* <TableCell className="text-center">
@@ -673,7 +686,7 @@ export default function StockTakeUI() {
                                         min="0"
                                         step="1"
                                         placeholder="0"
-                                        value={inputData.pieces ?? ''}
+                                        value={isLocked && recentCount ? recentCount : inputData.pieces ?? ''}
                                         onChange={(e) => handleSubmissionInputChange(item.id, 'pieces', e.target.value)}
                                         className={`w-16 sm:w-24 mx-auto text-center text-xs sm:text-sm h-7 sm:h-10 ${isLocked ? 'opacity-60 cursor-not-allowed bg-muted/50' : ''}`}
                                         onClick={(e) => e.stopPropagation()}

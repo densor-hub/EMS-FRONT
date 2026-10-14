@@ -435,7 +435,10 @@ export default function StockVerificationUi() {
       label: 'Transaction #',
       sortable: true,
       render: (item: StockLockDown) => (
-        <span className="font-medium">{item.transactionNumber || 'N/A'}</span>
+       <>
+        <div className="font-medium">{item.transactionNumber || 'N/A'}</div>
+        <div>Items Count - </div>
+       </>
       )
     },
     {
@@ -641,7 +644,7 @@ export default function StockVerificationUi() {
                                         </Button>
                                       )}
                                     </TableCell>
-                                    <TableCell className="font-medium text-xs sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
+                                    <TableCell className="font-medium text-xs py-4 sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
                                     {/* <TableCell>
