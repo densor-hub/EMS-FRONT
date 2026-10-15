@@ -26,7 +26,6 @@ import {
   Clock,
   Package,
   MapPin,
-  Hash,
   AlertCircle,
   CheckCircle,
   XCircle,
@@ -43,7 +42,11 @@ import { DataTable } from '@/components/dashboard/data-table';
 import StockFilterBar from "./StockFilterBar";
 import { sessionStore } from '@/helpers/formatStrings';
 
+// ---------------------------------------------------------------------------
 // Types
+// ---------------------------------------------------------------------------
+
+// Inner item shape — used by the DETAIL endpoint
 interface StockLockDownItem {
   id: string;
   itemId: string;
@@ -63,7 +66,9 @@ interface StockLockDownItem {
   }>;
 }
 
-interface StockLockDown {
+// LIST / SUMMARY shape — outer table renders this.
+// `items` is just names here (string[]).
+interface StockLockDownSummary {
   id: string;
   locationId: string;
   locationName: string;
@@ -71,6 +76,11 @@ interface StockLockDown {
   transactionDate: string;
   turnAroundTime: string;
   systemCreationDate: string;
+  items?: string[];
+}
+
+// DETAIL shape — modal renders this.
+interface StockLockDownDetail extends Omit<StockLockDownSummary, 'items'> {
   items?: StockLockDownItem[];
 }
 
@@ -86,18 +96,26 @@ interface VerificationFormData {
   remarks: string;
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function StockVerificationUi() {
-  const toast = useToaster()
+  const toast = useToaster();
   const { user, selectedShop } = useAuth();
 
-  // State
+  // -------------------- State --------------------
   const [loading, setLoading] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [stockLockDowns, setStockLockDowns] = useState<StockLockDown[]>([]);
-  const [filteredData, setFilteredData] = useState<StockLockDown[]>([]);
-  const [selectedRecord, setSelectedRecord] = useState<StockLockDown | null>(null);
+  const [stockLockDowns, setStockLockDowns] = useState<StockLockDownSummary[]>([]);
+  const [filteredData, setFilteredData] = useState<StockLockDownSummary[]>([]);
+  const [selectedRecord, setSelectedRecord] = useState<StockLockDownDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Inner modal table: expanded items (submissions)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  // OUTER DataTable: expanded lock-down rows (item name list)
+  const [expandedLockDowns, setExpandedLockDowns] = useState<Set<string>>(new Set());
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,7 +123,7 @@ export default function StockVerificationUi() {
   const [endDate, setEndDate] = useState("");
   const [isApplyingFilters, setIsApplyingFilters] = useState(false);
 
-  // Pagination state
+  // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
     currentPage: 1,
     itemsPerPage: 10,
@@ -120,7 +138,7 @@ export default function StockVerificationUi() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationAction, setVerificationAction] = useState<'approve' | 'decline' | null>(null);
 
-  // Helper function to format numbers with commas
+  // -------------------- Helpers --------------------
   const formatNumber = useCallback((value: number | string | undefined): string => {
     if (value === undefined || value === null || value === '') return '0';
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -128,32 +146,28 @@ export default function StockVerificationUi() {
     return num.toLocaleString('en-US');
   }, []);
 
-  // Get selected shop from session if not in context
   const getSelectedShop = useCallback(() => {
     if (selectedShop) return selectedShop;
     return sessionStore.get("selectedShop") || "";
   }, [selectedShop]);
 
-  // Helper to get item by ID
   const getItemById = useCallback((itemId: string) => {
     return selectedRecord?.items?.find(x => x.id === itemId);
   }, [selectedRecord]);
 
-  // Get the most recent submission status for an item
   const getRecentSubmissionStatus = useCallback((item: StockLockDownItem) => {
     if (!item.submissions || item.submissions.length === 0) return null;
     const recentSubmission = item.submissions[item.submissions.length - 1];
     return recentSubmission.status;
   }, []);
 
-  // Helper to get pending submission for an item
   const getPendingSubmission = useCallback((itemId: string) => {
     const item = getItemById(itemId);
     if (!item || !item.submissions) return null;
     return item.submissions.find(sub => sub.status === 'Pending' || sub.status === 'In Progress') || null;
   }, [getItemById]);
 
-  // Fetch stock lockdown list
+  // -------------------- Data fetching --------------------
   const fetchStockLockDowns = useCallback(async () => {
     const locationId = getSelectedShop();
 
@@ -170,17 +184,15 @@ export default function StockVerificationUi() {
     try {
       const params = new URLSearchParams();
       params.append('LocationId', locationId);
-
-      const start = startDate;
-      const end = endDate;
-
-      params.append('StartDate', start);
-      params.append('EndDate', end);
+      params.append('StartDate', startDate);
+      params.append('EndDate', endDate);
 
       const response = await axiosInstance.get(`/StockLockDown?${params.toString()}`);
 
       if (response?.data) {
-        const data = Array.isArray(response.data) ? response.data : [response.data];
+        const data: StockLockDownSummary[] = Array.isArray(response.data)
+          ? response.data
+          : [response.data];
         setStockLockDowns(data);
         setFilteredData(data);
         setPagination(prev => ({
@@ -193,7 +205,10 @@ export default function StockVerificationUi() {
       console.error("Error fetching stock lockdowns:", error);
       toast.error({
         title: 'Failed to load data',
-        description: typeof(error?.response?.data) === "string" ? error?.response?.data : error?.response?.data?.message || 'Please try again later',
+        description:
+          typeof error?.response?.data === "string"
+            ? error.response.data
+            : error?.response?.data?.message || 'Please try again later',
       });
       setStockLockDowns([]);
       setFilteredData([]);
@@ -203,7 +218,6 @@ export default function StockVerificationUi() {
     }
   }, [getSelectedShop, startDate, endDate]);
 
-  // Clear filters
   const clearFilters = useCallback(() => {
     setSearchTerm("");
     setStartDate("");
@@ -213,13 +227,12 @@ export default function StockVerificationUi() {
     }, 100);
   }, [fetchStockLockDowns]);
 
-  // Fetches the detail data only. No side effects on modal state.
-  const loadStockLockDownDetail = useCallback(async (id: string) => {
-    const response = await axiosInstance.get(`/StockLockDown/${id}`);
-    return response?.data ?? null;
-  }, []);
+  const loadStockLockDownDetail = useCallback(
+    async (id: string): Promise<StockLockDownDetail | null> => {
+      const response = await axiosInstance.get(`/StockLockDown/${id}`);
+      return response?.data ?? null;
+    }, []);
 
-  // Opens the details modal (used from row click).
   const openStockLockDownDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
     try {
@@ -233,27 +246,34 @@ export default function StockVerificationUi() {
       console.error("Error fetching stock lockdown detail:", error);
       toast.error({
         title: 'Failed to load details',
-        description: typeof(error?.response?.data) === "string" ? error?.response?.data : error?.response?.data?.message || 'Please try again later',
+        description:
+          typeof error?.response?.data === "string"
+            ? error.response.data
+            : error?.response?.data?.message || 'Please try again later',
       });
     } finally {
       setLoadingDetail(false);
     }
   }, [loadStockLockDownDetail]);
 
-  // Toggle item expansion
+  // -------------------- Expansion toggles --------------------
   const toggleItemExpansion = useCallback((itemId: string) => {
     setExpandedItems(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
+      newSet.has(itemId) ? newSet.delete(itemId) : newSet.add(itemId);
       return newSet;
     });
   }, []);
 
-  // Handle verify button click
+  const toggleLockDownExpansion = useCallback((id: string) => {
+    setExpandedLockDowns(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  // -------------------- Verification handling --------------------
   const handleVerifyClick = useCallback((itemId: string, submissionId: string) => {
     setSelectedItemId(itemId);
     setSelectedSubmissionId(submissionId);
@@ -262,7 +282,6 @@ export default function StockVerificationUi() {
     setShowConfirmModal(true);
   }, []);
 
-  // Handle verification action (Approve or Decline)
   const handleVerificationAction = useCallback((action: 'approve' | 'decline') => {
     setVerificationAction(action);
 
@@ -279,7 +298,6 @@ export default function StockVerificationUi() {
     }
   }, [remarks, selectedSubmissionId]);
 
-  // Handle confirm verification
   const handleConfirmVerification = useCallback(async (action: 'approve' | 'decline') => {
     if (!selectedSubmissionId) {
       toast.error({
@@ -315,20 +333,16 @@ export default function StockVerificationUi() {
           description: `The submission has been ${action === 'approve' ? 'approved' : 'declined'}`,
         });
 
-        // Close confirm modal and reset its own state
         setShowConfirmModal(false);
         setSelectedSubmissionId(null);
         setSelectedItemId(null);
         setRemarks("");
         setVerificationAction(null);
 
-        // Refresh the detail data ONLY. Do NOT reopen the details modal.
         if (selectedRecord) {
           try {
             const refreshed = await loadStockLockDownDetail(selectedRecord.id);
-            if (refreshed) {
-              setSelectedRecord(refreshed);
-            }
+            if (refreshed) setSelectedRecord(refreshed);
           } catch (err) {
             console.error("Failed to refresh detail after verification:", err);
           }
@@ -338,14 +352,16 @@ export default function StockVerificationUi() {
       console.error("Error verifying submission:", error);
       toast.error({
         title: 'Verification failed',
-        description: typeof(error?.response?.data) === "string" ? error?.response?.data : error?.response?.data?.message || 'Please try again later',
+        description:
+          typeof error?.response?.data === "string"
+            ? error.response.data
+            : error?.response?.data?.message || 'Please try again later',
       });
     } finally {
       setIsVerifying(false);
     }
   }, [selectedSubmissionId, remarks, loadStockLockDownDetail, selectedRecord]);
 
-  // Handle cancel verification
   const handleCancelVerification = useCallback(() => {
     setShowConfirmModal(false);
     setSelectedSubmissionId(null);
@@ -354,7 +370,7 @@ export default function StockVerificationUi() {
     setVerificationAction(null);
   }, []);
 
-  // Handle search
+  // -------------------- Search & filters --------------------
   const handleSearch = useCallback(() => {
     if (!searchTerm.trim()) {
       setFilteredData(stockLockDowns);
@@ -381,12 +397,11 @@ export default function StockVerificationUi() {
     }));
   }, [searchTerm, stockLockDowns]);
 
-  // Handle date filter
   const handleDateFilter = useCallback(() => {
     fetchStockLockDowns();
   }, [fetchStockLockDowns]);
 
-  // Format date for display
+  // -------------------- Formatting --------------------
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
@@ -396,7 +411,6 @@ export default function StockVerificationUi() {
     }
   };
 
-  // Format date only
   const formatDateOnly = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
@@ -406,15 +420,14 @@ export default function StockVerificationUi() {
     }
   };
 
-  // Get status badge
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { color: string; icon: any }> = {
-      'Approved': { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
-      'Pending': { color: 'bg-yellow-100 text-yellow-800', icon: <Clock className="w-3 h-3 sm:w-4 sm:h-4" /> },
-      'Declined': { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
+      'Approved':    { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
+      'Pending':     { color: 'bg-yellow-100 text-yellow-800', icon: <Clock className="w-3 h-3 sm:w-4 sm:h-4" /> },
+      'Declined':    { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
       'In Progress': { color: 'bg-blue-100 text-blue-800', icon: <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> },
-      'Completed': { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
-      'Failed': { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
+      'Completed':   { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
+      'Failed':      { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 sm:w-4 sm:h-4" /> },
     };
 
     const defaultStatus = { color: 'bg-gray-100 text-gray-800', icon: <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" /> };
@@ -428,24 +441,63 @@ export default function StockVerificationUi() {
     );
   };
 
-  // Define columns for DataTable
+  // -------------------- Columns (outer table) --------------------
   const columns = useMemo(() => [
     {
       key: 'transactionNumber',
       label: 'Transaction #',
       sortable: true,
-      render: (item: StockLockDown) => (
-       <>
-        <div className="font-medium">{item.transactionNumber || 'N/A'}</div>
-        <div>Items Count - </div>
-       </>
-      )
+      render: (item: StockLockDownSummary) => {
+        const isExpanded = expandedLockDowns.has(item.id);
+        const itemCount  = item.items?.length ?? 0;
+        const hasItems   = itemCount > 0;
+
+        return (
+          <div className="flex items-center gap-1 -my-2 sm:-my-1.5">
+                  {/* Touch target: 44x44 min on mobile, h-full on desktop */}
+                  <button
+                    type="button"
+                    disabled={!hasItems}
+                    aria-label={isExpanded ? 'Collapse items' : 'Expand items'}
+                    aria-expanded={isExpanded}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasItems) toggleLockDownExpansion(item.id);
+                    }}
+                    className={[
+                      // layout: a real touch target
+                      "shrink-0 flex items-center justify-center",
+                      "h-11 w-11 sm:h-10 sm:w-10",
+                      // visual: subtle hover / focus ring
+                      "rounded-md transition-colors",
+                      hasItems
+                        ? "hover:bg-black/5 active:bg-black/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        : "opacity-30 cursor-not-allowed",
+                    ].join(' ')}
+                  >
+                    {hasItems ? (
+                      isExpanded
+                        ? <ChevronDown  className="h-5 w-5 sm:h-4 sm:w-4" />
+                        : <ChevronRightIcon className="h-5 w-5 sm:h-4 sm:w-4" />
+                    ) : (
+                      /* spacer keeps numbers aligned when there's no arrow */
+                      <span className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden />
+                    )}
+                  </button>
+          
+                  <div>
+                    <div className="font-medium">{item?.transactionNumber || 'N/A'}</div>
+                  <div className="text-xs text-muted-foreground">Number of Items : ({itemCount})</div>
+                  </div>
+                </div>
+        );
+      }
     },
     {
       key: 'locationName',
       label: 'Location',
       sortable: true,
-      render: (item: StockLockDown) => (
+      render: (item: StockLockDownSummary) => (
         <span>{item.locationName || 'N/A'}</span>
       )
     },
@@ -453,33 +505,32 @@ export default function StockVerificationUi() {
       key: 'transactionDate',
       label: 'Transaction Date',
       sortable: true,
-      render: (item: StockLockDown) => formatDateOnly(item.transactionDate)
+      render: (item: StockLockDownSummary) => formatDateOnly(item.transactionDate)
     },
     {
       key: 'turnAroundTime',
       label: 'Turn Around Time',
       sortable: true,
-      render: (item: StockLockDown) => formatDate(item.turnAroundTime)
+      render: (item: StockLockDownSummary) => formatDate(item.turnAroundTime)
     },
     {
       key: 'systemCreationDate',
       label: 'Created',
       sortable: true,
-      render: (item: StockLockDown) => formatDate(item.systemCreationDate)
+      render: (item: StockLockDownSummary) => formatDate(item.systemCreationDate)
     }
-  ], [formatDate, formatDateOnly]);
+  ], [expandedLockDowns, toggleLockDownExpansion]);
 
-  // Load data on mount and when filters change
+  // -------------------- Effects --------------------
   useEffect(() => {
     fetchStockLockDowns();
   }, [fetchStockLockDowns]);
 
-  // Auto-search when search term changes
   useEffect(() => {
     handleSearch();
   }, [searchTerm, handleSearch]);
 
-  // Check if shop is selected
+  // -------------------- Guards --------------------
   const sessionShop = sessionStore.get("selectedShop");
   if (!selectedShop && !sessionShop) {
     return (
@@ -502,10 +553,11 @@ export default function StockVerificationUi() {
     return <Loading />;
   }
 
+  // -------------------- Render --------------------
   return (
     <div className="bg-gradient-to-br from-slate-50/80 via-white/80 to-gray-100/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto">
-        {/* Search and Filter Section */}
+        {/* Filter bar */}
         <div className="m-2">
           <StockFilterBar
             searchTerm={searchTerm}
@@ -523,7 +575,7 @@ export default function StockVerificationUi() {
           />
         </div>
 
-        {/* Results Table - Using DataTable */}
+        {/* Outer table with expandable item lists */}
         <DataTable
           title="Submitted Stock-Takes"
           data={filteredData}
@@ -534,10 +586,28 @@ export default function StockVerificationUi() {
           onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
           height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
+
+          expandedRowKeys={Array.from(expandedLockDowns)}
+          renderExpandedRow={(row: StockLockDownSummary) => (
+            <div className="pl-12 pr-4 py-2 bg-muted/20">
+              {row.items && row.items.length > 0 ? (
+                <ul className="space-y-1 text-sm">
+                  {row.items.map((name, i) => (
+                    <li key={`${row.id}-item-${i}`} className="flex items-center gap-2">
+                      <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span>{name}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="text-xs text-muted-foreground">No items</span>
+              )}
+            </div>
+          )}
         />
       </div>
 
-      {/* Detail Modal */}
+      {/* ================= Detail Modal ================= */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent
           className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-3 sm:p-6 md:p-6"
@@ -560,7 +630,7 @@ export default function StockVerificationUi() {
             </div>
           ) : selectedRecord ? (
             <div className="space-y-3 sm:space-y-6 h-[calc(95vh-80px)] overflow-y-auto">
-              {/* Header Information */}
+              {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-4 bg-muted/30 rounded-lg">
                 <div className="min-w-0">
                   <Label className="text-[10px] sm:text-xs text-muted-foreground uppercase">Location</Label>
@@ -585,7 +655,7 @@ export default function StockVerificationUi() {
                 </div>
               </div>
 
-              {/* Items Section */}
+              {/* Items */}
               <div>
                 {selectedRecord.items && selectedRecord.items.length > 0 ? (
                   <>
@@ -604,10 +674,8 @@ export default function StockVerificationUi() {
                             <TableRow className="bg-muted/50">
                               <TableHead className="w-8 sm:w-10"></TableHead>
                               <TableHead className="text-xs sm:text-sm">Item Name</TableHead>
-                              {/* <TableHead className="text-xs sm:text-sm">Item Code</TableHead> */}
                               <TableHead className="text-xs sm:text-sm">Status</TableHead>
-                              {/* <TableHead className="text-center text-xs sm:text-sm"># of Packs</TableHead> */}
-                              <TableHead className="text-center text-xs sm:text-sm">Counted </TableHead> {/*Pieces*/}
+                              <TableHead className="text-center text-xs sm:text-sm">Counted</TableHead>
                               <TableHead className="text-center text-xs sm:text-sm">Action</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -617,7 +685,6 @@ export default function StockVerificationUi() {
                               const pendingSubmission = getPendingSubmission(item.id);
                               const recentStatus = getRecentSubmissionStatus(item);
 
-                              const defaultPacks = pendingSubmission?.physicalUnitOfMeasureQuantity ?? 0;
                               const defaultPieces = pendingSubmission?.physicalAdditionalPiecesQuantity ?? 0;
 
                               const hasPendingSubmission = pendingSubmission !== null &&
@@ -647,12 +714,6 @@ export default function StockVerificationUi() {
                                     <TableCell className="font-medium text-xs py-4 sm:text-sm whitespace-normal break-words max-w-[120px] sm:max-w-[240px]">
                                       {item.itemName || 'Unknown Item'}
                                     </TableCell>
-                                    {/* <TableCell>
-                                      <span className="flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm">
-                                        <Hash className="w-3 h-3 text-muted-foreground" />
-                                        {item.itemCode || 'N/A'}
-                                      </span>
-                                    </TableCell> */}
                                     <TableCell>
                                       {recentStatus ? (
                                         getStatusBadge(recentStatus)
@@ -665,15 +726,6 @@ export default function StockVerificationUi() {
                                         <span className="text-[10px] sm:text-xs text-muted-foreground">No Submissions</span>
                                       )}
                                     </TableCell>
-                                    {/* <TableCell className="text-center">
-                                      <Input
-                                        type="text"
-                                        value={formatNumber(defaultPacks)}
-                                        readOnly
-                                        className="w-16 sm:w-24 mx-auto text-center text-xs sm:text-sm h-7 sm:h-10 bg-muted/50 cursor-not-allowed"
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                    </TableCell> */}
                                     <TableCell className="text-center">
                                       <Input
                                         type="text"
@@ -710,7 +762,7 @@ export default function StockVerificationUi() {
                                   {/* Expanded Submissions Row */}
                                   {isExpanded && item.submissions && item.submissions.length > 0 && (
                                     <TableRow>
-                                      <TableCell colSpan={7} className="p-2 sm:p-4 bg-muted/10">
+                                      <TableCell colSpan={5} className="p-2 sm:p-4 bg-muted/10">
                                         <div className="space-y-2 sm:space-y-3">
                                           {item.submissions.map((submission, subIndex) => {
                                             const currentItem = getItemById(item.id);
@@ -730,10 +782,6 @@ export default function StockVerificationUi() {
                                                       <span className="text-muted-foreground">Total {currentItem?.unitOfMeasure || 'UOM'}:</span>
                                                       <span className="font-medium">{formatNumber(submission.physicalUnitOfMeasureQuantity)}</span>
                                                     </div>
-                                                    {/* <div>
-                                                      <span className="text-muted-foreground"><i>Qty/{currentItem?.unitOfMeasure || 'UOM'}:</i></span>
-                                                      <span className="font-medium">{formatNumber(currentItem?.quantityPerUnitOfMeasure || 0)}</span>
-                                                    </div> */}
                                                     <div>
                                                       <span className="text-muted-foreground">Pieces:</span>
                                                       <span className="font-medium">{formatNumber(submission.physicalAdditionalPiecesQuantity)}</span>
@@ -784,7 +832,7 @@ export default function StockVerificationUi() {
         </DialogContent>
       </Dialog>
 
-      {/* Verification Confirmation Modal */}
+      {/* ================= Verification Confirmation Modal ================= */}
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="max-w-[95vw] sm:max-w-[500px] p-4 sm:p-6">
           <DialogHeader>
@@ -814,14 +862,6 @@ export default function StockVerificationUi() {
                       <span className="font-medium ml-1">{item.itemName}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 text-sm mb-5">
-                      {/* <div>
-                        <span className="text-muted-foreground text-xs sm:text-sm"># of {item?.unitOfMeasure || 'Packs'}:</span>
-                        <p className="font-medium text-sm sm:text-base">{formatNumber(packs)}</p>
-                      </div> */}
-                      {/* <div>
-                        <span className="text-muted-foreground text-xs sm:text-sm">Qty/{item?.unitOfMeasure || 'Pack'}:</span>
-                        <p className="font-medium text-sm sm:text-base">{formatNumber(quantityPerUnit)}</p>
-                      </div> */}
                       <div className="col-span-2 sm:col-span-1">
                         <span className="text-muted-foreground text-xs sm:text-sm">Pieces:</span>
                         <p className="font-medium text-sm sm:text-base">{formatNumber(pieces)}</p>
