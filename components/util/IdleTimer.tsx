@@ -9,7 +9,7 @@ import { LoadingOverlay } from '../SkeletonLoading';
 // ============================================================
 // TESTING VALUES — 2 minute idle limit, 30 second warning
 // ============================================================
-const IDLE_LIMIT_MS = 1 * 60 * 1000;   // 2 minutes
+const IDLE_LIMIT_MS = 10 * 60 * 1000;   // 2 minutes
 const WARNING_AT_MS = 30 * 1000;       // warning 30s before limit
 
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
