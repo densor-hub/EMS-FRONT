@@ -135,6 +135,7 @@ function DashboardContent() {
   const firstName = user?.firstName || 'there'
   const shopName = user?.locations?.find((l) => l.id === currentShopId)?.name
 
+  // console.log(user)
   return (
     <div className="p-4 sm:p-6 pb-16">
       <Header

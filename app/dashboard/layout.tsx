@@ -8,13 +8,13 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthProvider>
+    // <AuthProvider>
       <div className="flex bg-background">
         <Sidebar />
         <main className="flex-1 min-w-0 lg:ml-0">
           {children}
         </main>
       </div>
-    </AuthProvider>
+    // </AuthProvider>
   );
 }

@@ -1,25 +1,27 @@
-// components/protected-route.tsx
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { getAuthState } from '@/lib/customAxios';
+import { useEffect } from 'react';
 
 export function PublicRoute({ children }: { children: React.ReactNode }) {
-  
   const router = useRouter();
-  var authState = getAuthState();
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    var authState = getAuthState();
-     console.log(authState)
-  }, [])
+    // Don't make a redirect decision while auth is still resolving.
+    if (isLoading) return;
 
-  console.log(authState)
-  if  (authState?.user?.id && authState?.isAuthenticated) {
-     return  router.push("/dashboard")
-    } 
+    if (isAuthenticated) {
+      // Use replace (not push) so the back button doesn't loop.
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Don't flash children while we know we're about to redirect.
+  if (!isLoading && isAuthenticated) {
+    return null;
+  }
 
   return <>{children}</>;
 }

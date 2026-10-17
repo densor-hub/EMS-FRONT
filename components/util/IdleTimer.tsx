@@ -6,19 +6,26 @@ import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, LogOut, CheckCircle, Loader2 } from 'lucide-react';
 import { performInitialAuthCheck } from '@/lib/customAxios';
 import { LoadingOverlay } from '../SkeletonLoading';
-// ============================================================
-// TESTING VALUES — 2 minute idle limit, 30 second warning
-// ============================================================
-const IDLE_LIMIT_MS = 10 * 60 * 1000;   // 2 minutes
-const WARNING_AT_MS = 30 * 1000;       // warning 30s before limit
 
+// ============================================================
+// Idle config — 5 minute idle limit, 30 second warning.
+// No auto-logout: the overlay waits for explicit user action.
+// ============================================================
+const IDLE_LIMIT_MS         = 5 * 60 * 1000;   // 5 minutes
+const WARNING_AT_MS         = 30 * 1000;       // warn 30s before idle limit
+const ACTIVITY_DEBOUNCE_MS  = 1000;            // ignore activity spam
+const AUTH_CHECK_TIMEOUT_MS = 10 * 1000;       // give up after 10s
+
+// touchmove/pointerdown help on iOS; scroll is handled separately
+// with { capture: true } so inner scroll containers are covered.
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   'mousemove',
   'mousedown',
   'keydown',
-  'scroll',
   'touchstart',
+  'touchmove',
   'click',
+  'pointerdown',
 ];
 
 type Phase = 'active' | 'warning' | 'inactive';
@@ -32,15 +39,17 @@ export default function IdleTimer() {
   );
   const [tickGeneration, setTickGeneration] = useState(0);
   const [isResuming, setIsResuming] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Refs — used by closures that must not re-subscribe
+  // Refs — stable values used inside closures that must not re-subscribe
   const lastActivityRef     = useRef<number>(Date.now());
   const tickRef             = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastLoggedSecondRef = useRef<number>(-1);
   const phaseRef            = useRef<Phase>('active');
+  const hiddenAtRef         = useRef<number>(0);
 
-  // Keep phaseRef in sync with phase
+  // Keep phaseRef in sync with phase state
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
@@ -54,17 +63,13 @@ export default function IdleTimer() {
     const now = Date.now();
     const elapsed = now - lastActivityRef.current;
 
-    if (elapsed > 1000) {
-      console.log(
-        `[IdleTimer] Activity detected — resetting timer. Was idle for ${(elapsed / 1000).toFixed(1)}s`
-      );
-    }
+    // Debounce — ignore bursts of events (iOS fires touchstart → click)
+    if (elapsed < ACTIVITY_DEBOUNCE_MS) return;
 
     lastActivityRef.current = now;
     lastLoggedSecondRef.current = -1;
 
     if (phaseRef.current === 'warning') {
-      console.log('[IdleTimer] User returned during warning — back to active');
       setPhase('active');
       setSecondsLeft(Math.floor(WARNING_AT_MS / 1000));
     }
@@ -80,28 +85,83 @@ export default function IdleTimer() {
       window.addEventListener(evt, handleActivity, { passive: true })
     );
 
+    // Capture-phase scroll covers inner scroll containers too
+    document.addEventListener('scroll', handleActivity, {
+      passive: true,
+      capture: true,
+    });
+
     return () => {
       ACTIVITY_EVENTS.forEach((evt) =>
         window.removeEventListener(evt, handleActivity)
       );
+      document.removeEventListener('scroll', handleActivity, true);
     };
   }, [isAuthenticated, handleActivity]);
 
   // ---------------------------------------------------------
-  // Snap back when the tab becomes visible again
+  // Visibility / page lifecycle handling (iOS-friendly)
   // ---------------------------------------------------------
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        handleActivity();
+    const markHidden = () => {
+      // Don't overwrite if already set (multiple events fire)
+      if (!hiddenAtRef.current) {
+        hiddenAtRef.current = Date.now();
       }
     };
 
+    const handleReturn = () => {
+      const awayMs = hiddenAtRef.current
+        ? Date.now() - hiddenAtRef.current
+        : 0;
+      hiddenAtRef.current = 0;
+
+      // If already inactive, do nothing — overlay waits for user.
+      if (phaseRef.current === 'inactive') return;
+
+      // If they were away longer than the idle limit, trip immediately
+      // rather than resetting.
+      if (awayMs >= IDLE_LIMIT_MS) {
+        const elapsed = Date.now() - lastActivityRef.current;
+        if (elapsed >= IDLE_LIMIT_MS) {
+          phaseRef.current = 'inactive';
+          setPhase('inactive');
+          if (tickRef.current) {
+            clearInterval(tickRef.current);
+            tickRef.current = null;
+          }
+        }
+        return;
+      }
+
+      // Short away — treat as ordinary activity
+      handleActivity();
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        markHidden();
+      } else if (document.visibilityState === 'visible') {
+        handleReturn();
+      }
+    };
+
+    const onPageHide = () => markHidden();
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted || hiddenAtRef.current) handleReturn();
+    };
+
     document.addEventListener('visibilitychange', onVisibility);
-    return () =>
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+
+    return () => {
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('pageshow', onPageShow);
+    };
   }, [isAuthenticated, handleActivity]);
 
   // ---------------------------------------------------------
@@ -110,41 +170,19 @@ export default function IdleTimer() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    console.log(
-      `[IdleTimer] Started. Idle limit: ${IDLE_LIMIT_MS / 1000}s, warning at: ${(IDLE_LIMIT_MS - WARNING_AT_MS) / 1000}s`
-    );
-
     tickRef.current = setInterval(() => {
-      const currentPhase = phaseRef.current;
-
-      if (currentPhase === 'inactive') return;
+      // Skip if we've already shown the overlay
+      if (phaseRef.current === 'inactive') return;
 
       const elapsed      = Date.now() - lastActivityRef.current;
       const elapsedSec   = Math.floor(elapsed / 1000);
       const remainingMs  = IDLE_LIMIT_MS - elapsed;
       const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-      if (elapsedSec !== lastLoggedSecondRef.current) {
-        lastLoggedSecondRef.current = elapsedSec;
-
-        const totalIdleSec = Math.floor(IDLE_LIMIT_MS / 1000);
-        const isWarning    = remainingMs <= WARNING_AT_MS;
-
-        if (isWarning && remainingMs > 0) {
-          console.log(
-            `[IdleTimer] WARNING — ${remainingSec}s until inactive (idle: ${elapsedSec}s / ${totalIdleSec}s)`
-          );
-        } else if (remainingMs > 0) {
-          console.log(
-            `[IdleTimer] Active — idle: ${elapsedSec}s / ${totalIdleSec}s, remaining: ${remainingSec}s`
-          );
-        }
-      }
-
+      // Phase transitions are NOT rate-limited — only the per-second
+      // countdown update is.
       if (elapsed >= IDLE_LIMIT_MS) {
-        console.log(
-          `[IdleTimer] INACTIVE — idle limit reached (${elapsedSec}s). Showing overlay.`
-        );
+        phaseRef.current = 'inactive';
         setPhase('inactive');
 
         if (tickRef.current) {
@@ -154,17 +192,28 @@ export default function IdleTimer() {
         return;
       }
 
-      if (remainingMs <= WARNING_AT_MS) {
-        if (currentPhase !== 'warning') setPhase('warning');
-        setSecondsLeft(remainingSec);
-      } else if (currentPhase !== 'active') {
+      const inWarningWindow = remainingMs <= WARNING_AT_MS;
+
+      if (inWarningWindow) {
+        if (phaseRef.current !== 'warning') {
+          phaseRef.current = 'warning';
+          setPhase('warning');
+        }
+        if (elapsedSec !== lastLoggedSecondRef.current) {
+          lastLoggedSecondRef.current = elapsedSec;
+          setSecondsLeft(remainingSec);
+        }
+      } else if (phaseRef.current !== 'active') {
+        phaseRef.current = 'active';
         setPhase('active');
       }
     }, 1000);
 
     return () => {
-      if (tickRef.current) clearInterval(tickRef.current);
-      console.log('[IdleTimer] Stopped (unmounted, logged out, or re-armed)');
+      if (tickRef.current) {
+        clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
     };
   }, [isAuthenticated, tickGeneration]);
 
@@ -172,22 +221,22 @@ export default function IdleTimer() {
   // Reset when auth state changes
   // ---------------------------------------------------------
   useEffect(() => {
+    phaseRef.current = 'active';
+    setPhase('active');
+    setSecondsLeft(Math.floor(WARNING_AT_MS / 1000));
+    lastActivityRef.current = Date.now();
+    lastLoggedSecondRef.current = -1;
+    hiddenAtRef.current = 0;
+    setAuthError(null);
+
     if (!isAuthenticated) {
-      console.log('[IdleTimer] User not authenticated — resetting');
-      setPhase('active');
-      setSecondsLeft(Math.floor(WARNING_AT_MS / 1000));
-      lastActivityRef.current = Date.now();
-      lastLoggedSecondRef.current = -1;
       setIsResuming(false);
+      setIsCheckingAuth(false);
 
       if (tickRef.current) {
         clearInterval(tickRef.current);
         tickRef.current = null;
       }
-    } else {
-      console.log('[IdleTimer] User authenticated — timer armed');
-      lastActivityRef.current = Date.now();
-      lastLoggedSecondRef.current = -1;
     }
   }, [isAuthenticated]);
 
@@ -195,41 +244,54 @@ export default function IdleTimer() {
   // Button handlers
   // ---------------------------------------------------------
   const handleLogMeOut = useCallback(async () => {
-    console.log('[IdleTimer] Log Me Out clicked');
     await userLogOut();
   }, [userLogOut]);
 
   const handleIAmHere = useCallback(async () => {
-    if (isResuming) return;
+    // Guard against double-clicks / double-taps
+    if (isResuming || isCheckingAuth) return;
 
-    console.log('[IdleTimer] I Am Here clicked — verifying session');
     setIsResuming(true);
+    setIsCheckingAuth(true);
+    setAuthError(null);
 
     try {
-      // 1. Verify/refresh session BEFORE dismissing the overlay.
-      setIsCheckingAuth(true)
-      await performInitialAuthCheck(true).then(() => {
-        setIsCheckingAuth(false)
-      });
+      // Wrap auth check in a timeout so a flaky mobile network
+      // can't leave the user staring at a spinner.
+      await Promise.race([
+        performInitialAuthCheck(true),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Auth check timed out')),
+            AUTH_CHECK_TIMEOUT_MS
+          )
+        ),
+      ]);
 
-      // 2. Session healthy — reset idle timer.
+      // Session is healthy — reset idle timer synchronously.
+      phaseRef.current = 'active';
       lastActivityRef.current = Date.now();
       lastLoggedSecondRef.current = -1;
+      hiddenAtRef.current = 0;
       setSecondsLeft(Math.floor(WARNING_AT_MS / 1000));
       setPhase('active');
 
-      // 3. Re-arm the tick loop.
+      // Re-arm the tick loop.
       setTickGeneration((g) => g + 1);
-
-      console.log('[IdleTimer] Session verified — resuming');
     } catch (err) {
       console.error('[IdleTimer] Auth check failed on resume:', err);
-      // Leave the overlay up — the auth layer should redirect if the
-      // session is truly dead.
+      // Surface the failure so the user isn't stuck silently.
+      setAuthError(
+        err instanceof Error && err.message.includes('timed out')
+          ? 'Could not verify your session (network slow). Try again, or log out.'
+          : 'Could not verify your session. Try again, or log out.'
+      );
+      // Overlay stays up — user can retry or log out manually.
     } finally {
+      setIsCheckingAuth(false);
       setIsResuming(false);
     }
-  }, [isResuming]);
+  }, [isResuming, isCheckingAuth]);
 
   // ---------------------------------------------------------
   // Render
@@ -253,7 +315,7 @@ export default function IdleTimer() {
   if (phase === 'inactive') {
     return (
       <div className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <>{isCheckingAuth && <LoadingOverlay/>}</>
+        {isCheckingAuth && <LoadingOverlay />}
         <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 sm:p-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
@@ -264,14 +326,25 @@ export default function IdleTimer() {
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
             You have been inactive
           </h2>
+          {/* ✅ FIX: Copy no longer promises auto-logout — none happens */}
           <p className="text-sm sm:text-base text-gray-600 mb-6">
-            Are you still there? You will be logged out if you don't respond.
+            Are you still there? Confirm to continue, or log out.
           </p>
+
+          {/* Visible error if the auth check failed */}
+          {authError && (
+            <p
+              role="alert"
+              className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-4"
+            >
+              {authError}
+            </p>
+          )}
 
           <div className="flex flex-row sm:flex-row gap-3">
             <Button
               onClick={handleIAmHere}
-              disabled={isResuming}
+              disabled={isResuming || isCheckingAuth}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold h-11"
             >
               {isResuming ? (
@@ -288,7 +361,7 @@ export default function IdleTimer() {
             </Button>
             <Button
               onClick={handleLogMeOut}
-              disabled={isResuming}
+              disabled={isResuming || isCheckingAuth}
               className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold h-11"
             >
               <LogOut className="w-4 h-4 mr-2" />

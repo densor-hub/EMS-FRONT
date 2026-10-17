@@ -11,29 +11,32 @@ const PUBLIC_PREFIXES = ['/select-shop', '/setup', '/auth'];
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, selectedShop, isLoading } = useAuth();
+  const { isAuthenticated, selectedShop, isLoading } = useAuth();
 
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
-    // Wait for auth to finish hydrating
+    // 1. Wait for auth hydration to finish.
     if (isLoading) return;
 
-    // Not logged in → handled elsewhere (or send to login)
-    if (!user?.id) return;
+    // 2. Auth failures are handled by ProtectedRoute / PublicRoute.
+    //    AuthGuard's only job is the shop-selection check.
+    if (!isAuthenticated) return;
 
-    // Already on a public path → nothing to do
+    // 3. Public paths (login, select-shop, setup) don't need a shop.
     if (isPublic) return;
 
-    // Logged in but no shop chosen → go pick one
-    const shop = selectedShop || sessionStorage.getItem('selectedShop');
-    if (!shop) {
+    // 4. ✅ Single source of truth: context state only.
+    //    Do NOT also read sessionStorage — that's a second source of
+    //    truth that can be stale mid-logout and cause redirect loops.
+    if (!selectedShop) {
       router.replace('/select-shop');
     }
-  }, [isLoading, user, selectedShop, isPublic, router, pathname]);
+  }, [isLoading, isAuthenticated, selectedShop, isPublic, router]);
 
-  // Block render until we know who the user is
-  if (isLoading && !user?.id) {
+  // Block render during initial hydration, but only when we don't yet
+  // know who the user is. Not tied to user?.id.
+  if (isLoading) {
     return <LoadingOverlay />;
   }
 

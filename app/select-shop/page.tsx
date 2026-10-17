@@ -23,12 +23,12 @@ export default function SelectShopPage() {
   const hasLocations = locations.length > 0;
 
   // Only check on mount — if a shop was already chosen, skip ahead.
-  useEffect(() => {
-    if (selectedShop) {
-      router.replace('/dashboard');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // useEffect(() => {
+  //   if (selectedShop) {
+  //     router.replace('/dashboard');
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
 
   const handleSelect = (id: string) => {
     setSelected(id);
