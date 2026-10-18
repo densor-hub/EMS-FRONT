@@ -143,7 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const path = window.location.pathname?.toLowerCase() || '/';
           const normalized = path.startsWith('/') ? path.slice(1) : path;
           if (!publicPaths.includes(normalized)) {
-            router.replace('/auth/login');
+          //  router.replace('/auth/login');
           }
         }
       } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { Plus, User, Package, CreditCard, Truck, RotateCcw } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
@@ -15,15 +15,12 @@ import {
   formatNumberWithCommas,
   removeCommasFromNumbers,
   toastErrors,
+  sessionStore,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
-import AddPayment from '@/app/purchases/addPayments';
-import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
-import { sessionStore } from '@/helpers/formatStrings';
 
-// Dynamic imports
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
   { ssr: false }
@@ -38,6 +35,25 @@ const paymentMethods = [
 ];
 
 type TabKey = 'items' | 'payments' | 'deliveries' | 'reversals';
+
+const DEFAULT_PAGE_SIZE = 25;
+
+// ✅ Handles both the new paginated shape { items, totalCount, ... }
+//    and the legacy plain-array shape.
+function unwrapItems<T>(response: any): { items: T[]; total: number; pages: number } {
+  const data = response?.data;
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, pages: 1 };
+  }
+  if (data && Array.isArray(data.items)) {
+    return {
+      items: data.items,
+      total: data.totalCount ?? data.items.length,
+      pages: data.totalPages ?? 1,
+    };
+  }
+  return { items: [], total: 0, pages: 0 };
+}
 
 export default function PurchasePage() {
   const toast = useToaster();
@@ -54,12 +70,9 @@ export default function PurchasePage() {
   const [suppliers, setsuppliers] = useState<Supplier[]>([]);
 
   // Modal state
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Partial<Transaction>>({});
   const [transactionDetails, setTransactionDetails] = useState<Partial<Transaction>>({});
-  const [showAddPaymentModal, setShowAddPaymentModal] = useState<boolean>(false);
-  const [showDeliveryModal, setShowDeliveryModal] = useState<boolean>(false);
   const [selectedSupplier, setselectedSupplier] = useState<string>();
 
   // Tabs
@@ -70,50 +83,90 @@ export default function PurchasePage() {
   const [remarksError, setRemarksError] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  // ✅ Pagination state
+  const [page, setPage] = useState<number>(1);
+  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(0);
+
   const isLoadingRef = useRef(false);
 
-  useEffect(() => {
-    loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadInitialData = async (): Promise<void> => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
+  // ────────────────────────────────────────────────
+  // LOADERS
+  // ────────────────────────────────────────────────
+  const loadSuppliers = useCallback(async (): Promise<void> => {
     try {
       const sessionShop = sessionStore.get("selectedShop");
       const locationId = selectedShop || sessionShop;
-      const companyId = user?.companyId || user;
+      const companyId = user?.companyId || (user as any)?.id || user;
 
       const suppliersResponse = await axiosInstance.get(
         `/Suppliers?companyId=${companyId}&locationId=${locationId}`
       );
-      setsuppliers(suppliersResponse?.data);
-
-      const purchasesResponse = await axiosInstance.get(
-        `/Purchases/Requests?locationId=${locationId}&generalStatus=1`
-      );
-      setsales(purchasesResponse?.data);
+      setsuppliers(suppliersResponse?.data ?? []);
     } catch (error) {
-      console.error("Error loading data:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error loading suppliers:", error);
+    }
+  }, [selectedShop, user]);
+
+  const loadPurchases = useCallback(
+    async (targetPage: number = page): Promise<void> => {
+      try {
+        setLoading(true);
+        const sessionShop = sessionStore.get("selectedShop");
+        const locationId = selectedShop || sessionShop;
+
+        const params = new URLSearchParams({
+          locationId: String(locationId ?? ''),
+          generalStatus: '1',
+          page: String(targetPage),
+          pageSize: String(pageSize),
+        });
+        if (selectedSupplier) {
+          params.set('supplierId', selectedSupplier);
+        }
+
+        const purchasesResponse = await axiosInstance.get(
+          `/Purchases/Requests?${params.toString()}`
+        );
+
+        const { items, total, pages } = unwrapItems<Transaction>(purchasesResponse);
+        setsales(items);
+        setTotalCount(total);
+        setTotalPages(pages);
+      } catch (error) {
+        console.error("Error loading purchases:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedShop, selectedSupplier, page, pageSize]
+  );
+
+  // Initial load: suppliers only. Purchases are loaded by the effect below.
+  useEffect(() => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    (async () => {
+      await loadSuppliers();
       isLoadingRef.current = false;
-    }
-  };
+    })();
+  }, [loadSuppliers]);
 
-  const refetchPurchases = async () => {
-    try {
-      const sessionShop = sessionStore.get("selectedShop");
-      const purchasesResponse = await axiosInstance.get(
-        `/Purchases/Requests?locationId=${selectedShop || sessionShop}&generalStatus=1`
-      );
-      setsales(purchasesResponse?.data);
-    } catch (error) {
-      console.error("Error refetching purchases:", error);
-    }
-  };
+  // Reload purchases whenever shop, supplier, or page changes.
+  useEffect(() => {
+    loadPurchases(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedShop, selectedSupplier, page]);
 
+  // Reset to page 1 when the supplier filter changes.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedSupplier]);
+
+  // ────────────────────────────────────────────────
+  // RESET / REFETCH
+  // ────────────────────────────────────────────────
   const reset = () => {
     setAmountPaid("");
     setDate("");
@@ -125,11 +178,20 @@ export default function PurchasePage() {
     setRemarksError("");
   };
 
+  const refetchPurchases = useCallback(async () => {
+    await loadPurchases(page);
+  }, [loadPurchases, page]);
+
+  // ────────────────────────────────────────────────
+  // TRANSACTION DETAILS
+  // ────────────────────────────────────────────────
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setLoading(true);
       const response = await axiosInstance.get(
-        `/Transactions/${transactionId}/location/${selectedShop || sessionStorage?.getItem("selectedShop")}`
+        `/Transactions/${transactionId}/location/${
+          selectedShop || sessionStorage?.getItem("selectedShop")
+        }`
       );
       setTransactionDetails(response?.data);
       return response?.data;
@@ -160,88 +222,11 @@ export default function PurchasePage() {
 
   const closeDetailsModal = () => {
     setDetailsModalOpen(false);
-    setShowAddPaymentModal(false);
-    setShowDeliveryModal(false);
     reset();
     resetManagerResponse();
     setTransactionDetails({});
     setSelectedTransaction({});
     setActiveTab("items");
-  };
-
-  // ────────────────────────────────────────────────
-  // PAYMENTS
-  // ────────────────────────────────────────────────
-  const handleAddPayment = () => {
-    const totalPaid =
-      transactionDetails?.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
-    const totalAmount = transactionDetails?.totalAmount || 0;
-
-    if (totalPaid >= totalAmount) {
-      toast.warning({
-        title: 'Payment Complete',
-        description: 'All payments for this transaction have been completed.',
-      });
-      return;
-    }
-    setShowAddPaymentModal(true);
-  };
-
-  const submitPayment = async (): Promise<void> => {
-    if (!amountPaid || !date || !paymentMethod) {
-      toast.warning({
-        title: 'Enter all required fields',
-        description: 'Amount, date, and payment method are required.',
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const paymentObj = {
-        transationId: selectedTransaction?.transactionId,
-        amount: removeCommasFromNumbers(amountPaid),
-        paymentDate: date,
-        paymentMethod: Number(paymentMethod),
-      };
-
-      await axiosInstance.post("/Transactions/Payment", paymentObj);
-
-      reset();
-      setShowAddPaymentModal(false);
-      setActiveTab("payments");
-
-      await refetchPurchases();
-
-      if (selectedTransaction?.transactionId) {
-        await fetchTransactionDetails(selectedTransaction.transactionId);
-      }
-
-      toast.success({
-        title: 'Submitted successfully',
-        description: 'Payment saved successfully',
-      });
-    } catch (error: any) {
-      console.error("Error creating deposit:", error);
-      toastErrors(toast, error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ────────────────────────────────────────────────
-  // DELIVERIES
-  // ────────────────────────────────────────────────
-  const handleAddDelivery = () => {
-    setShowDeliveryModal(true);
-  };
-
-  const onDeliverySuccess = async () => {
-    setShowDeliveryModal(false);
-    setActiveTab("deliveries");
-    if (selectedTransaction?.transactionId) {
-      await fetchTransactionDetails(selectedTransaction.transactionId);
-    }
   };
 
   // ────────────────────────────────────────────────
@@ -259,7 +244,7 @@ export default function PurchasePage() {
 
       const payload = {
         transactionId: selectedTransaction?.transactionId,
-        status: action === 'approve' ? 3 : -2, // adjust to your API codes
+        status: action === 'approve' ? 3 : -2,
         remarks: remarks.trim() || null,
       };
 
@@ -294,7 +279,7 @@ export default function PurchasePage() {
         <div className="flex items-center gap-1.5 sm:gap-2">
           <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           <span className="font-medium text-xs sm:text-sm truncate">
-            {suppliers?.find(x => x.id == value.supplierId)?.supplierCompanyName}
+            {suppliers?.find((x) => x.id == value.supplierId)?.supplierCompanyName}
           </span>
         </div>
       ),
@@ -325,7 +310,12 @@ export default function PurchasePage() {
       sortable: true,
       render: (value: Transaction) => {
         const debt = (value.totalAmount ?? 0) - (value.paidAmount ?? 0);
-        const cls = debt > 0 ? "font-bold text-red-500" : debt < 0 ? "font-bold text-blue-500" : "";
+        const cls =
+          debt > 0
+            ? "font-bold text-red-500"
+            : debt < 0
+            ? "font-bold text-blue-500"
+            : "";
         return (
           <span className={`${cls} text-xs sm:text-sm`}>
             {formatNumberWithCommas(debt.toFixed(2))}
@@ -403,48 +393,41 @@ export default function PurchasePage() {
   const renderPaymentsTab = () => {
     const payments: any[] = (transactionDetails as any)?.payments ?? [];
     return (
-      <div className="space-y-3 sm:space-y-4">
-        <div className="flex justify-end">
-          <Button size="sm" onClick={handleAddPayment} className="text-xs sm:text-sm h-8 sm:h-9">
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" /> Add Payment
-          </Button>
-        </div>
-        <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full text-[11px] sm:text-sm min-w-[360px]">
-            <thead className="bg-muted/50">
+      <div className="rounded-lg border overflow-x-auto">
+        <table className="w-full text-[11px] sm:text-sm min-w-[360px]">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Date</th>
+              <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Method</th>
+              <th className="text-right px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.length === 0 ? (
               <tr>
-                <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Date</th>
-                <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Method</th>
-                <th className="text-right px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Amount</th>
+                <td colSpan={3} className="px-2 sm:px-3 py-4 sm:py-6 text-center text-muted-foreground">
+                  No payments recorded.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {payments.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-2 sm:px-3 py-4 sm:py-6 text-center text-muted-foreground">
-                    No payments recorded.
+            ) : (
+              payments.map((p, idx) => (
+                <tr key={p.id ?? idx} className="border-t">
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2">
+                    {p.paymentDate
+                      ? alphaNumericDate(new Date(p.paymentDate).toLocaleDateString())
+                      : "—"}
+                  </td>
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2">
+                    {paymentMethods.find((m) => m.id === p.paymentMethod)?.name ?? "—"}
+                  </td>
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right font-medium">
+                    {formatNumberWithCommas((p.amount ?? 0).toFixed(2))}
                   </td>
                 </tr>
-              ) : (
-                payments.map((p, idx) => (
-                  <tr key={p.id ?? idx} className="border-t">
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">
-                      {p.paymentDate
-                        ? alphaNumericDate(new Date(p.paymentDate).toLocaleDateString())
-                        : "—"}
-                    </td>
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">
-                      {paymentMethods.find(m => m.id === p.paymentMethod)?.name ?? "—"}
-                    </td>
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right font-medium">
-                      {formatNumberWithCommas((p.amount ?? 0).toFixed(2))}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -452,46 +435,39 @@ export default function PurchasePage() {
   const renderDeliveriesTab = () => {
     const deliveries: any[] = (transactionDetails as any)?.deliveries ?? [];
     return (
-      <div className="space-y-3 sm:space-y-4">
-        <div className="flex justify-end">
-          <Button size="sm" onClick={handleAddDelivery} className="text-xs sm:text-sm h-8 sm:h-9">
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" /> Record Delivery
-          </Button>
-        </div>
-        <div className="rounded-lg border overflow-x-auto">
-          <table className="w-full text-[11px] sm:text-sm min-w-[440px]">
-            <thead className="bg-muted/50">
+      <div className="rounded-lg border overflow-x-auto">
+        <table className="w-full text-[11px] sm:text-sm min-w-[440px]">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Date</th>
+              <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Received By</th>
+              <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Status</th>
+              <th className="text-right px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Items</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deliveries.length === 0 ? (
               <tr>
-                <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Date</th>
-                <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Received By</th>
-                <th className="text-left px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Status</th>
-                <th className="text-right px-2 sm:px-3 py-1.5 sm:py-2 font-medium">Items</th>
+                <td colSpan={4} className="px-2 sm:px-3 py-4 sm:py-6 text-center text-muted-foreground">
+                  No deliveries recorded.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {deliveries.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-2 sm:px-3 py-4 sm:py-6 text-center text-muted-foreground">
-                    No deliveries recorded.
+            ) : (
+              deliveries.map((d, idx) => (
+                <tr key={d.id ?? idx} className="border-t">
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2">
+                    {d.deliveryDate
+                      ? alphaNumericDate(new Date(d.deliveryDate).toLocaleDateString())
+                      : "—"}
                   </td>
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2">{d.receivedBy ?? "—"}</td>
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2">{d.status ?? "—"}</td>
+                  <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right">{d.items?.length ?? 0}</td>
                 </tr>
-              ) : (
-                deliveries.map((d, idx) => (
-                  <tr key={d.id ?? idx} className="border-t">
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">
-                      {d.deliveryDate
-                        ? alphaNumericDate(new Date(d.deliveryDate).toLocaleDateString())
-                        : "—"}
-                    </td>
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">{d.receivedBy ?? "—"}</td>
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">{d.status ?? "—"}</td>
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right">{d.items?.length ?? 0}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -543,29 +519,54 @@ export default function PurchasePage() {
     { key: 'reversals', label: 'Reversals', icon: RotateCcw },
   ];
 
+  // ✅ Pagination controls (rendered below the DataTable)
+  const paginationControls = totalPages > 1 && (
+    <div className="flex items-center justify-between gap-2 mt-3 px-2">
+      <span className="text-xs text-muted-foreground">
+        Page {page} of {totalPages} · {totalCount} total
+      </span>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <Suspense fallback={<LoadingOverlay />}>
       {loading && <LoadingOverlay />}
-      <div className="min-h-screen w-full overflow-x-hidden" >
+      <div className="min-h-screen w-full overflow-x-hidden">
         <Header title="Purchases from suppliers" />
         <div className="relative">
           <div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" />
 
           <CardContent className="m-0 p-0 overflow-x-auto">
+            {/* ✅ DataTable now receives a real array from the paginated response. */}
             <DataTable
               title="All Purchases"
-              data={
-                selectedSupplier
-                  ? sales.filter(sale => sale.supplierId === selectedSupplier)
-                  : sales
-              }
+              data={sales}
               columns={columns}
               searchKey="supplierName"
               addLabel="Add Purchase"
               emptyMessage="No data found."
               onRowClick={(row) => openTransactionDetails(row)}
-               height='h-[calc(100vh-280px)] sm:h-[calc(100vh-250px)]'
+              height="h-[calc(100vh-280px)] sm:h-[calc(100vh-250px)]"
             />
+            {paginationControls}
           </CardContent>
 
           {/* ──────────────────────────── DETAILS MODAL ──────────────────────────── */}
@@ -583,7 +584,7 @@ export default function PurchasePage() {
                   <div className="rounded-lg border p-2 sm:p-3">
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Supplier</p>
                     <p className="font-medium text-xs sm:text-sm truncate">
-                      {suppliers?.find(x => x.id === selectedTransaction?.supplierId)
+                      {suppliers?.find((x) => x.id === selectedTransaction?.supplierId)
                         ?.supplierCompanyName || "—"}
                     </p>
                   </div>
@@ -615,31 +616,6 @@ export default function PurchasePage() {
                     </p>
                   </div>
                 </div>
-
-                {/* Tabs */}
-                {/* <div className="border-b">
-                  <div className="flex gap-1 overflow-x-auto">
-                    {tabs.map(t => {
-                      const Icon = t.icon;
-                      const isActive = activeTab === t.key;
-                      return (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() => setActiveTab(t.key)}
-                          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                            isActive
-                              ? "border-primary text-primary"
-                              : "border-transparent text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div> */}
 
                 {/* Tab content */}
                 <div>
@@ -674,74 +650,25 @@ export default function PurchasePage() {
               </div>
 
               {/* Sticky footer */}
-              {/* Sticky footer */}
-            <div className="border-t px-3 sm:px-6 py-2.5 sm:py-3 flex flex-row justify-end gap-2 sm:gap-3 bg-background">
-              <Button
-                variant="outline"
-                onClick={() => submitManagerResponse('decline')}
-                disabled={submitting}
-                className="text-red-600 border-red-300 hover:bg-red-500 text-xs sm:text-sm h-9 sm:h-10 flex-1 sm:flex-none px-2 sm:px-4"
-              >
-                {submitting ? "Submitting..." : "Decline"}
-              </Button>
-              <Button
-                onClick={() => submitManagerResponse('approve')}
-                disabled={submitting}
-                className="text-xs sm:text-sm h-9 sm:h-10 flex-1 sm:flex-none px-1 sm:px-4"
-              >
-                {submitting ? "Submitting..." : "Approve"}
-              </Button>
-            </div>
+              <div className="border-t px-3 sm:px-6 py-2.5 sm:py-3 flex flex-row justify-end gap-2 sm:gap-3 bg-background">
+                <Button
+                  variant="outline"
+                  onClick={() => submitManagerResponse('decline')}
+                  disabled={submitting}
+                  className="text-red-600 border-red-300 hover:bg-red-500 text-xs sm:text-sm h-9 sm:h-10 flex-1 sm:flex-none px-2 sm:px-4"
+                >
+                  {submitting ? "Submitting..." : "Decline"}
+                </Button>
+                <Button
+                  onClick={() => submitManagerResponse('approve')}
+                  disabled={submitting}
+                  className="text-xs sm:text-sm h-9 sm:h-10 flex-1 sm:flex-none px-1 sm:px-4"
+                >
+                  {submitting ? "Submitting..." : "Approve"}
+                </Button>
+              </div>
             </div>
           </Modal>
-
-          {/* ──────────────────────────── ADD PAYMENT MODAL ──────────────────────────── */}
-          {/* {showAddPaymentModal && (
-            <Modal
-              isOpen={showAddPaymentModal}
-              onClose={() => {
-                reset();
-                setShowAddPaymentModal(false);
-              }}
-              title="Add Payment"
-              size="md"
-            >
-              <div className="p-4">
-                <AddPayment
-                  amountPaid={amountPaid}
-                  setAmountPaid={setAmountPaid}
-                  date={date}
-                  setDate={setDate}
-                  paymentMethod={paymentMethod}
-                  setPaymentMethod={setPaymentMethod}
-                  paymentMethods={paymentMethods}
-                  onSubmit={submitPayment}
-                  onCancel={() => {
-                    reset();
-                    setShowAddPaymentModal(false);
-                  }}
-                />
-              </div>
-            </Modal>
-          )} */}
-
-          {/* ──────────────────────────── DELIVERY MODAL ──────────────────────────── */}
-          {/* {showDeliveryModal && (
-            <Modal
-              isOpen={showDeliveryModal}
-              onClose={() => setShowDeliveryModal(false)}
-              title="Record Delivery"
-              size="lg"
-            >
-              <div className="p-4">
-                <DeliveryTransactionUI
-                  transaction={transactionDetails}
-                  onClose={() => setShowDeliveryModal(false)}
-                  onSuccess={onDeliverySuccess}
-                />
-              </div>
-            </Modal>
-          )} */}
         </div>
 
         {toast.ToastComponent}

@@ -16,8 +16,8 @@ export default function DashboardLayout({
           {children}
 
           <div className="m-2">
-                  <Copyright/>
-                </div>
+            <Copyright/>
+          </div>
         </main>
          
       </div>

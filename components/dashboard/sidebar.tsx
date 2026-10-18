@@ -17,6 +17,7 @@ import {
   SendToBackIcon,
   PlusCircleIcon,
   AwardIcon,
+  SplitIcon
 } from 'lucide-react';
 
 interface NavItem {
@@ -87,7 +88,7 @@ const navItems: NavItem[] = [
   },
   {
     label: 'Set up',
-    href: '/dashboard/setup',
+    href: '/setup',
     icon: <Settings size={20} />,
     children: [
       { label: 'Shops', href: '/setup/shops' },
@@ -97,6 +98,15 @@ const navItems: NavItem[] = [
       { label: 'Customers', href: '/setup/customers' },
       { label: 'Suppliers', href: '/setup/suppliers' },
       { label: 'Financial Institutions', href: '/setup/financial-institutions' },
+    ],
+  },
+  {
+    label: 'Splits',
+    href: '/splits',
+    icon: <SplitIcon size={20} />,
+    children: [
+      { label: 'Split Formulas', href: '/splits/split-formulas' },
+      { label: 'Split Activity', href: '/splits/split-activity' },
     ],
   },
   { label: 'Reports', href: '/reports', icon: <BarChart3 size={20} /> },
