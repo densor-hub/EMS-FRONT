@@ -65,36 +65,53 @@ export default function StrategyPage() {
 
   function renderNode() {
     switch (node.type) {
-      case "gate":
-        return (
-          <GateNode
-            node={node}
-            checked={checked}
-            onToggle={toggle}
-            onAnswer={(yes) => {
-              const next = yes ? node.onYes! : node.onNo!;
-              const allMandatoryOk =
-                node.checks?.every(
-                  (c) => !c.mandatory || checked.has(c.id)
-                ) ?? true;
-              const result = yes
-                ? allMandatoryOk
-                  ? "Yes"
-                  : "Yes (but mandatory missing)"
-                : "No";
-              advance(next, result);
-            }}
-          />
-        );
+     case "gate":
+  return (
+    <GateNode
+      node={node}
+      checked={checked}
+      onToggle={toggle}
+      onAnswer={(yes) => {
+        let next = yes ? node.onYes! : node.onNo!;
 
-      case "choice":
-        return (
-          <ChoiceNode
-            node={node}
-            path={path}
-            onPick={(next, label) => advance(next, label)}
-          />
-        );
+        // Conditional routing: first match wins.
+        if (yes && node.conditionalNext) {
+            for (const c of node.conditionalNext) {
+              if (c.when.every((id) => checked.has(id))) {
+                // Skip if we've already been to this node in this cycle
+                const alreadyVisited = path.some((p) => p.nodeId === c.next);
+                if (alreadyVisited) continue;
+                next = c.next;
+                break;
+              }
+            }
+          }
+
+        const allMandatoryOk =
+          node.checks?.every(
+            (c) => !c.mandatory || checked.has(c.id)
+          ) ?? true;
+        const result = yes
+          ? allMandatoryOk
+            ? "Yes"
+            : "Yes (but mandatory missing)"
+          : "No";
+        advance(next, result);
+      }}
+    />
+  );
+
+      case "choice": {
+      const marketCondition = path.find((p) => p.nodeId === "market_condition")?.result;
+      return (
+        <ChoiceNode
+          node={node}
+          path={path}
+          currentCondition={marketCondition}
+          onPick={(next, label) => advance(next, label)}
+        />
+      );
+    }
 
       case "score":
         return (

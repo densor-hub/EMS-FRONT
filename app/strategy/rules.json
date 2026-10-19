@@ -1,6 +1,6 @@
 {
-  "version": "2.1",
-  "title": "Gold/Silver — SMC + SNR + MSNR + News (notes-faithful)",
+  "version": "3.0",
+  "title": "Gold/Silver — SMC + SNR + MSNR + News",
   "start": "first_things",
   "nodes": {
 
@@ -8,7 +8,7 @@
       "id": "first_things",
       "title": "First Things",
       "type": "gate",
-      "question": "Have you completed the first-things sequence?",
+      "question": "Complete the first-things sequence.",
       "checks": [
         { "id": "ft_news", "label": "News checked" },
         { "id": "ft_momentum", "label": "Current momentum & trend (bias) identified" },
@@ -19,189 +19,205 @@
         { "id": "ft_5m_tl", "label": "5m trend line visible on 15m/30m/1H in support of bias" },
         { "id": "ft_orb_refine", "label": "ORB / BB refinement for entry done" }
       ],
-      "onYes": "news_check",
+      "conditionalNext": [
+        { "when": ["ft_tonyike"], "next": "tony_ike_4h" },
+        { "when": ["ft_structure", "ft_5m_tl"], "next": "slp_storyline" },
+        { "when": ["ft_news"], "next": "news_check" }
+      ],
+      "onYes": "prerequisite",
       "onNo": "wait_state"
     },
 
-    "news_check": {
-      "id": "news_check",
-      "title": "News",
+   "news_check": {
+  "id": "news_check",
+  "title": "News",
+  "type": "gate",
+  "question": "Which red release fired today? Direction?",
+  "checks": [
+    { "id": "nfp_buys", "label": "NFP — Red Actual (Buys)" },
+    { "id": "nfp_sells", "label": "NFP — (Sells)" },
+    { "id": "cpi_buys", "label": "CPI — Red Actual (Buys)" },
+    { "id": "cpi_sells", "label": "CPI — (Sells)" },
+    { "id": "ppi_buys", "label": "PPI — Red Actual (Buys)" },
+    { "id": "ppi_sells", "label": "PPI — (Sells)" },
+    { "id": "no_release", "label": "No red release today" }
+  ],
+  "onYes": "first_things",
+  "onNo": "first_things"
+},
+
+    "tony_ike_4h": {
+      "id": "tony_ike_4h",
+      "title": "Tony Ike — 4H",
       "type": "gate",
-      "question": "Check the news for NFP, CPI, PPI (red Actual). Have you noted today's red releases?",
+      "question": "Confirm Tony Ike on 4H.",
       "checks": [
-        { "id": "nfp", "label": "NFP — noted" },
-        { "id": "cpi", "label": "CPI — noted" },
-        { "id": "ppi", "label": "PPI — noted" }
+        { "id": "tk4_mss", "label": "Valid MSS or valid CHOCH identified" },
+        { "id": "tk4_pullback", "label": "Pullback inducement → liquidity after MSS/CHOCH" },
+        { "id": "tk4_poi", "label": "Next POI identified (validated OB, validated BB, V MSNR, or A MSNR)" },
+        { "id": "tk4_sl", "label": "Optimal stop loss line identified" },
+        { "id": "tk4_place", "label": "Trade placed" }
       ],
-      "onYes": "prerequisite",
+      "onYes": "order_block_validation",
       "onNo": "prerequisite"
     },
 
     "prerequisite": {
       "id": "prerequisite",
-      "title": "Prerequisite (map building)",
+      "title": "4H Storyline — Map Building (Priority 2)",
       "type": "gate",
-      "question": "Have you built the 4H map per the prerequisite rules?",
+      "question": "Build the 4H map.",
       "checks": [
         { "id": "p_sl_zones", "label": "4H stop-loss zones (support & resistance) marked" },
         { "id": "p_msnr", "label": "Next 2–3 MSNR levels after stop-loss zones marked" },
         { "id": "p_bias", "label": "Current bias and momentum checked" },
         { "id": "p_optimal_sl", "label": "Optimum 4H SL line marked" },
-        { "id": "p_alignment", "label": "If aligned with bias+momentum: immediate MSNR OK when enough gap exists" },
-        { "id": "p_against", "label": "If against bias+momentum: first MSNR = inducement → EXTREME traditional MSNR + optimal SL zone" },
-        { "id": "p_msnr_ambiguous", "label": "If MSNR multiple/confusing: use traditional or latter + optimal SL zone" },
+        { "id": "p_alignment", "label": "Aligned with bias+momentum: immediate MSNR OK when enough gap exists" },
+        { "id": "p_against", "label": "Against bias+momentum: first MSNR = inducement → EXTREME traditional MSNR + optimal SL zone" },
+        { "id": "p_msnr_ambiguous", "label": "MSNR multiple/confusing: use traditional or latter + optimal SL zone" },
         { "id": "p_breaker", "label": "Breaker wins support: breaker source → optimal SL → optimize entry" },
         { "id": "p_continuity", "label": "Continuity from effective MSNR level confirmed" }
       ],
-      "onYes": "order_block_validation",
+      "onYes": "market_condition",
       "onNo": "wait_state"
     },
 
-    "order_block_validation": {
-      "id": "order_block_validation",
-      "title": "Order Block Validation",
-      "type": "gate",
-      "question": "Validate the order block. (Cleared liquidity is optional but higher probability.)",
-      "checks": [
-        { "id": "ob_type", "label": "Type: traditional or mid-range order block" },
-        { "id": "ob_fvg", "label": "Creates fair value gap" },
-        { "id": "ob_momentum", "label": "Created momentum" },
-        { "id": "ob_structure", "label": "Broke structure (MSS / CHOCH / BOS)" },
-        { "id": "ob_unmitigated", "label": "Unmitigated" },
-        { "id": "ob_liquidity", "label": "Cleared liquidity (optional — higher probability)" },
-        { "id": "ob_htf_ltf", "label": "Consistent HTF → LTF (high probability)" },
-        { "id": "ob_region", "label": "If same block consistent across HTF→LTF with small pip-gap: use entire HTF region" },
-        { "id": "ob_liquidity_zone", "label": "Equal or inclined level OB = liquidity zone → hit at base → wick entry or TOL entry" },
-        { "id": "ob_sequence", "label": "ORB check → liquidity zone check → ITW or TOL check (in that order)" }
-      ],
-      "onYes": "route_setup",
-      "onNo": "wait_state"
+    "market_condition": {
+      "id": "market_condition",
+      "title": "Market Condition",
+      "type": "choice",
+      "question": "What is the market condition right now?",
+      "options": [
+        { "value": "trending_strong", "label": "Trending — strong, obvious momentum", "next": "route_setup" },
+        { "value": "trending_normal", "label": "Trending — normal", "next": "route_setup" },
+        { "value": "tl_broken", "label": "Trendline broken and closed", "next": "route_setup" },
+        { "value": "consolidation_choppy", "label": "Consolidation / bias unclear / choppy", "next": "route_setup" },
+        { "value": "opposing_tls", "label": "Opposing trendlines", "next": "route_setup" },
+        { "value": "fresh_impulse", "label": "Fresh impulse (candle A → B engulfing)", "next": "route_setup" },
+        { "value": "counter_trend", "label": "Counter-trend opportunity", "next": "route_setup" },
+        { "value": "mss_choch", "label": "Valid MSS/CHOCH structure", "next": "route_setup" },
+        { "value": "market_gap", "label": "Market Gap present (Monday open)", "next": "route_setup" }
+      ]
     },
 
     "route_setup": {
       "id": "route_setup",
       "title": "Which Setup?",
       "type": "choice",
-      "question": "Which setup applies to the current chart? (Best-fit setups are highlighted based on what you've already confirmed.)",
+      "question": "Choose the setup. Options are filtered by market condition and sorted by priority.",
       "options": [
         {
+          "value": "tony_ike_4h",
+          "label": "Tony Ike — 4H (Priority 1)",
+          "next": "tony_ike_4h",
+          "priority": 1,
+          "enabledBy": ["mss_choch", "trending_normal"]
+        },
+        {
+          "value": "four_h_storyline",
+          "label": "4H Storyline (Priority 2)",
+          "next": "four_h_storyline",
+          "priority": 2,
+          "enabledBy": ["trending_strong", "trending_normal", "consolidation_choppy", "fresh_impulse", "counter_trend"]
+        },
+        {
+          "value": "slp_storyline",
+          "label": "1H / 30m / 15m SLP Storyline (Priority 3)",
+          "next": "slp_storyline",
+          "priority": 3,
+          "enabledBy": ["trending_normal", "fresh_impulse"]
+        },
+        {
+          "value": "tony_ike_1h_30m",
+          "label": "Tony Ike — 1H / 30m (Priority 4)",
+          "next": "tony_ike_1h_30m",
+          "priority": 4,
+          "enabledBy": ["mss_choch", "trending_normal"]
+        },
+        {
+          "value": "tony_ike_15m",
+          "label": "Tony Ike — 15m (Priority 5)",
+          "next": "tony_ike_15m",
+          "priority": 5,
+          "enabledBy": ["mss_choch"]
+        },
+        {
           "value": "trading_with_trend",
-          "label": "Trading with trend",
+          "label": "Trading With Trend (Priority 6)",
           "next": "trading_with_trend",
-          "fitness": ["ft_momentum", "ft_5m_tl", "p_bias", "ob_structure"]
-        },
-        {
-          "value": "trend_line_break_retest",
-          "label": "Trend line break and retest",
-          "next": "trend_line_break_retest",
-          "fitness": ["ft_tl_break", "ft_storyline", "ob_structure"]
-        },
-        {
-          "value": "opposing_trendlines",
-          "label": "Opposing trendlines break out and retest",
-          "next": "opposing_trendlines",
-          "fitness": ["ft_storyline", "ft_structure", "p_sl_zones"]
+          "priority": 6,
+          "enabledBy": ["trending_strong", "trending_normal", "tl_broken", "opposing_tls"]
         },
         {
           "value": "market_gap",
-          "label": "Market gap (Monday open)",
+          "label": "Market Gap",
           "next": "market_gap",
-          "fitness": ["ft_news", "nfp", "cpi", "ppi"]
-        },
-        {
-          "value": "continuation",
-          "label": "Continuation",
-          "next": "continuation",
-          "fitness": ["ft_momentum", "p_bias", "ob_momentum", "ob_structure"]
-        },
-        {
-          "value": "obvious_momentum",
-          "label": "Obvious momentum setup",
-          "next": "obvious_momentum",
-          "fitness": ["ft_momentum", "ft_storyline", "p_bias"]
-        },
-        {
-          "value": "against_bias",
-          "label": "Against bias and momentum",
-          "next": "against_bias",
-          "fitness": ["ft_momentum", "p_against", "p_msnr_ambiguous"]
-        },
-        {
-          "value": "confused_momentum",
-          "label": "Confused momentum state",
-          "next": "confused_momentum",
-          "fitness": ["ft_storyline", "p_msnr_ambiguous"]
-        },
-        {
-          "value": "all_time_high",
-          "label": "All time high",
-          "next": "all_time_high",
-          "fitness": ["ft_momentum", "ft_storyline"]
+          "priority": 7,
+          "enabledBy": ["market_gap"]
         }
       ]
     },
 
-    "trading_with_trend": {
-      "id": "trading_with_trend",
-      "title": "Trading With Trend",
+    "four_h_storyline": {
+      "id": "four_h_storyline",
+      "title": "4H Storyline — Variant",
+      "type": "choice",
+      "question": "Which 4H Storyline variant applies?",
+      "options": [
+        { "value": "confused_momentum", "label": "Confused Momentum State", "next": "confused_momentum", "enabledBy": ["consolidation_choppy"] },
+        { "value": "obvious_momentum", "label": "Obvious Momentum Setup", "next": "obvious_momentum", "enabledBy": ["trending_strong"] },
+        { "value": "against_bias", "label": "Against Bias and Momentum", "next": "against_bias", "enabledBy": ["counter_trend"] },
+        { "value": "continuation", "label": "Continuation", "next": "continuation", "enabledBy": ["fresh_impulse", "trending_normal"] }
+      ]
+    },
+
+    "confused_momentum": {
+      "id": "confused_momentum",
+      "title": "Confused Momentum State",
       "type": "gate",
-      "question": "Confirm the trading-with-trend steps.",
+      "question": "Confirm the confused-momentum checks.",
       "checks": [
-        { "id": "twt_momentum", "label": "Momentum and bias (trend) found" },
-        { "id": "twt_5m_tl", "label": "5m trend line visible on 15m/30m (and possibly 1H) supporting bias" },
-        { "id": "twt_entries", "label": "Entries with trend line until it breaks and closes on H1" },
-        { "id": "twt_orb", "label": "ORB marked and validated, aligned with trend line (slightly below for buys / above for sells)" },
-        { "id": "twt_liquidity", "label": "Obvious liquidity marked" },
-        { "id": "twt_multi_tf", "label": "ORB appears on multiple timeframes + obvious liquidity = high probability" }
+        { "id": "cm_balanced", "label": "Balanced momentum / choppy market / unclear bias on 4H identified" },
+        { "id": "cm_low_prob", "label": "Marked MSNR levels (as stop-loss zones) = low probability both for and against bias" },
+        { "id": "cm_wait", "label": "Waiting for confirmation on MSNR levels" },
+        { "id": "cm_str_rts", "label": "On failure of those MSNR levels: use STR or RTS" },
+        { "id": "cm_two_tls", "label": "Two opposing trend lines → use breakout support approach" }
       ],
-      "onYes": "entries",
+      "onYes": "trading_with_trend",
       "onNo": "wait_state"
     },
 
-    "trend_line_break_retest": {
-      "id": "trend_line_break_retest",
-      "title": "Trend Line Break and Retest",
+    "obvious_momentum": {
+      "id": "obvious_momentum",
+      "title": "Obvious Momentum Setup",
       "type": "gate",
-      "question": "Confirm the trend-line-break-and-retest steps.",
+      "question": "Confirm the obvious-momentum setup.",
       "checks": [
-        { "id": "tlbr_verify", "label": "Trend line carefully marked and verified" },
-        { "id": "tlbr_break", "label": "Price broke and closed beyond trend line" },
-        { "id": "tlbr_no_retest_only", "label": "Not entering on retest alone" },
-        { "id": "tlbr_liquidity", "label": "Navigated timeframes to find obvious liquidity to sweep" },
-        { "id": "tlbr_orb", "label": "ORB or BB validated after the liquidity" },
-        { "id": "tlbr_place", "label": "Trade placed" }
+        { "id": "om_with_trend", "label": "Trading with the trend and momentum" },
+        { "id": "om_trendline_support", "label": "Or: use support of bias/momentum to trade trend line on LTF until it breaks" },
+        { "id": "om_target", "label": "Target = marked MSNR levels after support (entry ±300 points / 30 pips from trend line)" },
+        { "id": "om_rts", "label": "Until trend line breaks: MSNR against momentum keeps failing → becomes Resistance Turn Support" },
+        { "id": "om_rts_tl", "label": "RTS coincides with normal trend line → high probability → wait for 5m liquidity sweep to trend line or ORB" }
       ],
-      "onYes": "entries",
+      "onYes": "order_block_validation",
       "onNo": "wait_state"
     },
 
-    "opposing_trendlines": {
-      "id": "opposing_trendlines",
-      "title": "Opposing Trendlines Breakout and Retest",
+    "against_bias": {
+      "id": "against_bias",
+      "title": "Against Bias and Momentum",
       "type": "gate",
-      "question": "Confirm the opposing-trendlines setup.",
+      "question": "Confirm the against-bias setup.",
       "checks": [
-        { "id": "ot_momentum", "label": "Recent momentum or bias identified" },
-        { "id": "ot_opposing_poi", "label": "Opposing HTF (4H) POI failing to reverse momentum but persistent to counter" },
-        { "id": "ot_consolidation", "label": "Consolidation for hours creating valid opposing LTF→HTF trend lines" },
-        { "id": "ot_breakout", "label": "Breakout in support of momentum" }
+        { "id": "ab_extreme_msnr", "label": "First MSNR = inducement → use EXTREME traditional MSNR" },
+        { "id": "ab_itw", "label": "Use InTheWicks to determine tight stop-loss entry" },
+        { "id": "ab_lwtp", "label": "Use HTF long wick TP to determine possible TP levels" },
+        { "id": "ab_fallback", "label": "If no valid ORB in wicks: use 5m MSS or trend-line break-and-retest within marked zone (may fail 2–3 times before one picks)" },
+        { "id": "ab_msnr_ambiguous", "label": "If MSNR multiple/confusing: use traditional or latter options" },
+        { "id": "ab_msnr_fresh", "label": "If MSNR already mitigated (un-fresh): invalidates the trade" },
+        { "id": "ab_mss", "label": "15m/30m obvious MSS/CHOCH for bias before targeted entry — continuous trading without waiting for reversal" }
       ],
-      "onYes": "entries",
-      "onNo": "wait_state"
-    },
-
-    "market_gap": {
-      "id": "market_gap",
-      "title": "Market Gap",
-      "type": "gate",
-      "question": "Identify the gap type and confirm direction.",
-      "checks": [
-        { "id": "mg_consolidation_gap", "label": "Consolidation-all-week → next week opens with huge gap" },
-        { "id": "mg_macro_safe_haven", "label": "Weekend macro news → gold safe haven → gap up (bullish)" },
-        { "id": "mg_macro_other_asset", "label": "Weekend macro news → other asset safe haven (oil) → gold gap down (bearish)" },
-        { "id": "mg_dollar_effect", "label": "Weekend dollar news → week opens with gap in reversal of dollar effect (dollar down gold up; vice versa)" }
-      ],
-      "onYes": "entries",
+      "onYes": "order_block_validation",
       "onNo": "wait_state"
     },
 
@@ -224,7 +240,7 @@
 
     "slp_storyline": {
       "id": "slp_storyline",
-      "title": "1H / 30m / 15m SLP Storyline (Bias Continuation)",
+      "title": "1H / 30m / 15m SLP Storyline (Priority 3)",
       "type": "gate",
       "question": "Walk the SLP storyline for bias continuation.",
       "checks": [
@@ -237,75 +253,134 @@
         { "id": "slp_1m_5m", "label": "1M/5M confirmation (MSS > Pullback > Origin or Next POI)" },
         { "id": "slp_itw", "label": "Aggressive entry for ITW textbook validated order block structure" }
       ],
-      "onYes": "entries",
+      "onYes": "order_block_validation",
       "onNo": "wait_state"
     },
 
-    "obvious_momentum": {
-      "id": "obvious_momentum",
-      "title": "Obvious Momentum Setup",
+    "tony_ike_1h_30m": {
+      "id": "tony_ike_1h_30m",
+      "title": "Tony Ike — 1H / 30m (Priority 4)",
       "type": "gate",
-      "question": "Confirm the obvious-momentum setup.",
+      "question": "Confirm Tony Ike on 1H or 30m.",
       "checks": [
-        { "id": "om_with_trend", "label": "Trading with the trend and momentum" },
-        { "id": "om_trendline_support", "label": "Or: use support of bias/momentum to trade trend line on LTF until it breaks" },
-        { "id": "om_target", "label": "Target = marked MSNR levels after support (entry ±300 points / 30 pips from support trend line)" },
-        { "id": "om_rts", "label": "Until trend line breaks: MSNR against momentum keeps failing → becomes Resistance Turn Support" },
-        { "id": "om_rts_tl", "label": "RTS coincides with normal trend line → high probability → wait for 5m liquidity sweep to trend line or ORB" }
+        { "id": "tk1_mss", "label": "Valid MSS or valid CHOCH identified" },
+        { "id": "tk1_pullback", "label": "Pullback inducement → liquidity after MSS/CHOCH" },
+        { "id": "tk1_poi", "label": "Next POI identified (validated OB, validated BB, V MSNR, or A MSNR)" },
+        { "id": "tk1_sl", "label": "Optimal stop loss line identified" },
+        { "id": "tk1_place", "label": "Trade placed" }
       ],
-      "onYes": "entries",
+      "onYes": "order_block_validation",
       "onNo": "wait_state"
     },
 
-    "against_bias": {
-      "id": "against_bias",
-      "title": "Against Bias and Momentum",
+    "tony_ike_15m": {
+      "id": "tony_ike_15m",
+      "title": "Tony Ike — 15m (Priority 5)",
       "type": "gate",
-      "question": "Confirm the against-bias setup.",
+      "question": "Confirm Tony Ike on 15m.",
       "checks": [
-        { "id": "ab_extreme_msnr", "label": "First MSNR = inducement → use EXTREME traditional MSNR" },
-        { "id": "ab_itw", "label": "Use InTheWicks to determine tight stop-loss entry" },
-        { "id": "ab_lwtp", "label": "Use HTF long wick TP to determine possible TP levels" },
-        { "id": "ab_fallback", "label": "If no valid ORB in wicks: use 5m MSS or trend-line break-and-retest as confirmation within marked zone (may fail 2–3 times before one picks)" },
-        { "id": "ab_msnr_ambiguous", "label": "If MSNR multiple/confusing: use traditional or latter options" },
-        { "id": "ab_msnr_fresh", "label": "If MSNR already mitigated (un-fresh): invalidates the trade (optional)" },
-        { "id": "ab_mss", "label": "15m/30m obvious MSS/CHOCH for bias before targeted entry — continuous trading without waiting for reversal into targeted entry levels" }
+        { "id": "tk15_mss", "label": "Valid MSS or valid CHOCH identified" },
+        { "id": "tk15_pullback", "label": "Pullback inducement → liquidity after MSS/CHOCH" },
+        { "id": "tk15_poi", "label": "Next POI identified (validated OB, validated BB, V MSNR, or A MSNR)" },
+        { "id": "tk15_sl", "label": "Optimal stop loss line identified" },
+        { "id": "tk15_place", "label": "Trade placed" }
       ],
-      "onYes": "entries",
+      "onYes": "order_block_validation",
       "onNo": "wait_state"
     },
 
-    "confused_momentum": {
-      "id": "confused_momentum",
-      "title": "Confused Momentum State",
-      "type": "gate",
-      "question": "Confirm the confused-momentum checks.",
-      "checks": [
-        { "id": "cm_balanced", "label": "Balanced momentum / choppy market / unclear bias on 4H identified" },
-        { "id": "cm_low_prob", "label": "Marked MSNR levels (as stop-loss zones) = low probability both for and against bias" },
-        { "id": "cm_wait", "label": "Waiting for confirmation on MSNR levels" },
-        { "id": "cm_str_rts", "label": "On failure of those MSNR levels: use STR or RTS" },
-        { "id": "cm_two_tls", "label": "Two opposing trend lines → use breakout support approach" }
-      ],
-      "onYes": "wait_state",
-      "onNo": "wait_state",
-      "note": "Confused momentum routes to wait. When confirmation appears (RTS + normal trend line + 5m sweep to TL or ORB), route to Trading With Trend."
+    "trading_with_trend": {
+      "id": "trading_with_trend",
+      "title": "Trading With Trend — Variant (Priority 6)",
+      "type": "choice",
+      "question": "Which Trading With Trend variant applies?",
+      "options": [
+        { "value": "trend_line_break_retest", "label": "Trend Line Break and Retest", "next": "trend_line_break_retest", "enabledBy": ["tl_broken"] },
+        { "value": "opposing_trendlines", "label": "Opposing Trendlines Breakout and Retest", "next": "opposing_trendlines", "enabledBy": ["opposing_tls"] }
+      ]
     },
 
-    "all_time_high": {
-      "id": "all_time_high",
-      "title": "All Time High",
+    "trend_line_break_retest": {
+      "id": "trend_line_break_retest",
+      "title": "Trend Line Break and Retest",
       "type": "gate",
-      "question": "Has the all-time-high body closed on 4H?",
+      "question": "Confirm the trend-line-break-and-retest steps.",
       "checks": [
-        { "id": "ath_body_close", "label": "ATH body closed on 4H" },
-        { "id": "ath_switch_15m_5m", "label": "Switched to 15m/5m for continuation analysis" },
-        { "id": "ath_7000", "label": "Analysed to about 7000 points" },
-        { "id": "ath_back", "label": "Back to 30m/4H storylines" }
+        { "id": "tlbr_verify", "label": "Trend line carefully marked and verified" },
+        { "id": "tlbr_break", "label": "Price broke and closed beyond trend line" },
+        { "id": "tlbr_no_retest_only", "label": "Not entering on retest alone" },
+        { "id": "tlbr_liquidity", "label": "Navigated timeframes to find obvious liquidity to sweep" },
+        { "id": "tlbr_orb", "label": "ORB or BB validated after the liquidity" },
+        { "id": "tlbr_place", "label": "Trade placed" }
       ],
-      "onYes": "first_things",
-      "onNo": "route_setup",
-      "note": "After ATH mode: return to 30m/4H storylines and resume from first_things."
+      "onYes": "order_block_validation",
+      "onNo": "wait_state"
+    },
+
+    "opposing_trendlines": {
+      "id": "opposing_trendlines",
+      "title": "Opposing Trendlines Breakout and Retest",
+      "type": "gate",
+      "question": "Confirm the opposing-trendlines setup.",
+      "checks": [
+        { "id": "ot_momentum", "label": "Recent momentum or bias identified" },
+        { "id": "ot_opposing_poi", "label": "Opposing HTF (4H) POI failing to reverse momentum but persistent to counter" },
+        { "id": "ot_consolidation", "label": "Consolidation for hours creating valid opposing LTF→HTF trend lines" },
+        { "id": "ot_breakout", "label": "Breakout in support of momentum" }
+      ],
+      "onYes": "order_block_validation",
+      "onNo": "wait_state"
+    },
+
+    "market_gap": {
+      "id": "market_gap",
+      "title": "Market Gap",
+      "type": "gate",
+      "question": "Identify the gap type and confirm direction.",
+      "checks": [
+        { "id": "mg_consolidation_gap", "label": "Consolidation-all-week → next week opens with huge gap" },
+        { "id": "mg_macro_safe_haven", "label": "Weekend macro news → gold safe haven → gap up (bullish)" },
+        { "id": "mg_macro_other_asset", "label": "Weekend macro news → other asset safe haven (oil) → gold gap down (bearish)" },
+        { "id": "mg_dollar_effect", "label": "Weekend dollar news → week opens with gap in reversal of dollar effect (dollar down gold up; vice versa)" }
+      ],
+      "onYes": "order_block_validation",
+      "onNo": "wait_state"
+    },
+
+    "order_block_validation": {
+      "id": "order_block_validation",
+      "title": "Order Block Validation",
+      "type": "gate",
+      "question": "Validate the order block. (Cleared liquidity is optional but higher probability.)",
+      "checks": [
+        { "id": "ob_type", "label": "Type: traditional or mid-range order block" },
+        { "id": "ob_fvg", "label": "Creates fair value gap" },
+        { "id": "ob_momentum", "label": "Created momentum" },
+        { "id": "ob_structure", "label": "Broke structure (MSS / CHOCH / BOS)" },
+        { "id": "ob_unmitigated", "label": "Unmitigated" },
+        { "id": "ob_liquidity", "label": "Cleared liquidity (optional — higher probability)" },
+        { "id": "ob_htf_ltf", "label": "Consistent HTF → LTF (high probability)" },
+        { "id": "ob_region", "label": "If same block consistent across HTF→LTF with small pip-gap: use entire HTF region" },
+        { "id": "ob_liquidity_zone", "label": "Equal or inclined level OB = liquidity zone → hit at base → wick entry or TOL entry" },
+        { "id": "ob_sequence", "label": "ORB check → liquidity zone check → ITW or TOL check (in that order)" }
+      ],
+      "onYes": "sl_tp_validation",
+      "onNo": "wait_state"
+    },
+
+    "sl_tp_validation": {
+      "id": "sl_tp_validation",
+      "title": "SL / TP Validation",
+      "type": "gate",
+      "question": "Confirm the SL / TP layer for this trade.",
+      "checks": [
+        { "id": "sltp_optimal_sl", "label": "4H optimal SL zone identified (may be valid OB but not entirely; valid MSNR after liquidity; swept liquidity before it)" },
+        { "id": "sltp_safe_entry", "label": "Safe entry origin identified (emanates from 4H optimal SL line)" },
+        { "id": "sltp_lwtp", "label": "Long wick TP identified (HTF powerful sweep + momentum dies + 4H storyline for reversal)" },
+        { "id": "sltp_super_slz", "label": "Super long 4H SLZ breakdown applied (feeds main trend = whole stretch; feeds opposition = split → inducement → optimal SLZ)" }
+      ],
+      "onYes": "entries",
+      "onNo": "wait_state"
     },
 
     "entries": {
@@ -314,9 +389,10 @@
       "type": "choice",
       "question": "Which entry approach applies?",
       "options": [
-        { "value": "itw", "label": "InTheWicks (aggressive if trade is in favor of bias and momentum)", "next": "itw_entry" },
-        { "value": "tol", "label": "Tip of Liquidity (candle close to ORB with wick into ORB)", "next": "tol_entry" },
-        { "value": "safe", "label": "Safe Entry (emanates from 4H optimal stop-loss line)", "next": "safe_entry" }
+        { "value": "itw", "label": "InTheWicks — aggressive if trade is in favor of bias and momentum", "next": "itw_entry" },
+        { "value": "tol", "label": "Tip of Liquidity — candle close to ORB with wick into ORB", "next": "tol_entry" },
+        { "value": "safe_validated", "label": "Safe validated ORB/BB entry", "next": "safe_validated_entry" },
+        { "value": "safe_optimal_sl", "label": "Safe entry emanating from 4H optimal stop-loss line", "next": "safe_optimal_sl_entry" }
       ]
     },
 
@@ -348,15 +424,29 @@
       "onNo": "wait_state"
     },
 
-    "safe_entry": {
-      "id": "safe_entry",
-      "title": "Safe Entry",
+    "safe_validated_entry": {
+      "id": "safe_validated_entry",
+      "title": "Safe Validated ORB / BB Entry",
       "type": "gate",
-      "question": "Confirm Safe Entry.",
+      "question": "Confirm safe validated ORB/BB entry.",
       "checks": [
-        { "id": "safe_mark_optimal", "label": "4H optimal stop-loss zone marked" },
-        { "id": "safe_emanate", "label": "Entry emanates from optimal stop-loss line" },
-        { "id": "safe_sl_same", "label": "SL is almost same (if not entirely same) as optimal stop-loss" }
+        { "id": "sv_orb_bb", "label": "Valid ORB or BB identified as SL / liquidity zone" },
+        { "id": "sv_fvg", "label": "Obvious FVG immediately after the SL zone / liquidity zone" },
+        { "id": "sv_safe_entry", "label": "Entry at validated safe level" }
+      ],
+      "onYes": "take_profits",
+      "onNo": "wait_state"
+    },
+
+    "safe_optimal_sl_entry": {
+      "id": "safe_optimal_sl_entry",
+      "title": "Safe Entry — 4H Optimal Stop-Loss Line",
+      "type": "gate",
+      "question": "Confirm safe entry from 4H optimal SL line.",
+      "checks": [
+        { "id": "sos_mark_optimal", "label": "4H optimal stop-loss zone marked" },
+        { "id": "sos_emanate", "label": "Entry emanates from optimal stop-loss line" },
+        { "id": "sos_sl_same", "label": "SL is almost same (if not entirely same) as optimal stop-loss" }
       ],
       "onYes": "take_profits",
       "onNo": "wait_state"
@@ -380,7 +470,7 @@
       "id": "profit_protection",
       "title": "Profit Protection",
       "type": "gate",
-      "question": "How will you manage the trade? (With trend vs against trend determines the protection rule.)",
+      "question": "How will you manage the trade?",
       "checks": [
         { "id": "pp_none", "label": "Best: don't protect at all — close when profit is enough" },
         { "id": "pp_with_trend_be", "label": "With trend: no breakeven until max profit > 80%" },
@@ -400,10 +490,10 @@
     },
 
     "complete": {
-        "id": "complete",
-        "title": "Complete",
-        "type": "success",
-        "message": "Trade cycle complete."
-        }
+      "id": "complete",
+      "title": "Complete",
+      "type": "success",
+      "message": "Trade cycle complete."
+    }
   }
 }

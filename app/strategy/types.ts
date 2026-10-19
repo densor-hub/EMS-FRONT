@@ -25,9 +25,12 @@ export interface Option {
   label: string;
   next: string;
   fitness?: string[];
+  priority?: number;
+  enabledBy?: string[];
 }
 
 export interface Node {
+  conditionalNext?: { when: string[]; next: string }[];
   id: string;
   title: string;
   type: NodeType;
