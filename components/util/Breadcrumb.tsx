@@ -28,7 +28,7 @@ export function DynamicBreadcrumb() {
   if (segments.length === 0) return null;
 
   return (
-    <Breadcrumb className='px-2 block sm:hidden text-center'>
+    <Breadcrumb className='px-2 block  text-center'>
       <BreadcrumbList>
         {segments.map((segment, index) => {
           const href = `/${segments.slice(0, index + 1).join('/')}`;

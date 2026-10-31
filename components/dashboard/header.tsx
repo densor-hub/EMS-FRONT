@@ -69,11 +69,11 @@ export function Header({ title, description }: HeaderProps) {
           {/* Title — hidden on mobile */}
           <div className="flex-1 min-w-0" >
             <h1 className="hidden sm:block text-sm md:text-xl lg:text-2xl font-semibold text-foreground truncate">
-              {title}
+              {/* {title} */}
             </h1>
             {description && (
-              <p className="hidden sm:block text-sm text-muted-foreground mt-0.5">
-                {description}
+              <p className="hidden md:block text-sm text-muted-foreground mt-0.5">
+                <DynamicBreadcrumb/>
               </p>
             )}
           </div>
@@ -174,7 +174,7 @@ export function Header({ title, description }: HeaderProps) {
             </DropdownMenu>
           </div>
         </div>
-      <DynamicBreadcrumb/>
+      <div className='md:hidden'><DynamicBreadcrumb  /></div>
 
       </header>
       
