@@ -580,4 +580,23 @@ export const logout = async (): Promise<void> => {
   }
 };
 
+// In customAxios.ts, at the bottom, before export default:
+
+export const confirmAccount = async (token: string, email: string): Promise<any> => {
+  const res = await rawInstance.get('/auth/Account/Confirm', {
+    params: { token, email },
+  });
+  return res.data;
+};
+
+export const setPassword = async (payload: {
+  email: string;
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<any> => {
+  const res = await rawInstance.post('/auth/Set-Password', payload);
+  return res.data;
+};
+
 export default axiosInstance;

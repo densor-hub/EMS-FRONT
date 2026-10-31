@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 const PUBLIC_ONLY_PREFIXES = [
   '/auth/login',
   '/auth/signup',
+  '/auth/confirm', 
   '/auth/forgot-password',
   '/auth/reset-password',
   '/'
