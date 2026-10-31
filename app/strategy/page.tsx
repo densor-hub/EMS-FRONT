@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import rulesJson from "./rules.json";
-import type { PathEntry, Rules } from "./types";
-import { getNode, progress } from "./engine";
-import { ProgressBar } from "./ProgressBar";
+import type { Check, PathEntry, Rules } from "./types";
+import { getNode } from "./engine";
 import { GateNode } from "./GateNode";
 import { ChoiceNode } from "./ChoiceNode";
 import { ScoreNode } from "./ScoreNode";
@@ -22,7 +21,7 @@ export default function StrategyPage() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
   const node = useMemo(() => getNode(rules, currentId), [currentId]);
-  const pct = useMemo(() => progress(rules, path), [path]);
+  const currentMode = path[path.length - 1]?.mode;
 
   function toggle(id: string) {
     setChecked((prev) => {
@@ -33,10 +32,19 @@ export default function StrategyPage() {
     });
   }
 
-  function advance(nextId: string, result: string) {
+  function advance(nextId: string, result: string, mode?: string) {
+    let pool: Check[] = node.checks ?? [];
+    if (node.conditionalChecks) {
+      const key =
+        mode && node.conditionalChecks[mode]
+          ? mode
+          : Object.keys(node.conditionalChecks)[0];
+      pool = [...pool, ...(node.conditionalChecks[key] ?? [])];
+    }
+
     const checkedItems = Array.from(checked).map((id) => {
       const label =
-        node.checks?.find((c) => c.id === id)?.label ??
+        pool.find((c) => c.id === id)?.label ??
         node.options?.find((o) => o.value === id)?.label ??
         id;
       return { id, label };
@@ -50,6 +58,7 @@ export default function StrategyPage() {
         result,
         at: Date.now(),
         checked: checkedItems,
+        mode,
       },
     ]);
 
@@ -65,53 +74,103 @@ export default function StrategyPage() {
 
   function renderNode() {
     switch (node.type) {
-     case "gate":
-  return (
-    <GateNode
-      node={node}
-      checked={checked}
-      onToggle={toggle}
-      onAnswer={(yes) => {
-        let next = yes ? node.onYes! : node.onNo!;
+      case "gate": {
+        let visibleChecks = node.checks ?? [];
 
-        // Conditional routing: first match wins.
-        if (yes && node.conditionalNext) {
-            for (const c of node.conditionalNext) {
-              if (c.when.every((id) => checked.has(id))) {
-                // Skip if we've already been to this node in this cycle
-                const alreadyVisited = path.some((p) => p.nodeId === c.next);
-                if (alreadyVisited) continue;
-                next = c.next;
-                break;
-              }
-            }
+        if (node.id === "first_things") {
+          const newsHandled = path.some((p) => p.nodeId === "news_check");
+          if (newsHandled) {
+            visibleChecks = visibleChecks.filter((c) => c.id !== "ft_news");
           }
+        }
 
-        const allMandatoryOk =
-          node.checks?.every(
-            (c) => !c.mandatory || checked.has(c.id)
-          ) ?? true;
-        const result = yes
-          ? allMandatoryOk
-            ? "Yes"
-            : "Yes (but mandatory missing)"
-          : "No";
-        advance(next, result);
-      }}
-    />
-  );
+        let conditionChecks: Check[] = [];
+        let conditionLabel = "";
+        if (node.conditionalChecks) {
+          const conditionKey =
+            currentMode && node.conditionalChecks[currentMode]
+              ? currentMode
+              : Object.keys(node.conditionalChecks)[0];
+          conditionChecks = node.conditionalChecks[conditionKey] ?? [];
 
-      case "choice": {
-      const marketCondition = path.find((p) => p.nodeId === "market_condition")?.result;
-      return (
-        <ChoiceNode
-          node={node}
-          path={path}
-          currentCondition={marketCondition}
-          onPick={(next, label) => advance(next, label)}
-        />
-      );
-    }
+          const conditionOption = rules.nodes["market_condition"]?.options?.find(
+            (o) => o.value === conditionKey
+          );
+          conditionLabel = conditionOption?.label ?? conditionKey;
+        }
+
+        let sections:
+          | { title: string; checks: Check[] }[]
+          | undefined = undefined;
+
+        if (node.conditionalChecks && conditionChecks.length > 0) {
+          if (visibleChecks.length > 0) {
+            sections = [
+              { title: "Prerequisite", checks: visibleChecks },
+              {
+                title: `Market Condition — ${conditionLabel}`,
+                checks: conditionChecks,
+              },
+            ];
+          } else {
+            sections = [
+              {
+                title: `Market Condition — ${conditionLabel}`,
+                checks: conditionChecks,
+              },
+            ];
+          }
+        }
+
+        const visibleNode: typeof node = sections
+          ? { ...node, checks: sections.flatMap((s) => s.checks) }
+          : { ...node, checks: visibleChecks };
+
+        return (
+          <GateNode
+            node={visibleNode}
+            checked={checked}
+            onToggle={toggle}
+            onAnswer={(yes) => {
+              let next = yes ? node.onYes! : node.onNo!;
+              let mode: string | undefined = undefined;
+
+              if (yes && node.conditionalNext) {
+                for (const c of node.conditionalNext) {
+                  if (c.when.every((id) => checked.has(id))) {
+                    const alreadyVisited = path.some(
+                      (p) => p.nodeId === c.next
+                    );
+                    if (alreadyVisited) continue;
+                    next = c.next;
+                    mode = c.mode;
+                    break;
+                  }
+                }
+              }
+
+              advance(next, yes ? "Yes" : "No", mode);
+            }}
+            sections={sections}
+          />
+        );
+      }
+
+      case "choice":
+        return (
+          <ChoiceNode
+            node={node}
+            path={path}
+            mode={currentMode}
+            onPick={(next, label, value) => {
+              // For market_condition, the picked option's value IS the
+              // condition key used in downstream conditionalChecks.
+              const outMode =
+                node.id === "market_condition" ? value : currentMode;
+              advance(next, label, outMode);
+            }}
+          />
+        );
 
       case "score":
         return (
@@ -125,7 +184,8 @@ export default function StrategyPage() {
                 next,
                 passed
                   ? `Pass (${score}/${node.checks?.length})`
-                  : `Fail (${score}/${node.checks?.length})`
+                  : `Fail (${score}/${node.checks?.length})`,
+                currentMode
               );
             }}
           />
@@ -140,7 +200,8 @@ export default function StrategyPage() {
             onContinue={() =>
               advance(
                 checked.size ? node.onYes! : node.onNo!,
-                checked.size ? "Special cases ticked" : "None"
+                checked.size ? "Special cases ticked" : "None",
+                currentMode
               )
             }
           />
@@ -152,20 +213,21 @@ export default function StrategyPage() {
             node={node}
             checked={checked}
             onToggle={toggle}
-            onAnswer={() => advance(node.onYes ?? "END", "Journaled")}
+            onAnswer={() =>
+              advance(node.onYes ?? "END", "Journaled", currentMode)
+            }
           />
         );
 
-     case "success":
-            return (
-                <SuccessNode
-                node={node}
-                rules={rules}
-                path={path}
-                onRestart={restart}
-                />
-            );
-        
+      case "success":
+        return (
+          <SuccessNode
+            node={node}
+            rules={rules}
+            path={path}
+            onRestart={restart}
+          />
+        );
 
       case "stop":
         return <StopNode node={node} onRestart={restart} />;
@@ -184,7 +246,7 @@ export default function StrategyPage() {
         <p className="mb-4 text-xs text-slate-500">
           SMC + SNR + MSNR + News · every gate is a yes/no · no trade if unsure
         </p>
-       <StepNodes rules={rules} currentId={currentId} path={path} />
+        <StepNodes rules={rules} currentId={currentId} path={path} />
         <div className="mt-4">{renderNode()}</div>
       </div>
 

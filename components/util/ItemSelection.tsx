@@ -11,7 +11,7 @@ import { Plus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import type { Item, ItemStockLevelDTO } from "@/lib/types";
 import { formatNumberWithCommas } from "@/helpers/formatStrings";
 import { CustomSelect } from "./CustomSelect";
-import { config } from "./AppConfig";
+import { config, settings } from "./AppConfig";
 
 interface ItemSelectionProps {
   items: Item[];
@@ -28,6 +28,7 @@ interface ItemSelectionProps {
   transactionActionType?: string;
   price?: string;
   setPrice?: Dispatch<SetStateAction<string>>;
+  allowSelection? : boolean;
 }
 
 export function ItemSelection({
@@ -43,37 +44,39 @@ export function ItemSelection({
   onAddItem,
   price,
   setPrice,
-  transactionActionType = "SALE"
+  transactionActionType = "SALE",
+  allowSelection = true
 }: ItemSelectionProps) {
   // Get selected item details
   const selectedItemDetails = items.find(i => i.id === selectedItem);
-  const isPurchase = transactionActionType?.toUpperCase().trim() === "PURCHASE";
-  const isSale = transactionActionType?.toUpperCase().trim() === "SALE";
-  const isStock = transactionActionType?.toUpperCase().trim() === "STOCK";
-   const isTrans = transactionActionType?.toUpperCase().trim() === "TRANS";
+  const isPurchase = transactionActionType?.toUpperCase().trim() === config.transactionTypes.PURC;
+   const isStockAdjustment = transactionActionType?.toUpperCase().trim() === config.transactionTypes.ADJS;
+  const isSale = transactionActionType?.toUpperCase().trim() ===  config.transactionTypes.SALE;
+  const isStock = transactionActionType?.toUpperCase().trim() ===  config.transactionTypes.STCK;
+   const isTrans = transactionActionType?.toUpperCase().trim() ===  config.transactionTypes.TRAN;
   
   // Get available quantity from stock level
   const availableQty = stockLevel?.availableQuantity ?? 0;
 
   // ✅ Determine the price to display
   const getDisplayPrice = () => {
-    if (isPurchase) {
+    if (isPurchase || isStockAdjustment) {
       // ✅ For purchases: show the entered price (if any)
       return price ? formatNumberWithCommas(price) : '';
     } else {
       // ✅ For sales: show the selling price
       return selectedItemDetails 
-        ? `${config?.currency} ${formatNumberWithCommas(selectedItemDetails.sellingPrice.toString())}` 
+        ? `${settings?.currency} ${formatNumberWithCommas(selectedItemDetails.sellingPrice.toString())}` 
         : '';
     }
   };
 
   // ✅ Determine if price should be editable
-  const isPriceEditable = isPurchase;
+  const isPriceEditable = isPurchase || isStockAdjustment;
 
   // ✅ Determine price input className
   const getPriceClassName = () => {
-    if (isPurchase) {
+    if (isPurchase || isStockAdjustment) {
       return "bg-white border-border text-right";
     } else {
       return "bg-primary/10 border-primary/30 text-primary font-bold text-right cursor-not-allowed";
@@ -83,7 +86,7 @@ export function ItemSelection({
   // ✅ 
   //  price change
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isPurchase && setPrice) {
+    if ((isPurchase || isStockAdjustment) && setPrice) {
       // Only allow numbers and decimal
       const value = e.target.value.replace(/[^0-9.]/g, '');
       setPrice(value);
@@ -116,7 +119,7 @@ export function ItemSelection({
     }
     
 
-    if (isPurchase) {
+    if (isPurchase || isStockAdjustment) {
       // ✅ For purchase: need quantity AND price
       const qty = parseInt(quantity);
       const priceNum = parseFloat(price || '0');
@@ -169,7 +172,7 @@ export function ItemSelection({
               options={items?.map((x) => ({
                 value: x.id.toString(),
                 label: x.name,
-                discriptionLabel: `${config.currency} ${formatNumberWithCommas(x.sellingPrice.toString())}`
+                discriptionLabel: `${settings?.currency} ${formatNumberWithCommas(x.sellingPrice.toString())}`
               }))}
               value={selectedItem}
               onValueChange={setSelectedItem}
@@ -178,6 +181,7 @@ export function ItemSelection({
               searchable={true}
               clearable={true}
               size="md"
+              disabled={!allowSelection}
             />
             {errors.selectedItem && (
               <p className="text-sm text-destructive mt-1">{errors.selectedItem}</p>
@@ -202,8 +206,8 @@ export function ItemSelection({
                     : 'bg-white border-border'
                 } border-border text-right ${errors.quantity ? 'border-destructive' : ''}`}
                 aria-invalid={!!errors.quantity}
-                readOnly={isStock}
-                disabled={isStock || !selectedItem || isStockLevelLoading}
+                readOnly={isStock || !allowSelection}
+                disabled={isStock || !allowSelection || !selectedItem || isStockLevelLoading}
               />
               {errors.quantity && !isStock && (
                 <p className="text-sm text-destructive mt-1">{errors.quantity}</p>
@@ -213,14 +217,14 @@ export function ItemSelection({
             {/* ✅ Price Input - col-span-1 */}
             <div className="space-y-2 md:col-span-1 w-full">
               <Label className="text-foreground">
-                Price <span className="text-muted-foreground">{config?.currency}</span>
-                {isPurchase && <span className="text-destructive">*</span>}
+                Price <span className="text-muted-foreground">{settings?.currency}</span>
+                {(isPurchase || isStockAdjustment) && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 value={getDisplayPrice()}
                 readOnly={!isPriceEditable}
                 className={getPriceClassName()}
-                placeholder={isPurchase ? 'Enter price' : ''}
+                placeholder={(isPurchase || isStockAdjustment) ? 'Enter price' : ''}
                 onChange={handlePriceChange}
                 disabled={!selectedItem || isStockLevelLoading}
               />

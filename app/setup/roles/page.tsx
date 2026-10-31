@@ -17,9 +17,11 @@ import { Switch } from '@/components/ui/switch';
 import { useToaster } from '@/components/util/CustomToast';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
+import { useAuth } from '@/lib/auth-context';
 
 export default function RolesPage() {
   const toast = useToaster();
+   const { selectedShop} = useAuth()
   const [appRoutes, setAppRoutes] = useState<AppRoute[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,13 +39,10 @@ export default function RolesPage() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isActive, setIsActive] = useState<boolean>(false);
 
-  useEffect(() => {
-    void loadRoles();
-    void getAppRoutes();
-  }, []);
-
+ 
   const loadRoles = async () => {
     try {
+      setIsLoading(true);
       const { data } = await axiosInstance.get(`/positions?OnlyActive=${false}`);
       setRoles(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -55,12 +54,22 @@ export default function RolesPage() {
 
   const getAppRoutes = async () => {
     try {
+      setIsLoading(true)
       const { data } = await axiosInstance.get('/app/Routes');
       setAppRoutes(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading routes:', error);
+    } finally{
+      setIsLoading(false)
     }
   };
+
+   useEffect(() => {
+    void getAppRoutes().then((res) => {
+     // if (res?.)
+      void loadRoles();
+    });
+  }, [selectedShop]);
 
   const resetForm = () => {
     setName('');
@@ -246,9 +255,9 @@ const handleClearChildren = (parentId: string) => {
       sortable: true,
       render: (role: Role) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+          {/* <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
-          </div>
+          </div> */}
           <div>
             <p className="font-medium text-foreground">{role.name}</p>
             <p className="text-xs text-muted-foreground">{role.description}</p>
@@ -276,6 +285,7 @@ const handleClearChildren = (parentId: string) => {
     {
       key: 'permissions' as keyof Role,
       label: 'Permissions',
+       hideOnMobile: true,
       render: (role: Role) => {
         const perms = getRolePermissions(role);
         return (

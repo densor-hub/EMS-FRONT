@@ -30,7 +30,7 @@ const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"
 });
 
 
-export default function PurcahsePage() {
+export default function CustomerSalePae() {
   const toast = useToaster()
   const { selectedShop, user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<string>("");
@@ -61,7 +61,7 @@ export default function PurcahsePage() {
   // Load initial data on mount (only once)
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [selectedShop]);
 
   const loadInitialData = async (): Promise<void> => {
     if (isLoadingRef.current) return;
@@ -136,7 +136,7 @@ export default function PurcahsePage() {
         setLoading(true);
 
         const paymentObj = {
-          transationId: selectedTransaction?.transactionId,
+          transactionId: selectedTransaction?.transactionId,
           amount: removeCommasFromNumbers(amountPaid),
           paymentDate: date,
           paymentMethod: Number(paymentMethod)
@@ -298,7 +298,8 @@ export default function PurcahsePage() {
                 businessPartnerLable="Sale to Customer"
                 businessPartnerName={customers?.find(x => x.id === selectedCustomer)?.firstName + " " + customers?.find(x => x.id === selectedCustomer)?.lastName || ""}
                 businessPartnerValue={selectedCustomer}
-                transactionActionType="SALE"
+                transactionActionType={config.transactionTypes.SALE}
+                allowItemSelection={true}
               />
             </div>
           }
@@ -392,7 +393,7 @@ export default function PurcahsePage() {
               reloadUrl={`/sales?LocationId=${selectedShop || sessionShop}&Type=Customer`}
               reloadSetterFunction={setsales}
               submitUrl={`/Transactions/Delivery`}
-              transactionActionType="SALE"
+               transactionActionType={config.transactionTypes.SALE}
               heading='Customer Delivery'
               setReceiptData={setReceiptData}
             />

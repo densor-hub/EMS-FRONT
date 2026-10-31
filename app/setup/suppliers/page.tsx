@@ -14,10 +14,10 @@ import { MultiSelectComponent } from '@/components/ui/select';
 import axiosInstance from '@/lib/customAxios';
 import { useAuth } from '@/lib/auth-context';
 import { useToaster } from '@/components/util/CustomToast';
-import { sessionStore } from '@/helpers/formatStrings';
+import { currency, sessionStore } from '@/helpers/formatStrings';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 
 export default function SuppliersPage() {
   const sessionShop = sessionStore.get('selectedShop');
@@ -42,12 +42,7 @@ export default function SuppliersPage() {
   const [address, setAddress] = useState('');
   const [selectedShops, setselectedShops] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (user?.companyId) {
-      loadSuppliers();
-      loadData();
-    }
-  }, [user]);
+  
 
   const loadSuppliers = async () => {
     try {
@@ -60,12 +55,20 @@ export default function SuppliersPage() {
 
   const loadData = async () => {
     try {
-      const shopsData = await axiosInstance.get('/locations');
+      const shopsData = await axiosInstance.get(`/locations?companyId=${user?.companyId}`);
       setShops(shopsData?.data);
     } catch (error) {
       console.log(error);
     }
   };
+
+  useEffect(() => {
+    if (user?.companyId) {
+      loadData().then(() => {
+        loadSuppliers();
+      });
+    }
+  }, [user, selectedShop]);
 
   const resetForm = () => {
     setName('');
@@ -184,11 +187,11 @@ export default function SuppliersPage() {
     }
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: config.currency,
-    }).format(amount);
+  // const formatCurrency = (amount: number) =>
+  //   new Intl.NumberFormat('en-US', {
+  //     style: 'currency',
+  //     currency: settings?.currency,
+  //   }).format(amount);
 
   const columns = [
     {
@@ -240,7 +243,7 @@ export default function SuppliersPage() {
               : 'bg-success/20 text-success'
           }
         >
-          {formatCurrency(supplier.balance ?? 0)}
+          {currency(supplier.balance?.toString() ?? "")}
         </Badge>
       ),
     },

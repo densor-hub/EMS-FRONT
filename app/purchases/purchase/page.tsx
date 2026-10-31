@@ -15,6 +15,7 @@ import {
   removeCommasFromNumbers,
   toastErrors,
   sessionStore,
+  unwrapItems,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
@@ -23,6 +24,8 @@ import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
 import { CustomSelect } from '@/components/util/CustomSelect';
+import { config, settings } from '@/components/util/AppConfig';
+import SweetAlert from '@/components/util/SweetAlert';
 
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
@@ -40,26 +43,10 @@ const TransactionUI = dynamic(
   }
 );
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 },
-];
+const paymentMethods = config.paymentMethods;
 
-// ✅ Shape of the paginated response from the backend.
-interface PagedPurchasesResponse<T> {
-  items: T[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasPrevious: boolean;
-  hasNext: boolean;
-}
+const DEFAULT_PAGE_SIZE = settings?.defaultPageSize;
 
-const DEFAULT_PAGE_SIZE = 25;
 
 export default function PurcahseRequestPage() {
   const toast = useToaster();
@@ -76,108 +63,108 @@ export default function PurcahseRequestPage() {
   const [showDeliveryModal, setShowDeliveryModal] = useState<boolean>(false);
   const [amountPaid, setAmountPaid] = useState("");
   const [date, setDate] = useState('');
+  const [showAlert, setShowAlert] = useState(false)
   const [suppliers, setsuppliers] = useState<Supplier[]>([]);
   const [selectedSupplier, setselectedSupplier] = useState<string>();
   const [activeTab, setActiveTab] = useState<'items' | 'payments' | 'deliveries' | 'reversals' | string>('items');
 
-  // ✅ Pagination state
+  // Pagination state
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE || 10);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
 
+  // Refs to keep callbacks stable & avoid stale-closure bugs
   const isLoadingRef = useRef(false);
+  const pageRef = useRef(page);
+  const supplierRef = useRef(selectedSupplier);
+  const shopRef = useRef<string | undefined>(selectedShop || undefined);
 
-  // ✅ Normalizes a backend response (paginated OR plain array) into an array.
-  const unwrapItems = <T,>(response: any): { items: T[]; total: number; pages: number } => {
-    const data = response?.data;
-    if (Array.isArray(data)) {
-      // Legacy shape: plain array
-      return { items: data, total: data.length, pages: 1 };
-    }
-    if (data && Array.isArray(data.items)) {
-      // New paginated shape
-      return {
-        items: data.items,
-        total: data.totalCount ?? data.items.length,
-        pages: data.totalPages ?? 1,
-      };
-    }
-    return { items: [], total: 0, pages: 0 };
-  };
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { supplierRef.current = selectedSupplier; }, [selectedSupplier]);
+  useEffect(() => { shopRef.current = selectedShop || undefined; }, [selectedShop]);
+
+  // -------------------- Loaders --------------------
 
   const loadInitialData = useCallback(async (): Promise<void> => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
-    setLoading(true);
-
     try {
       const sessionShop = sessionStore.get("selectedShop");
-      const shop = selectedShop || sessionShop;
+      const shop = shopRef.current || sessionShop;
 
       const suppliersResponse = await axiosInstance.get(
         `/Suppliers?companyId=${user?.companyId || user}&locationId=${shop}`
       );
-      setsuppliers(suppliersResponse?.data ?? []);
+      setsuppliers(Array.isArray(suppliersResponse?.data) ? suppliersResponse.data : []);
     } catch (error) {
       console.error("Error loading suppliers:", error);
-    } finally {
-      setLoading(false);
-      isLoadingRef.current = false;
     }
-  }, [selectedShop, user]);
+  }, [user]);
 
-  // ✅ Loads one page of purchases; used on mount, after filters, and after mutations.
-  const loadPurchases = useCallback(async (targetPage: number = page): Promise<void> => {
-    try {
+  const loadPurchases = useCallback(
+    async (targetPage?: number): Promise<void> => {
+      if (isLoadingRef.current) return;
+      isLoadingRef.current = true;
       setLoading(true);
-      const sessionShop = sessionStore.get("selectedShop");
-      const shop = selectedShop || sessionShop;
 
-      // Query string: all filters now live server-side.
-      const params = new URLSearchParams({
-        locationId: String(shop ?? ''),
-        generalStatus: '1',
-        page: String(targetPage),
-        pageSize: String(pageSize),
-      });
-      if (selectedSupplier) {
-        params.set('supplierId', selectedSupplier);
+      try {
+        const sessionShop = sessionStore.get("selectedShop");
+        const shop = shopRef.current || sessionShop;
+        const supplier = supplierRef.current;
+        const wantedPage = targetPage ?? pageRef.current;
+
+        const params = new URLSearchParams({
+          locationId: String(shop ?? ""),
+          generalStatus: "1",
+          page: String(wantedPage),
+          pageSize: String(pageSize),
+        });
+        if (supplier !== undefined && supplier !== null && supplier !== "") {
+          params.set("supplierId", supplier);
+        }
+
+        const purchasesResponse = await axiosInstance.get(
+          `/Purchases/Requests?${params.toString()}`
+        );
+
+        const { items, total, pages } = unwrapItems<Transaction>(purchasesResponse);
+        setsales(items);
+        setTotalCount(total);
+        setTotalPages(pages);
+
+        // If the requested page overshoots (e.g. after a delete), snap back.
+        if (pages > 0 && wantedPage > pages) {
+          setPage(pages);
+        }
+      } catch (error) {
+        console.error("Error loading purchases:", error);
+        setsales([]);
+        setTotalCount(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+        isLoadingRef.current = false;
       }
+    },
+    [pageSize]
+  );
 
-      const purchasesResponse = await axiosInstance.get(
-        `/Purchases/Requests?${params.toString()}`
-      );
-
-      const { items, total, pages } = unwrapItems<Transaction>(purchasesResponse);
-      setsales(items);
-      setTotalCount(total);
-      setTotalPages(pages);
-    } catch (error) {
-      console.error("Error loading purchases:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedShop, selectedSupplier, page, pageSize]);
-
-  // Initial mount: suppliers only.
-  // useEffect(() => {
-    
-  // }, [loadInitialData]);
-
-  // Whenever supplier or page changes, reload the purchases page.
+  // Mount: fetch suppliers once.
   useEffect(() => {
-    loadPurchases(page).then((res) => {
-      console.log(res)
-      loadInitialData();
-    });
+    void loadInitialData();
+  }, [loadInitialData]);
+
+  // Refetch purchases whenever shop / supplier / page changes.
+  useEffect(() => {
+    void loadPurchases(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedShop, selectedSupplier, page]);
 
-  // Reset to page 1 whenever supplier changes.
+  // Reset to page 1 whenever supplier changes (so page + supplier update together).
   useEffect(() => {
     setPage(1);
   }, [selectedSupplier]);
+
+  // -------------------- Payment flow --------------------
 
   const reset = () => {
     setAmountPaid("");
@@ -188,7 +175,7 @@ export default function PurcahseRequestPage() {
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
       setLoading(true);
-      const shop = selectedShop || sessionStorage?.getItem("selectedShop");
+      const shop = shopRef.current || sessionStorage?.getItem("selectedShop");
       const response = await axiosInstance.get(
         `/Transactions/${transactionId}/location/${shop}`
       );
@@ -197,8 +184,8 @@ export default function PurcahseRequestPage() {
     } catch (error: any) {
       console.error("Error fetching transaction details:", error);
       toast.error({
-        title: 'Failed to load details',
-        description: error?.response?.data?.message || 'Please try again later',
+        title: "Failed to load details",
+        description: error?.response?.data?.message || "Please try again later",
       });
       return null;
     } finally {
@@ -218,64 +205,12 @@ export default function PurcahseRequestPage() {
     }
   };
 
-  const handleAddPayment = () => {
-    const totalPaid =
-      transactionDetails?.payments?.reduce(
-        (sum: number, p: any) => sum + p.amount,
-        0
-      ) || 0;
-    const totalAmount = transactionDetails?.totalAmount || 0;
-
-    if (totalPaid >= totalAmount) {
-      toast.warning({
-        title: 'Payment Complete',
-        description: 'All payments for this transaction have been completed.',
-      });
-      return;
-    }
-    setShowAddPaymentModal(true);
-  };
-
-  const submitPayment = async (): Promise<void> => {
-    if (!amountPaid || !date || !paymentMethod) {
-      toast.warning({ title: 'Enter all required fields', description: "" });
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const paymentObj = {
-        transationId: selectedTransaction?.transactionId,
-        amount: removeCommasFromNumbers(amountPaid),
-        paymentDate: date,
-        paymentMethod: Number(paymentMethod),
-      };
-
-      await axiosInstance.post("/Transactions/Payment", paymentObj);
-
-      setActiveTab("payments");
-      reset();
-      setShowAddPaymentModal(false);
-
-      // ✅ Reload the current page (not a fresh full load)
-      await loadPurchases(page);
-
-      if (selectedTransaction?.transactionId) {
-        await fetchTransactionDetails(selectedTransaction.transactionId);
-      }
-
-      toast.success({
-        title: 'Submitted successfully',
-        description: 'Payment saved successfully',
-      });
-    } catch (error: any) {
-      console.error("Error creating payment:", error);
-      toastErrors(toast, error);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const handleContinueWithoutSupplier = () => {
+    setModalOpen(true);
+    setShowAlert(false);
+   
+ }
+  // -------------------- Columns --------------------
 
   const columns = [
     {
@@ -330,8 +265,14 @@ export default function PurcahseRequestPage() {
       ),
     },
     {
+      key: "Status" as keyof Transaction,
+      label: "status",
+      render: (value: Transaction) =>
+        <p>{value.status}</p>,
+    },
+    {
       key: "transactionDate" as keyof Transaction,
-      label: "Date",
+      label: "Trans Date",
       render: (value: Transaction) =>
         alphaNumericDate(new Date(value.transactionDate).toLocaleDateString()),
     },
@@ -344,7 +285,6 @@ export default function PurcahseRequestPage() {
     },
   ];
 
-  // Pagination footer (wire to DataTable if it supports it; else render below).
   const paginationControls = totalPages > 1 && (
     <div className="flex items-center justify-between gap-2 mt-2 px-1">
       <span className="text-xs text-muted-foreground">
@@ -371,14 +311,16 @@ export default function PurcahseRequestPage() {
     </div>
   );
 
+  // -------------------- Render --------------------
+
   return (
     <Suspense fallback={<LoadingOverlay />}>
       {loading && <LoadingOverlay />}
-      <div className="min-h-screen w-full overflow-x-hidden">
+      <div className={!modalOpen ? " w-full overflow-x-hidden" : "min-h-screen w-full overflow-x-hidden"}>
         <Header title="Purchases from suppliers" />
         <div className="relative">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 sm:gap-4 mb-2">
-            <div className="w-full sm:w-auto sm:flex-1 sm:max-w-[320px] p-1">
+          <div className="flex flex-row items-center justify-between gap-2 sm:items-end sm:justify-between sm:gap-4 mb-2  p-1.5">
+            <div className="basis-[85%] sm:basis-auto sm:flex-1 sm:max-w-[320px]">
               <CustomSelect
                 options={suppliers?.map((x) => ({
                   value: x.id.toString(),
@@ -395,18 +337,15 @@ export default function PurcahseRequestPage() {
             </div>
 
             {!modalOpen && (
-              <div>
+              <div className="basis-[15%] sm:basis-auto">
                 <Button
-                  className="w-[95%] m-auto sm:w-auto relative right-2"
+                  className="w-full sm:w-auto"
                   onClick={() => {
                     if (!selectedSupplier) {
-                      toast.info({
-                        title: 'Select Suppliers',
-                        description: 'Please select Suppliers to add',
-                      });
-                      return;
+                     return  setShowAlert(true);
+                    } else{
+                      handleContinueWithoutSupplier()
                     }
-                    setModalOpen(true);
                   }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -418,7 +357,6 @@ export default function PurcahseRequestPage() {
 
           {!modalOpen && (
             <CardContent className="m-0 p-0 overflow-x-auto">
-              {/* ✅ DataTable now receives a real array. */}
               <DataTable
                 title="All Purchases"
                 data={sales}
@@ -428,20 +366,34 @@ export default function PurcahseRequestPage() {
                 emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
                 height="h-[calc(100vh-350px)] sm:h-[calc(100vh-300px)]"
+                paginationMode="backend"
+                serverPagination={{
+                  page,
+                  totalPages,
+                  totalCount,
+                  onPageChange: (p) => setPage(p),
+                  onSearchChange: (term) => {
+                    // setSearchTerm(term);
+                    setPage(1);
+                  },
+                }}
               />
               {paginationControls}
             </CardContent>
           )}
 
-          <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
+          <div className="absolute top-0 w-full" style={{ textAlign: "center" }}>
             {modalOpen && (
               <div className="w-full">
                 <TransactionUI
                   setOpen={setModalOpen}
-                  reloadSetterFunction={setsales}
+                  // KEY FIX: don't pass the raw setter. Route the reload through
+                  // our pagination-aware loader so the paginated response is
+                  // parsed into an array before hitting <DataTable/>.
+                  reloadSetterFunction={() => { void loadPurchases(pageRef.current); }}
                   reloadUrl={`/Purchases/Requests?LocationId=${
-                    selectedShop || sessionStore.get("selectedShop")
-                  }&SuppliersId=${selectedSupplier}`}
+                    shopRef.current || sessionStore.get("selectedShop")
+                  }&SuppliersId=${supplierRef.current}`}
                   submitUrl={`/Purchases`}
                   businessPartnerLable="Supplier"
                   businessPartnerName={`${
@@ -452,7 +404,7 @@ export default function PurcahseRequestPage() {
                       suppliers?.find((x) => x.id === selectedSupplier)?.lastName || ""
                   }`}
                   businessPartnerValue={selectedSupplier}
-                  transactionActionType="PURCHASE"
+                  transactionActionType={config.transactionTypes.PURC}
                   instantSale={false}
                 />
               </div>
@@ -475,86 +427,29 @@ export default function PurcahseRequestPage() {
             <TransactionDetailsTabs
               transactionDetails={transactionDetails}
               selectedTransaction={selectedTransaction}
-              transactionType="purchase"
+              transactionType={config.transactionTypes.PURC}
               businessPartnerName={selectedTransaction.supplierName || "Supplier"}
               paymentMethods={paymentMethods}
-              // onAddPayment={handleAddPayment}
-              // onAddDelivery={() => setShowDeliveryModal(true)}
               loading={loading}
               showItemsCode={false}
               setActiveTab={setActiveTab}
               activeTab={activeTab}
             />
           </Modal>
-
-          {/* <Modal
-            isOpen={showAddPaymentModal}
-            onClose={() => {
-              setShowAddPaymentModal(false);
-              reset();
-            }}
-            title="Add Payment"
-            size="md"
-          >
-            <div className="space-y-4">
-              <AddPayment
-                amountPaid={amountPaid}
-                setAmountPaid={setAmountPaid}
-                date={date}
-                setDate={setDate}
-                paymentMethod={paymentMethod}
-                setPaymentMethod={setPaymentMethod}
-                minDate={selectedTransaction?.transactionDate?.split("T")[0] || ""}
-              />
-              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-gray-200">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddPaymentModal(false);
-                    reset();
-                  }}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={submitPayment}
-                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : 'Save Payment'}
-                </Button>
-              </div>
-            </div>
-          </Modal> */}
-
-          {/* <Modal
-            isOpen={showDeliveryModal}
-            onClose={() => setShowDeliveryModal(false)}
-            title={`Receival from ${
-              suppliers?.find((x) => x.id === selectedTransaction?.supplierId)
-                ?.supplierCompanyName || ""
-            } (Trans # - ${selectedTransaction.transactionCode})`}
-            size="full"
-          >
-            <div className="w-full">
-              <DeliveryTransactionUI
-                setOpen={setShowDeliveryModal}
-                selectedTransaction={transactionDetails}
-                setTransactionDetails={setTransactionDetails}
-                reloadUrl={`/Purchases/Requests?LocationId=${
-                  selectedShop || sessionStore.get("selectedShop")
-                }&SuppliersId=${selectedSupplier}`}
-                reloadSetterFunction={setsales}
-                submitUrl={`/Transactions/Delivery`}
-                transactionActionType="PURCHASE"
-                heading="Suppliers Delivery"
-                setActiveTab={setActiveTab}
-              />
-            </div>
-          </Modal> */}
         </div>
 
+         <SweetAlert
+            isOpen={showAlert}
+            onClose={() => setShowAlert(false)}
+            onConfirm={handleContinueWithoutSupplier}     // ← Action on confirm
+            onCancel={() => setShowAlert(false)}       // ← Action on cancel
+            type="question"
+            title="No Supplier Selected"
+            message="Do you want to continue without a supplier ?"
+            confirmText="Yes, Continue"
+            showCancelButton={true}
+            showCloseButton={false}
+          />
         {toast.ToastComponent}
       </div>
     </Suspense>

@@ -14,12 +14,12 @@ export default function DashboardLayout({
         <Sidebar />
         <main className="flex-1 min-w-0 lg:ml-0">
           {children}
+          
+          <div className="m-2">
+            <Copyright/>
+          </div>
 
-           <div className="m-2">
-          <Copyright/>
-        </div>
         </main>
-       
       </div>
     </AuthProvider>
   );

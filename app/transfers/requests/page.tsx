@@ -19,7 +19,7 @@ import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import  { LoadingOverlay } from '@/components/SkeletonLoading';
 import StatusBadge from '@/components/ui/statusbadge'
 import { useToaster } from '@/components/util/CustomToast';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 import { CustomSelect } from '@/components/util/CustomSelect';
 import { sessionStore } from '@/helpers/formatStrings';
 // Dynamic imports
@@ -56,14 +56,10 @@ export default function PurcahsePage() {
   const [filterItem, setFilterItem] = useState<string>("");
   const isLoadingRef = useRef(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  
 
   const loadData = async (): Promise<void> => {
-    if (isLoadingRef.current) return;
-
-    isLoadingRef.current = true;
+    setLoading(true)
     try {
      
       const data = await axiosInstance.get(`/Locations?companyId=${user.companyId || user}&LocationId=${selectedShop || sessionShop}`);
@@ -76,6 +72,11 @@ export default function PurcahsePage() {
     }
   };
 
+
+  useEffect(() => {
+    loadData();
+  }, [selectedShop]);
+
   const reset = () => {
     setAmountPaid("");
     setDate("");
@@ -84,7 +85,7 @@ export default function PurcahsePage() {
 
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
-      setIsLoadingDetails(true);
+      setLoading(true);
       const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
@@ -96,7 +97,7 @@ export default function PurcahsePage() {
       });
       return null;
     } finally {
-      setIsLoadingDetails(false);
+      setLoading(false);
     }
   };
 
@@ -112,17 +113,16 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer/Requests?LocationId=${selectedShop || sessionStore.get("selectedShop")}&Type=1`)
+    setLoading(true);
+      const stockTransfers = await axiosInstance.get(`/StockTransfer/Requests?LocationId=${selectedShop || sessionStore.get("selectedShop")}&Type=1`);
       setStockTransfers(stockTransfers?.data);
+
+      setLoading(false)
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     getStockTransfers();
-  }, [selectedShopForStockTrans]);
+  }, [selectedShop]);
 
 
   const columns = [
@@ -228,7 +228,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  {config.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {settings?.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -308,7 +308,7 @@ export default function PurcahsePage() {
                 options={transactionDetails?.items?.map((x) => ({
                   value: x.id.toString(),
                   label: x.name
-                  // discriptionLabel: `${config.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
+                  // discriptionLabel: `${settings?.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
                 })) || []}
                 value={filterItem}
                 onValueChange={setFilterItem}
@@ -480,14 +480,11 @@ export default function PurcahsePage() {
     );
   };
 
-  if (loading) {
-    return (
-      <LoadingOverlay />
-    );
-  }
 
   return (
-    <div className=" w-full overflow-x-hidden">
+   <>
+   {loading && <LoadingOverlay/>}
+     <div className=" w-full overflow-x-hidden">
       <Header
         title="Transfers Requests"
         description="shops Transactions"
@@ -544,10 +541,10 @@ export default function PurcahsePage() {
             <CardContent className="m-0 p-0 overflow-x-auto">
               <DataTable
                 title="All Transfers"
-                data={sales}
+                data={selectedShopForStockTrans ? sales?.filter((x) => x.supplierId == selectedShopForStockTrans) : sales}
                 columns={columns}
                 searchKey="transactionCode"
-                addLabel="Add Purchase"
+                addLabel="Add Transfer"
                emptyMessage="No data found."
                 onRowClick={(row) => openTransactionDetails(row)}
                 // height="h-[calc(100vh-330px)] sm:h-[calc(100vh-265px)] md:h-[calc(100vh-263px)]"
@@ -695,5 +692,6 @@ export default function PurcahsePage() {
       </div>
       {toast.ToastComponent}
     </div>
+   </>
   );
 }

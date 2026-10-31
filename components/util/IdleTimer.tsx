@@ -5,19 +5,19 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, LogOut, CheckCircle, Loader2 } from 'lucide-react';
 import { performInitialAuthCheck } from '@/lib/customAxios';
-import { LoadingOverlay } from '../SkeletonLoading';
 
 // ============================================================
-// Idle config — 5 minute idle limit, 30 second warning.
-// No auto-logout: the overlay waits for explicit user action.
+// Config
 // ============================================================
-const IDLE_LIMIT_MS         = 5 * 60 * 1000;   // 5 minutes
-const WARNING_AT_MS         = 30 * 1000;       // warn 30s before idle limit
-const ACTIVITY_DEBOUNCE_MS  = 1000;            // ignore activity spam
-const AUTH_CHECK_TIMEOUT_MS = 10 * 1000;       // give up after 10s
+const IDLE_LIMIT_MS              = 5 * 60 * 1000;
+const WARNING_AT_MS              = 30 * 1000;
+const ACTIVITY_DEBOUNCE_MS       = 1000;
+const IDLE_REFRESH_INTERVAL_MS   = 10 * 60 * 1000;
+const REFRESH_REQUEST_TIMEOUT_MS = 15 * 1000;
 
-// touchmove/pointerdown help on iOS; scroll is handled separately
-// with { capture: true } so inner scroll containers are covered.
+// Cycle 1 at T+0 → logout lands at T+60:00 (exactly 1 hour of idleness).
+const MAX_IDLE_REFRESH_CYCLES = 7;
+
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   'mousemove',
   'mousedown',
@@ -30,6 +30,15 @@ const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
 
 type Phase = 'active' | 'warning' | 'inactive';
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('refresh timeout')), ms)
+    ),
+  ]);
+}
+
 export default function IdleTimer() {
   const { isAuthenticated, userLogOut } = useAuth();
 
@@ -39,31 +48,29 @@ export default function IdleTimer() {
   );
   const [tickGeneration, setTickGeneration] = useState(0);
   const [isResuming, setIsResuming] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Refs — stable values used inside closures that must not re-subscribe
   const lastActivityRef     = useRef<number>(Date.now());
   const tickRef             = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastLoggedSecondRef = useRef<number>(-1);
   const phaseRef            = useRef<Phase>('active');
   const hiddenAtRef         = useRef<number>(0);
+  const idleCycleCountRef   = useRef<number>(0);
+  const isLoggingOutRef     = useRef<boolean>(false);
 
-  // Keep phaseRef in sync with phase state
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
 
   // ---------------------------------------------------------
-  // Activity handler — stable, no deps
+  // Activity
   // ---------------------------------------------------------
   const handleActivity = useCallback(() => {
     if (phaseRef.current === 'inactive') return;
+    if (isLoggingOutRef.current) return;
 
     const now = Date.now();
     const elapsed = now - lastActivityRef.current;
-
-    // Debounce — ignore bursts of events (iOS fires touchstart → click)
     if (elapsed < ACTIVITY_DEBOUNCE_MS) return;
 
     lastActivityRef.current = now;
@@ -75,9 +82,6 @@ export default function IdleTimer() {
     }
   }, []);
 
-  // ---------------------------------------------------------
-  // Attach activity listeners ONCE while authenticated
-  // ---------------------------------------------------------
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -85,7 +89,6 @@ export default function IdleTimer() {
       window.addEventListener(evt, handleActivity, { passive: true })
     );
 
-    // Capture-phase scroll covers inner scroll containers too
     document.addEventListener('scroll', handleActivity, {
       passive: true,
       capture: true,
@@ -100,29 +103,22 @@ export default function IdleTimer() {
   }, [isAuthenticated, handleActivity]);
 
   // ---------------------------------------------------------
-  // Visibility / page lifecycle handling (iOS-friendly)
+  // Visibility / lifecycle
   // ---------------------------------------------------------
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const markHidden = () => {
-      // Don't overwrite if already set (multiple events fire)
-      if (!hiddenAtRef.current) {
-        hiddenAtRef.current = Date.now();
-      }
+      if (!hiddenAtRef.current) hiddenAtRef.current = Date.now();
     };
 
     const handleReturn = () => {
-      const awayMs = hiddenAtRef.current
-        ? Date.now() - hiddenAtRef.current
-        : 0;
+      const awayMs = hiddenAtRef.current ? Date.now() - hiddenAtRef.current : 0;
       hiddenAtRef.current = 0;
 
-      // If already inactive, do nothing — overlay waits for user.
       if (phaseRef.current === 'inactive') return;
+      if (isLoggingOutRef.current) return;
 
-      // If they were away longer than the idle limit, trip immediately
-      // rather than resetting.
       if (awayMs >= IDLE_LIMIT_MS) {
         const elapsed = Date.now() - lastActivityRef.current;
         if (elapsed >= IDLE_LIMIT_MS) {
@@ -136,16 +132,12 @@ export default function IdleTimer() {
         return;
       }
 
-      // Short away — treat as ordinary activity
       handleActivity();
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        markHidden();
-      } else if (document.visibilityState === 'visible') {
-        handleReturn();
-      }
+      if (document.visibilityState === 'hidden') markHidden();
+      else if (document.visibilityState === 'visible') handleReturn();
     };
 
     const onPageHide = () => markHidden();
@@ -171,20 +163,17 @@ export default function IdleTimer() {
     if (!isAuthenticated) return;
 
     tickRef.current = setInterval(() => {
-      // Skip if we've already shown the overlay
       if (phaseRef.current === 'inactive') return;
+      if (isLoggingOutRef.current) return;
 
       const elapsed      = Date.now() - lastActivityRef.current;
       const elapsedSec   = Math.floor(elapsed / 1000);
       const remainingMs  = IDLE_LIMIT_MS - elapsed;
       const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-      // Phase transitions are NOT rate-limited — only the per-second
-      // countdown update is.
       if (elapsed >= IDLE_LIMIT_MS) {
         phaseRef.current = 'inactive';
         setPhase('inactive');
-
         if (tickRef.current) {
           clearInterval(tickRef.current);
           tickRef.current = null;
@@ -218,7 +207,93 @@ export default function IdleTimer() {
   }, [isAuthenticated, tickGeneration]);
 
   // ---------------------------------------------------------
-  // Reset when auth state changes
+  // Idle refresh callback
+  // ---------------------------------------------------------
+  const callIdleRefresh = useCallback(async () => {
+    try {
+      await withTimeout(
+        performInitialAuthCheck(true),
+        REFRESH_REQUEST_TIMEOUT_MS
+      );
+      console.log('[IdleTimer] idle refresh ok at', new Date().toISOString());
+      setAuthError(null);
+    } catch (err) {
+      console.warn(
+        '[IdleTimer] idle refresh failed at',
+        new Date().toISOString(),
+        err
+      );
+      setAuthError(
+        'Session refresh failed. You may need to log out and sign in again.'
+      );
+    }
+  }, []);
+
+  // ---------------------------------------------------------
+  // Idle recurring loop + auto-logout at 1 hour
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (phase !== 'inactive') return;
+
+    idleCycleCountRef.current = 0;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (phaseRef.current !== 'inactive') return;
+      if (isLoggingOutRef.current) return;
+
+      idleCycleCountRef.current += 1;
+      const cycle = idleCycleCountRef.current;
+
+      if (cycle >= MAX_IDLE_REFRESH_CYCLES) {
+        console.log(
+          `[IdleTimer] reached ${cycle} idle cycles (~1 hour) — auto-logout`
+        );
+        cancelled = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        if (isLoggingOutRef.current) return;
+        isLoggingOutRef.current = true;
+
+        try {
+          await userLogOut();
+        } catch (err) {
+          console.error('[IdleTimer] auto-logout failed:', err);
+          if (typeof window !== 'undefined') window.location.reload();
+        }
+        return;
+      }
+
+      try {
+        await callIdleRefresh();
+      } catch (err) {
+        console.warn('[IdleTimer] idle refresh tick threw:', err);
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(tick, IDLE_REFRESH_INTERVAL_MS);
+        }
+      }
+    };
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+  }, [isAuthenticated, phase, callIdleRefresh, userLogOut]);
+
+  // ---------------------------------------------------------
+  // Reset on auth change
   // ---------------------------------------------------------
   useEffect(() => {
     phaseRef.current = 'active';
@@ -227,11 +302,12 @@ export default function IdleTimer() {
     lastActivityRef.current = Date.now();
     lastLoggedSecondRef.current = -1;
     hiddenAtRef.current = 0;
+    idleCycleCountRef.current = 0;
     setAuthError(null);
 
     if (!isAuthenticated) {
       setIsResuming(false);
-      setIsCheckingAuth(false);
+      isLoggingOutRef.current = false;
 
       if (tickRef.current) {
         clearInterval(tickRef.current);
@@ -244,54 +320,50 @@ export default function IdleTimer() {
   // Button handlers
   // ---------------------------------------------------------
   const handleLogMeOut = useCallback(async () => {
-    await userLogOut();
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
+    try {
+      await userLogOut();
+    } catch (err) {
+      console.error('[IdleTimer] manual logout failed:', err);
+      if (typeof window !== 'undefined') window.location.reload();
+    }
   }, [userLogOut]);
 
+  // ✅ Resume now hits the auth/refresh endpoint (same as the loop)
   const handleIAmHere = useCallback(async () => {
-    // Guard against double-clicks / double-taps
-    if (isResuming || isCheckingAuth) return;
+    if (isResuming) return;
+    if (isLoggingOutRef.current) return;
 
     setIsResuming(true);
-    setIsCheckingAuth(true);
     setAuthError(null);
 
     try {
-      // Wrap auth check in a timeout so a flaky mobile network
-      // can't leave the user staring at a spinner.
-      await Promise.race([
+      await withTimeout(
         performInitialAuthCheck(true),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Auth check timed out')),
-            AUTH_CHECK_TIMEOUT_MS
-          )
-        ),
-      ]);
+        REFRESH_REQUEST_TIMEOUT_MS
+      );
 
-      // Session is healthy — reset idle timer synchronously.
       phaseRef.current = 'active';
       lastActivityRef.current = Date.now();
       lastLoggedSecondRef.current = -1;
       hiddenAtRef.current = 0;
+      idleCycleCountRef.current = 0;
       setSecondsLeft(Math.floor(WARNING_AT_MS / 1000));
       setPhase('active');
 
-      // Re-arm the tick loop.
       setTickGeneration((g) => g + 1);
     } catch (err) {
-      console.error('[IdleTimer] Auth check failed on resume:', err);
-      // Surface the failure so the user isn't stuck silently.
+      console.error('[IdleTimer] resume auth check failed:', err);
       setAuthError(
-        err instanceof Error && err.message.includes('timed out')
+        err instanceof Error && err.message === 'refresh timeout'
           ? 'Could not verify your session (network slow). Try again, or log out.'
           : 'Could not verify your session. Try again, or log out.'
       );
-      // Overlay stays up — user can retry or log out manually.
     } finally {
-      setIsCheckingAuth(false);
       setIsResuming(false);
     }
-  }, [isResuming, isCheckingAuth]);
+  }, [isResuming]);
 
   // ---------------------------------------------------------
   // Render
@@ -315,7 +387,6 @@ export default function IdleTimer() {
   if (phase === 'inactive') {
     return (
       <div className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        {isCheckingAuth && <LoadingOverlay />}
         <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 sm:p-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
@@ -326,12 +397,10 @@ export default function IdleTimer() {
           <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
             You have been inactive
           </h2>
-          {/* ✅ FIX: Copy no longer promises auto-logout — none happens */}
           <p className="text-sm sm:text-base text-gray-600 mb-6">
             Are you still there? Confirm to continue, or log out.
           </p>
 
-          {/* Visible error if the auth check failed */}
           {authError && (
             <p
               role="alert"
@@ -344,7 +413,7 @@ export default function IdleTimer() {
           <div className="flex flex-row sm:flex-row gap-3">
             <Button
               onClick={handleIAmHere}
-              disabled={isResuming || isCheckingAuth}
+              disabled={isResuming}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold h-11"
             >
               {isResuming ? (
@@ -361,7 +430,7 @@ export default function IdleTimer() {
             </Button>
             <Button
               onClick={handleLogMeOut}
-              disabled={isResuming || isCheckingAuth}
+              disabled={isResuming}
               className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold h-11"
             >
               <LogOut className="w-4 h-4 mr-2" />

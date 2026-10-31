@@ -15,12 +15,16 @@ import {
   removeCommasFromNumbers,
   toastErrors,
   sessionStore,
+  unwrapItems,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
 import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
+import { config, settings } from '@/components/util/AppConfig';
+import StatusBadge from '@/components/ui/statusbadge';
+import { AxiosResponse } from 'axios';
 
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
@@ -38,31 +42,12 @@ const TransactionUI = dynamic(
   }
 );
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 },
-];
+const paymentMethods = config.paymentMethods;
 
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = settings?.defaultPageSize;
 
 // ✅ Handles both the paginated { items, totalCount, ... } shape and legacy arrays.
-function unwrapItems<T>(response: any): { items: T[]; total: number; pages: number } {
-  const data = response?.data;
-  if (Array.isArray(data)) {
-    return { items: data, total: data.length, pages: 1 };
-  }
-  if (data && Array.isArray(data.items)) {
-    return {
-      items: data.items,
-      total: data.totalCount ?? data.items.length,
-      pages: data.totalPages ?? 1,
-    };
-  }
-  return { items: [], total: 0, pages: 0 };
-}
+
 
 export default function PurcahsePage() {
   const toast = useToaster();
@@ -84,7 +69,7 @@ export default function PurcahsePage() {
 
   // ✅ Pagination state
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE || 10);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
 
@@ -123,10 +108,12 @@ export default function PurcahsePage() {
         });
         if (selectedSupplier) {
           params.set('supplierId', selectedSupplier);
+        } 
+        else {
+            params.set('supplierId', "00000000-0000-0000-0000-000000000000")
         }
-
         const purchasesResponse = await axiosInstance.get(
-          `/Purchases/Approved?${params.toString()}`
+          `/Purchases/PendingRecievals?${params.toString()}`
         );
 
         const { items, total, pages } = unwrapItems<Transaction>(purchasesResponse);
@@ -206,45 +193,6 @@ export default function PurcahsePage() {
     }
   };
 
-  const submitPayment = async (): Promise<void> => {
-    if (!amountPaid || !date || !paymentMethod) {
-      toast.warning({ title: 'Enter all required fields', description: "" });
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const paymentObj = {
-        transationId: selectedTransaction?.transactionId,
-        amount: removeCommasFromNumbers(amountPaid),
-        paymentDate: date,
-        paymentMethod: Number(paymentMethod),
-      };
-
-      await axiosInstance.post("/Transactions/Payment", paymentObj);
-
-      setActiveTab("payments");
-      reset();
-
-      // ✅ Reload the current page (not a fresh full load)
-      await loadPurchases(page);
-
-      if (selectedTransaction?.transactionId) {
-        await fetchTransactionDetails(selectedTransaction.transactionId);
-      }
-
-      toast.success({
-        title: 'Submitted successfully',
-        description: 'Payment saved successfully',
-      });
-    } catch (error: any) {
-      console.error("Error creating payment:", error);
-      toastErrors(toast, error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ────────────────────────────────────────────────
   // COLUMNS
@@ -304,9 +252,16 @@ export default function PurcahsePage() {
     },
     {
       key: "transactionDate" as keyof Transaction,
-      label: "Date",
+      label: "Trans Date",
       render: (value: Transaction) =>
         alphaNumericDate(new Date(value.transactionDate).toLocaleDateString()),
+    },
+    {
+      key: "Status" as keyof Transaction,
+      label: "status",
+      render: (value: Transaction) =>
+        // <p>{value.status}</p>,
+      <StatusBadge status={value.status} heartbeat={false}/>
     },
     {
       key: "transactionCode" as keyof Transaction,
@@ -347,7 +302,7 @@ export default function PurcahsePage() {
   return (
     <Suspense fallback={<LoadingOverlay />}>
       {loading && <LoadingOverlay />}
-      <div className="min-h-screen w-full overflow-x-hidden">
+      <div className="w-full overflow-x-hidden">
         <Header title="Purchases from suppliers" />
         <div className="relative mt-2">
           {!modalOpen && (
@@ -362,36 +317,23 @@ export default function PurcahsePage() {
                 emptyMessage=""
                 onRowClick={(row) => openTransactionDetails(row)}
                 height="h-[calc(100vh-270px)] sm:h-[calc(100vh-250px)]"
+                paginationMode="backend"
+                serverPagination={{
+                  page,
+                  totalPages,
+                  totalCount,
+                  onPageChange: (p) => setPage(p),
+                  onSearchChange: (term) => {
+                    // setSearchTerm(term);
+                    setPage(1);
+                  },
+                }}
               />
-              {paginationControls}
+              {/* {paginationControls} */}
             </CardContent>
           )}
 
-          <div className="absolute top-0 w-full" style={{ textAlign: 'center' }}>
-            {modalOpen && (
-              <div className="w-full">
-                <TransactionUI
-                  setOpen={setModalOpen}
-                  reloadSetterFunction={setsales}
-                  reloadUrl={`/Purchases/Approved?LocationId=${
-                    selectedShop || sessionStore.get("selectedShop")
-                  }&SuppliersId=${selectedSupplier}`}
-                  submitUrl={`/Purchases`}
-                  businessPartnerLable="Supplier"
-                  businessPartnerName={`${
-                    suppliers?.find((x) => x.id === selectedSupplier)?.supplierCompanyName || ""
-                  } - ${
-                    suppliers?.find((x) => x.id === selectedSupplier)?.firstName +
-                      " " +
-                      suppliers?.find((x) => x.id === selectedSupplier)?.lastName || ""
-                  }`}
-                  businessPartnerValue={selectedSupplier}
-                  transactionActionType="PURCHASE"
-                  instantSale={false}
-                />
-              </div>
-            )}
-          </div>
+      
 
           <Modal
             isOpen={detailsModalOpen}
@@ -433,10 +375,10 @@ export default function PurcahsePage() {
                 setOpen={setShowDeliveryModal}
                 selectedTransaction={transactionDetails}
                 setTransactionDetails={setTransactionDetails}
-                reloadUrl={`/Purchases/Approved?LocationId=${
+                reloadUrl={`/Purchases/PendingRecievals?LocationId=${
                   selectedShop || sessionStore.get("selectedShop")
-                }&SuppliersId=${selectedSupplier}`}
-                reloadSetterFunction={setsales}
+                }&SuppliersId=00000000-0000-0000-0000-000000000000`}
+                reloadSetterFunction={() => { void loadPurchases(page); }}
                 submitUrl={`/Transactions/Delivery`}
                 transactionActionType="PURCHASE"
                 heading="Suppliers Delivery"
@@ -451,3 +393,4 @@ export default function PurcahsePage() {
     </Suspense>
   );
 }
+

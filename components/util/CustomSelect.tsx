@@ -134,7 +134,7 @@ export function CustomSelect({
       case 'lg':
         return 'h-12 text-base';
       default:
-        return 'h-10 text-sm sm:text-base';
+        return 'h-8 text-sm sm:text-base';
     }
   };
 

@@ -603,7 +603,7 @@ export default function StockTakeUI() {
           addLabel="Refresh"
           emptyMessage="No data found."
           onRowClick={(row: any) => openStockLockDownDetail(row.id)}
-          onAdd={fetchStockLockDowns}
+          // onAdd={fetchStockLockDowns}
           pageSize={pagination.itemsPerPage}
           height="h-[calc(100vh-380px)] md:h-[calc(100vh-270px)]"
 

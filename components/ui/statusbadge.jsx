@@ -56,9 +56,9 @@ const StatusBadge = ({ status, className = '', heartbeat = true }) => {
   return (
     <span className={`
       inline-flex items-center gap-1.5 sm:gap-2.5
-      px-2 py-1 sm:px-2 sm:py-1
+      px-1 py-1 sm:px-2 sm:py-1
       rounded-full
-      text-xs sm:text-sm font-semibold
+      text-xs sm:text-sm 
       ${config.bg}
       ${config.text}
       ${config.border}

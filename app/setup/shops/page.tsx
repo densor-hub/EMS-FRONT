@@ -25,7 +25,7 @@ import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
 
 export default function ShopsPage() {
-  const { user } = useAuth();
+  const { user, selectedShop } = useAuth();
   const toast = useToaster();
 
   const [shops, setShops] = useState<Shop[]>([]);
@@ -47,15 +47,11 @@ export default function ShopsPage() {
   const [selectedManager, setSelectedManager] = useState<string>('');
   const [isActive, setIsActive] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
-    void loadShops();
-    void loadEmployees();
-  }, [user]);
-
+  
   const loadShops = async () => {
     try {
-      const { data } = await axiosInstance.get('/locations');
+      setIsLoading(true)
+      const { data } = await axiosInstance.get(`/locations?companyId=${user?.companyId}`);
       setShops(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading shops:', error);
@@ -66,13 +62,25 @@ export default function ShopsPage() {
 
   const loadEmployees = async () => {
     try {
+      setIsLoading(true)
       const { data } = await axiosInstance.get('/employees');
       setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading employees:', error);
     }
+    finally{
+      setIsLoading(false)
+    }
   };
 
+  useEffect(() => {
+    if (!user) return;
+    void loadShops().then(() => {
+        void loadEmployees();
+    });
+  }, [user, selectedShop]);
+
+  
   const resetForm = () => {
     setName('');
     setLocation('');

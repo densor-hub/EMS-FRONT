@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Header } from '@/components/dashboard/header';
 import { DataTable } from '@/components/dashboard/data-table';
 import { Modal } from '@/components/dashboard/modal';
@@ -16,6 +16,7 @@ import {
   removeCommasFromNumbers,
   toastErrors,
   toastSuccess,
+  sessionStore,
 } from '@/helpers/formatStrings';
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
@@ -23,7 +24,6 @@ import { useToaster } from '@/components/util/CustomToast';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import { CustomSelect } from '@/components/util/CustomSelect';
 import SweetAlert from '@/components/util/SweetAlert';
-import { sessionStore } from '@/helpers/formatStrings';
 
 // ---- Shape returned by GET /Split/SetUp ----
 interface ItemSplitSetup {
@@ -37,7 +37,6 @@ interface ItemSplitSetup {
   generalStatus: number; // 1 = Active, 0 = Inactive, -1 = SoftDeleted
 }
 
-// Table row with a combined `_search` field for dual-field search
 interface ItemSplitSetupRow extends ItemSplitSetup {
   _search: string;
 }
@@ -46,16 +45,18 @@ const STATUS_ACTIVE = 1;
 const STATUS_INACTIVE = 0;
 
 export default function ItemSplitSetupPage() {
-  const sessionShop = sessionStore.get("selectedShop");
-  const { user, selectedShop } = useAuth();
+  const sessionShop = sessionStore.get('selectedShop');
+  const { selectedShop } = useAuth();
   const toast = useToaster();
+
+  // ✅ Single source of truth — used by both fetches and the effect deps
+  const locationId = selectedShop || sessionShop || '';
 
   const [setups, setSetups] = useState<ItemSplitSetup[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Editing an existing setup (null = creating new)
   const [editingSetup, setEditingSetup] = useState<ItemSplitSetup | null>(null);
 
   // ---- Form state ----
@@ -66,36 +67,72 @@ export default function ItemSplitSetupPage() {
   const [isSourceQtyEditable, setIsSourceQtyEditable] = useState(false);
   const [statusActive, setStatusActive] = useState(true);
 
-  // Delete confirmation
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
+  // ✅ Race guard — discard responses from superseded location fetches
+  const requestTokenRef = useRef(0);
+
+  const loadSetups = useCallback(
+    async (token: number) => {
+      if (!locationId) return;
+      try {
+        const data = await axiosInstance.get(`/Split/SetUp/${locationId}`);
+        if (token !== requestTokenRef.current) return;
+        setSetups(data?.data ?? []);
+      } catch (error) {
+        if (token !== requestTokenRef.current) return;
+        console.error('Error loading split setups:', error);
+      }
+    },
+    [locationId]
+  );
+
+  const loadItems = useCallback(
+    async (token: number) => {
+      if (!locationId) return;
+      try {
+        setIsLoading(true);
+        const data = await axiosInstance.get(
+          `/items/Admin-View?LocationId=${locationId}`
+        );
+        if (token !== requestTokenRef.current) return;
+        setItems(data?.data ?? []);
+      } catch (error) {
+        if (token !== requestTokenRef.current) return;
+        console.error('Error loading items:', error);
+      } finally {
+        if (token === requestTokenRef.current) setIsLoading(false);
+      }
+    },
+    [locationId]
+  );
+
+  // ✅ Deps are exactly the values the fetches actually use.
+  // `user?.companyId` is not sent to the API, so it's not a dep.
   useEffect(() => {
-    loadSetups();
-    loadItems();
-  }, [user?.companyId, selectedShop]);
-
-  const loadSetups = async () => {
-    try {
-      const data = await axiosInstance.get(`/Split/SetUp/${selectedShop || sessionShop}`);
-      setSetups(data?.data ?? []);
-    } catch (error) {
-      console.error('Error loading split setups:', error);
-    }
-  };
-
-  const loadItems = async () => {
-    try {
-     if (selectedShop || sessionShop) {
-       setIsLoading(true);
-      const data = await axiosInstance.get(
-        `/items/Admin-View?LocationId=${selectedShop || sessionShop}`
-      );
-      setItems(data?.data ?? []);
-     }
-    } finally {
+    if (!locationId) {
+      setItems([]);
+      setSetups([]);
       setIsLoading(false);
+      return;
     }
-  };
+
+    const token = ++requestTokenRef.current;
+
+    (async () => {
+      await loadItems(token);
+      if (token === requestTokenRef.current) {
+        await loadSetups(token);
+      }
+    })();
+  }, [locationId, loadItems, loadSetups]);
+
+  // ✅ Refresh helper used after create/update/delete.
+  // Always fetches for the *current* location, with a fresh token.
+  const refreshSetups = useCallback(async () => {
+    const token = ++requestTokenRef.current;
+    await loadSetups(token);
+  }, [loadSetups]);
 
   const resetForm = () => {
     setEditingSetup(null);
@@ -112,14 +149,12 @@ export default function ItemSplitSetupPage() {
     setIsModalOpen(true);
   };
 
-  // ✅ Row clicked → pre-fill the modal for editing
   const openEdit = (setup: ItemSplitSetup) => {
     setEditingSetup(setup);
     setSourceItemId(setup.sourceItemId);
     setTargetItemId(setup.targetItemId);
     setSourceQty(formatNumberWithCommas(setup.sourceQuantity.toString()));
     setTargetQty(formatNumberWithCommas(setup.targetQuantity.toString()));
-    // Source qty is read-only in edit mode — backend doesn't allow changing it
     setIsSourceQtyEditable(false);
     setStatusActive(setup.generalStatus === STATUS_ACTIVE);
     setIsModalOpen(true);
@@ -173,7 +208,7 @@ export default function ItemSplitSetupPage() {
         });
         closeModal();
         toastSuccess(toast, 'Split setup updated successfully');
-        await loadSetups();
+        await refreshSetups();
       } catch (error: any) {
         console.error('Error updating split:', error?.response);
         toastErrors(toast, error, '');
@@ -213,7 +248,7 @@ export default function ItemSplitSetupPage() {
       });
       closeModal();
       toastSuccess(toast, 'Split setup created successfully');
-      await loadSetups();
+      await refreshSetups();
     } catch (error: any) {
       console.error('Error creating split:', error?.response);
       toastErrors(toast, error, '');
@@ -230,8 +265,8 @@ export default function ItemSplitSetupPage() {
       await axiosInstance.delete(`/Split/SetUp/${editingSetup.id}`);
       setShowDeleteAlert(false);
       closeModal();
-      toast.success({ title: 'Deleted successfully', description: '' });
-      await loadSetups();
+      toastSuccess(toast, 'Deleted successfully'); // ✅ consistent helper
+      await refreshSetups();
     } catch (error: any) {
       console.error('Error deleting split:', error?.response);
       toastErrors(toast, error, '');
@@ -250,7 +285,6 @@ export default function ItemSplitSetupPage() {
     return <Badge className="bg-red-100 text-red-500">Deleted</Badge>;
   };
 
-  // ✅ Add `_search` for dual-field search
   const tableData: ItemSplitSetupRow[] = useMemo(
     () =>
       setups.map((s) => ({
@@ -260,7 +294,6 @@ export default function ItemSplitSetupPage() {
     [setups]
   );
 
-  // ---- Table columns ----
   const columns = [
     {
       key: 'sourceItemName' as keyof ItemSplitSetupRow,
@@ -277,16 +310,6 @@ export default function ItemSplitSetupPage() {
         </div>
       ),
     },
-    // {
-    //   key: 'sourceQuantity' as keyof ItemSplitSetupRow,
-    //   label: 'Source Qty',
-    //   sortable: true,
-    //   render: (s: ItemSplitSetupRow) => (
-    //     <span className="text-foreground font-medium">
-    //       {formatNumberWithCommas(s.sourceQuantity.toString())}
-    //     </span>
-    //   ),
-    // },
     {
       key: 'arrow' as keyof ItemSplitSetupRow,
       label: '',
@@ -339,7 +362,6 @@ export default function ItemSplitSetupPage() {
           data={tableData}
           columns={columns}
           searchKey="_search"
-          // searchPlaceholder="Search by source or target item..."
           onAdd={openCreate}
           addLabel="Add Split Setup"
           emptyMessage="No split setups found."
@@ -365,7 +387,6 @@ export default function ItemSplitSetupPage() {
           <div className="space-y-2">
             <Label className="text-foreground">Source Item *</Label>
             {isEditMode ? (
-              // ✅ Read-only display in edit mode
               <div className="flex items-center h-10 px-3 rounded-md border border-border bg-muted text-sm text-foreground">
                 {editingSetup?.sourceItemName}
               </div>
@@ -425,7 +446,6 @@ export default function ItemSplitSetupPage() {
 
           {/* ---- Quantities ---- */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Source Quantity */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="sourceQty" className="text-foreground">
@@ -451,7 +471,6 @@ export default function ItemSplitSetupPage() {
                 inputMode="numeric"
                 value={sourceQty}
                 onChange={(e) => setSourceQty(formatNumberWithCommas(e.target.value))}
-                // ✅ Read-only in edit mode; create-mode uses the toggle
                 disabled={isEditMode || !isSourceQtyEditable}
                 className={`bg-white border-border text-right ${
                   isEditMode || !isSourceQtyEditable
@@ -467,7 +486,6 @@ export default function ItemSplitSetupPage() {
               </p>
             </div>
 
-            {/* Target Quantity */}
             <div className="space-y-2">
               <Label htmlFor="targetQty" className="text-foreground">
                 Target Quantity *

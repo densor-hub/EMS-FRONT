@@ -3,7 +3,6 @@ import { CartProps } from "./CartTable"
 import CartTable from "./CartTable"
 import { ShoppingCart } from "lucide-react"
 import { Card, CardHeader, CardContent, CardTitle } from "../ui/card"
-import { paymentMethods } from "./AppConfig"
 
 const CartUi = (props: CartProps) => {
 

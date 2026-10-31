@@ -1,7 +1,7 @@
 // components/util/TransactionDetailsTabs.tsx
 'use client';
 
-import React, { Dispatch, SetStateAction, useState } from 'react';
+import React, { Dispatch, SetStateAction, useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Package, CreditCard, Truck, RotateCcw, Plus } from 'lucide-react';
 import { alphaNumericDate, formatNumberWithCommas } from '@/helpers/formatStrings';
 import { IdAndName, TransactionItem } from '@/lib/types';
 import TransactionItemsTable from './TransactionItemsTable';
-import { config } from './AppConfig';
+import { config, settings } from './AppConfig';
 import StatusBadge from '../ui/statusbadge';
 
 interface Payment {
@@ -40,7 +40,7 @@ interface TransactionDetailsTabsProps {
     supplierId?: string;
     customerName?: string;
   };
-  transactionType: 'sale' | 'purchase';
+  transactionType: string;
   businessPartnerName: string;
   paymentMethods: IdAndName[] | undefined;
   onAddPayment?: () => void;
@@ -75,7 +75,28 @@ export function TransactionDetailsTabs({
   const details = transactionDetails;
   if (!details) return null;
 
-  const isPurchase = transactionType === 'purchase';
+   const derivedPaidAmount = useMemo(() => {
+      if (typeof (transactionDetails as any)?.paidAmount === "number") {
+        return (transactionDetails as any).paidAmount as number;
+      }
+      const payments = (transactionDetails as any)?.payments as any[] | undefined;
+      if (!Array.isArray(payments)) return 0;
+      return payments.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
+    }, [transactionDetails]);
+  
+    const derivedTotalAmount = useMemo(() => {
+      return Number(transactionDetails?.totalAmount) || 0;
+    }, [transactionDetails]);
+  
+    const derivedBalance = useMemo(() => {
+      if (typeof (transactionDetails as any)?.balance === "number") {
+        return (transactionDetails as any).balance as number;
+      }
+      return derivedTotalAmount - derivedPaidAmount;
+    }, [transactionDetails, derivedTotalAmount, derivedPaidAmount]);
+  
+    
+  const isPurchase = transactionType === config.transactionTypes.PURC;
 
   // ────────────────────────────────────────────────
   // PAYMENTS TAB
@@ -104,8 +125,7 @@ export function TransactionDetailsTabs({
 
     return (
       <div className="space-y-4">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {/* <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-[10px] sm:text-sm text-gray-600">Amount</p>
             <p className="text-xs sm:text-sm font-bold text-primary">
@@ -136,18 +156,17 @@ export function TransactionDetailsTabs({
               {formatNumberWithCommas(remainingBalance.toFixed(2))}
             </p>
           </div>
-        </div>
+        </div> */}
 
-        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
             <div className="space-y-1 flex-1 sm:flex-none">
               <Label className="text-xs sm:text-sm">From Date</Label>
               <Input
                 type="date"
                 value={paymentStartDate}
                 onChange={(e) => setPaymentStartDate(e.target.value)}
-                className="w-full sm:w-40 text-xs sm:text-sm bg-white border-gray-300"
+                className="w-full sm:w-35 text-xs sm:text-sm bg-white border-gray-300"
                 min={selectedTransaction?.transactionDate?.split('T')[0]}
                 max={paymentEndDate}
               />
@@ -158,7 +177,7 @@ export function TransactionDetailsTabs({
                 type="date"
                 value={paymentEndDate}
                 onChange={(e) => setPaymentEndDate(e.target.value)}
-                className="w-full sm:w-40 text-xs sm:text-sm bg-white border-gray-300"
+                className="w-full sm:w-35 text-xs sm:text-sm bg-white border-gray-300"
                 min={paymentStartDate || selectedTransaction?.transactionDate?.split('T')[0]}
               />
             </div>
@@ -186,84 +205,164 @@ export function TransactionDetailsTabs({
           )}
         </div>
 
-        {/* Empty state OR table */}
         {filteredPayments.length === 0 ? (
-          <div className="text-center py-8 sm:py-12">
-            <CreditCard className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
-            <p className="text-gray-500 mt-2 text-sm sm:text-base">
-              {isPaymentFiltered
-                ? 'No payments match the current filters.'
-                : 'No payments recorded for this transaction.'}
-            </p>
+  <div className="text-center py-8 sm:py-12">
+    <CreditCard className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
+    <p className="text-gray-500 mt-2 text-sm sm:text-base">
+      {isPaymentFiltered
+        ? 'No payments match the current filters.'
+        : 'No payments recorded for this transaction.'}
+    </p>
+  </div>
+) : (
+  <div>
+    {/* ── Mobile: card list ── */}
+    <div className="sm:hidden space-y-2">
+      {[...filteredPayments]
+        .sort((a, b) => a.paymentDate?.localeCompare(b.paymentDate))
+        .map((payment: any, index: number) => (
+          <div key={index} className="border rounded-lg bg-white p-3 space-y-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Date
+              </span>
+              <span className="text-xs text-right">
+                {alphaNumericDate(payment.paymentDate)}
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Method
+              </span>
+              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-medium">
+                {paymentMethods?.find((x) => x.id === payment.paymentMethod)?.name || 'N/A'}
+              </span>
+            </div>
+
+            {payment.remarks && (
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">
+                  Remarks
+                </span>
+                <span className="text-xs text-right break-words min-w-0">
+                  {payment.remarks}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Amount {settings?.currency}
+              </span>
+              <span className="text-xs text-right font-semibold">
+                {formatNumberWithCommas(payment.amount.toFixed(2))}
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                Discount {settings?.currency}
+              </span>
+              <span className="text-xs text-right font-semibold text-blue-600">
+                {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
+              </span>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
-              <thead>
-                <tr className="bg-gray-100 border-b-2 border-gray-200">
-                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
-                    Payment Date
-                  </th>
-                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Method</th>
-                  <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold hidden sm:table-cell">
-                    Remarks
-                  </th>
-                  <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
-                    Amount {config?.currency}
-                  </th>
-                  <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
-                    Discount {config?.currency}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments
-                  .sort((a, b) => a.paymentDate?.localeCompare(b.paymentDate))
-                  .map((payment: any, index: number) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm">
-                        {alphaNumericDate(payment.paymentDate)}
-                      </td>
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm">
-                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-medium">
-                          {paymentMethods?.find((x) => x.id === payment.paymentMethod)?.name ||
-                            'N/A'}
-                        </span>
-                      </td>
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">
-                        {payment.remarks || '-'}
-                      </td>
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">
-                        {formatNumberWithCommas(payment.amount.toFixed(2))}
-                      </td>
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-blue-600">
-                        {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-50 border-t-2 border-gray-200">
-                  <td colSpan={3} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">
-                    Total Paid
-                  </td>
-                  <td className="p-2 sm:p-3 text-right font-bold text-green-600 text-xs sm:text-sm">
-                    {formatNumberWithCommas(
-                      filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)
-                    )}
-                  </td>
-                  <td className="p-2 sm:p-3 text-right font-bold text-blue-600 text-xs sm:text-sm">
-                    {formatNumberWithCommas(
-                      filteredPayments
-                        .reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0)
-                        .toFixed(2)
-                    )}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
+        ))}
+
+      {/* Mobile total card */}
+      <div className="border rounded-lg bg-gray-50 p-3 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold">Total Paid</span>
+          <span className="text-sm font-bold text-green-600">
+            {formatNumberWithCommas(
+              filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)
+            )}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold">Total Discount</span>
+          <span className="text-sm font-bold text-blue-600">
+            {formatNumberWithCommas(
+              filteredPayments
+                .reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0)
+                .toFixed(2)
+            )}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {/* ── Desktop: table (unchanged) ── */}
+    <div className="hidden sm:block overflow-x-auto">
+      <table className="w-full min-w-[600px]">
+        <thead>
+          <tr className="bg-gray-100 border-b-2 border-gray-200">
+            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+              Payment Date
+            </th>
+            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">Method</th>
+            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+              Remarks
+            </th>
+            <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+              Amount {settings?.currency}
+            </th>
+            <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+              Discount {settings?.currency}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...filteredPayments]
+            .sort((a, b) => a.paymentDate?.localeCompare(b.paymentDate))
+            .map((payment: any, index: number) => (
+              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="p-2 sm:p-3 text-xs sm:text-sm">
+                  {alphaNumericDate(payment.paymentDate)}
+                </td>
+                <td className="p-2 sm:p-3 text-xs sm:text-sm">
+                  <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] sm:text-xs font-medium">
+                    {paymentMethods?.find((x) => x.id === payment.paymentMethod)?.name ||
+                      'N/A'}
+                  </span>
+                </td>
+                <td className="p-2 sm:p-3 text-xs sm:text-sm text-gray-600">
+                  {payment.remarks || '-'}
+                </td>
+                <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold">
+                  {formatNumberWithCommas(payment.amount.toFixed(2))}
+                </td>
+                <td className="p-2 sm:p-3 text-xs sm:text-sm text-right font-semibold text-blue-600">
+                  {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
+                </td>
+              </tr>
+            ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-gray-50 border-t-2 border-gray-200">
+            <td colSpan={3} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">
+              Total Paid
+            </td>
+            <td className="p-2 sm:p-3 text-right font-bold text-green-600 text-xs sm:text-sm">
+              {formatNumberWithCommas(
+                filteredPayments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)
+              )}
+            </td>
+            <td className="p-2 sm:p-3 text-right font-bold text-blue-600 text-xs sm:text-sm">
+              {formatNumberWithCommas(
+                filteredPayments
+                  .reduce((sum: number, p: any) => sum + (p.coupon?.amount || 0), 0)
+                  .toFixed(2)
+              )}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+)}
       </div>
     );
   };
@@ -272,7 +371,6 @@ export function TransactionDetailsTabs({
   // DELIVERIES TAB
   // ────────────────────────────────────────────────
   const renderDeliveriesTab = () => {
-    // Collect all deliveries from items
     let allDeliveries: any[] = [];
     details?.items?.forEach((item: any) => {
       if (item.itemsDelivered && item.itemsDelivered.length > 0) {
@@ -297,7 +395,6 @@ export function TransactionDetailsTabs({
       deliveryStartDate || deliveryEndDate || (filterItem && filterItem !== 'all')
     );
 
-    // Filter by date
     allDeliveries = allDeliveries.filter((delivery) => {
       if (deliveryStartDate || deliveryEndDate) {
         const deliveryDate = new Date(delivery.deliveryDate);
@@ -310,14 +407,12 @@ export function TransactionDetailsTabs({
       return true;
     });
 
-    // Filter by item
     if (filterItem && filterItem !== 'all') {
       allDeliveries = allDeliveries.filter((delivery) => delivery.itemId === filterItem);
     }
 
     return (
       <div className="space-y-4">
-        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <div className="flex flex-row gap-2 w-full sm:w-auto">
@@ -378,7 +473,6 @@ export function TransactionDetailsTabs({
           </Button>
         </div>
 
-        {/* Empty state OR table */}
         {allDeliveries.length === 0 ? (
           <div className="text-center py-8 sm:py-12">
             <Truck className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
@@ -462,7 +556,6 @@ export function TransactionDetailsTabs({
   // REVERSALS TAB
   // ────────────────────────────────────────────────
   const renderReversalsTab = () => {
-    // Collect all reversals from deliveries
     let allReversals: any[] = [];
     details?.items?.forEach((item: any) => {
       if (item.itemsDelivered && item.itemsDelivered.length > 0) {
@@ -488,7 +581,6 @@ export function TransactionDetailsTabs({
       reversalStartDate || reversalEndDate || (filterItem && filterItem !== 'all')
     );
 
-    // Filter by date
     allReversals = allReversals.filter((reversal) => {
       if (reversalStartDate || reversalEndDate) {
         const reversalDate = new Date(reversal.reversalDate);
@@ -501,14 +593,12 @@ export function TransactionDetailsTabs({
       return true;
     });
 
-    // Filter by item
     if (filterItem && filterItem !== 'all') {
       allReversals = allReversals.filter((reversal) => reversal.itemId === filterItem);
     }
 
     return (
       <div className="space-y-4">
-        {/* Date Filter */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-end bg-gray-50 p-3 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <div className="flex flex-row gap-2 w-full sm:w-auto">
@@ -569,7 +659,6 @@ export function TransactionDetailsTabs({
           </Button>
         </div>
 
-        {/* Empty state OR table */}
         {allReversals.length === 0 ? (
           <div className="text-center py-8 sm:py-12">
             <RotateCcw className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300" />
@@ -624,9 +713,9 @@ export function TransactionDetailsTabs({
 
   return (
     <div className="space-y-4 w-full px-2 sm:px-4">
-      {/* Header */}
-      <div className="border-b border-gray-200 pb-4">
-        <div className="flex flex-col sm:flex-col lg:flex-row justify-between items-start sm:items-center gap-3">
+      {/* Header — sticky so it stays visible while the tab content scrolls */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 pb-3 pt-2 -mx-2 sm:-mx-4 px-2 sm:px-4">
+        <div className="flex flex-col sm:flex-col lg:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
           <div className="w-full sm:w-auto">
             <h2 className="text-sm sm:text-xl font-bold text-gray-800 break-words">
               {businessPartnerName}
@@ -669,6 +758,38 @@ export function TransactionDetailsTabs({
             )}
           </div>
         </div>
+
+        {/* ✅ Mobile only — Total on its own full-width row, larger */}
+        <div className="w-full rounded-lg bg-gray-50 px-3 py-2 block sm:flex items-center justify-between">
+          <div className="flex justify-between sm:justify-start gap-2">
+            <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total</span>
+            <span className="text-lg font-bold text-primary">
+              {settings?.currency} {formatNumberWithCommas((details.totalAmount || 0).toFixed(2))}
+            </span>
+          </div>
+           <div className="flex justify-between sm:justify-start gap-2">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Paid</p>
+            <p className="font-bold text-blue-500 text-sm">
+              {formatNumberWithCommas(derivedPaidAmount.toFixed(2))}
+            </p>
+          </div>
+          <div className="flex justify-between sm:justify-start gap-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide"> {derivedBalance > 0 ? "Debt" : "Balance"}</p>
+              <p
+                className={`font-bold text-sm ${
+                  derivedBalance > 0
+                    ? "text-red-500"
+                    : derivedBalance < 0
+                    ? "text-blue-500"
+                    : ""
+                }`}
+              >
+              {formatNumberWithCommas(derivedBalance.toFixed(2))}
+            </p>
+          </div>
+        </div>
+
+        
       </div>
 
       {/* Tabs */}
@@ -685,11 +806,10 @@ export function TransactionDetailsTabs({
             {onAddPayment && (
               <TabsTrigger
                 value="payments"
-                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-1 sm:px-3"
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-3 sm:px-3"
               >
                 <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Payments</span>
-                <span className="sm:hidden">Pay</span>
+                <span className=''>Payment</span>
               </TabsTrigger>
             )}
             {onAddDelivery && (

@@ -19,7 +19,7 @@ import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import  { LoadingOverlay } from '@/components/SkeletonLoading';
 import StatusBadge from '@/components/ui/statusbadge'
 import { useToaster } from '@/components/util/CustomToast';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 import { sessionStore } from '@/helpers/formatStrings';
 import { CustomSelect } from '@/components/util/CustomSelect';
 // Dynamic imports
@@ -56,14 +56,10 @@ export default function PurcahsePage() {
   const [filterItem, setFilterItem] = useState<string>("");
   const isLoadingRef = useRef(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+
 
   const loadData = async (): Promise<void> => {
-    if (isLoadingRef.current) return;
-
-    isLoadingRef.current = true;
+    setLoading(true)
     try {
      
       const data = await axiosInstance.get(`/Locations?companyId=${user.companyId || user}&LocationId=${selectedShop || sessionShop}`);
@@ -84,7 +80,7 @@ export default function PurcahsePage() {
 
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
-      setIsLoadingDetails(true);
+      setLoading(true);
       const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
       setTransactionDetails(response?.data);
       return response?.data;
@@ -96,7 +92,7 @@ export default function PurcahsePage() {
       });
       return null;
     } finally {
-      setIsLoadingDetails(false);
+      setLoading(false);
     }
   };
 
@@ -112,24 +108,21 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer/Approved-For-Delivery?LocationId=${selectedShop || sessionStore.get("selectedShop")}`)
-      console.log(stockTransfers.data)
-      setStockTransfers(stockTransfers?.data);
+    setLoading(true)
+      axiosInstance.get(`/StockTransfer/Approved-For-Delivery?LocationId=${selectedShop || sessionStore.get("selectedShop")}`).then((res) => {
+        setStockTransfers(res?.data);
+      })
+
+      setLoading(false)
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
 
   useEffect(() => {
-    getStockTransfers();
-  }, [selectedShopForStockTrans]);
+      loadData().then(() => {
+         getStockTransfers();
+      })
+  }, [ selectedShop]);
 
-
-  // console.log(selectedTransaction?.supplierId  ===  (selectedShop || sessionShop))
-  // console.log()
-  // console.log((selectedTransaction?.supplierId) === (selectedShop || sessionShop) ? `Transfer to ${shops?.find(x=> x.id === transactionDetails?.locationId)?.name})}` :`Receival from ${shops?.find(x => x.id === (selectedShopForStockTrans || transactionDetails?.supplierId))?.name || ""} (Trans # - ${transactionDetails?.transactionCode})`)
-  // console.log(shops)
   const columns = [
     {
       key: "customerName" as keyof Transaction,
@@ -233,7 +226,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  {config.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {settings?.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -313,7 +306,7 @@ export default function PurcahsePage() {
                 options={transactionDetails?.items?.map((x) => ({
                   value: x.id.toString(),
                   label: x.name
-                  // discriptionLabel: `${config.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
+                  // discriptionLabel: `${settings?.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
                 })) || []}
                 value={filterItem}
                 onValueChange={setFilterItem}

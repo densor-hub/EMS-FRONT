@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { Plus, User, Package, CreditCard, Truck, RotateCcw } from "lucide-react";
 import { Header } from '@/components/dashboard/header';
 import { Button } from "@/components/ui/button";
@@ -16,44 +16,24 @@ import {
   removeCommasFromNumbers,
   toastErrors,
   sessionStore,
+  unwrapItems,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
+import { config, settings } from '@/components/util/AppConfig';
+import SweetAlert from '@/components/util/SweetAlert';
 
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
   { ssr: false }
 );
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 },
-];
+const paymentMethods = config.paymentMethods;
 
 type TabKey = 'items' | 'payments' | 'deliveries' | 'reversals';
 
-const DEFAULT_PAGE_SIZE = 25;
-
-// ✅ Handles both the new paginated shape { items, totalCount, ... }
-//    and the legacy plain-array shape.
-function unwrapItems<T>(response: any): { items: T[]; total: number; pages: number } {
-  const data = response?.data;
-  if (Array.isArray(data)) {
-    return { items: data, total: data.length, pages: 1 };
-  }
-  if (data && Array.isArray(data.items)) {
-    return {
-      items: data.items,
-      total: data.totalCount ?? data.items.length,
-      pages: data.totalPages ?? 1,
-    };
-  }
-  return { items: [], total: 0, pages: 0 };
-}
+const DEFAULT_PAGE_SIZE = settings?.defaultPageSize;
 
 export default function PurchasePage() {
   const toast = useToaster();
@@ -63,6 +43,7 @@ export default function PurchasePage() {
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [amountPaid, setAmountPaid] = useState("");
   const [date, setDate] = useState('');
+  const [showAlert, setShowAlert] = useState(false)
 
   // Data state
   const [sales, setsales] = useState<Transaction[]>([]);
@@ -83,13 +64,41 @@ export default function PurchasePage() {
   const [remarksError, setRemarksError] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // ✅ Pagination state
+  // Pagination state
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pageSize] = useState<number>(DEFAULT_PAGE_SIZE || 10);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
 
+  // Optional: wire up when backend adds search to /Purchases/Requests
+  const [searchTerm, setSearchTerm] = useState<string>("");
+
   const isLoadingRef = useRef(false);
+
+  // ────────────────────────────────────────────────
+  // DERIVED TOTALS — fixes the balance bug
+  // The GET-by-id response does NOT include paidAmount/balance,
+  // only payments[]. Fall back to summing payments when missing.
+  // ────────────────────────────────────────────────
+  const derivedPaidAmount = useMemo(() => {
+    if (typeof (transactionDetails as any)?.paidAmount === "number") {
+      return (transactionDetails as any).paidAmount as number;
+    }
+    const payments = (transactionDetails as any)?.payments as any[] | undefined;
+    if (!Array.isArray(payments)) return 0;
+    return payments.reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
+  }, [transactionDetails]);
+
+  const derivedTotalAmount = useMemo(() => {
+    return Number(transactionDetails?.totalAmount) || 0;
+  }, [transactionDetails]);
+
+  const derivedBalance = useMemo(() => {
+    if (typeof (transactionDetails as any)?.balance === "number") {
+      return (transactionDetails as any).balance as number;
+    }
+    return derivedTotalAmount - derivedPaidAmount;
+  }, [transactionDetails, derivedTotalAmount, derivedPaidAmount]);
 
   // ────────────────────────────────────────────────
   // LOADERS
@@ -124,26 +133,35 @@ export default function PurchasePage() {
         });
         if (selectedSupplier) {
           params.set('supplierId', selectedSupplier);
+        } else {
+          params.set('supplierId', "00000000-0000-0000-0000-000000000000");
+        }
+        if (searchTerm.trim()) {
+          params.set('search', searchTerm.trim());
         }
 
         const purchasesResponse = await axiosInstance.get(
-          `/Purchases/Requests?${params.toString()}`
+          `/Purchases/ManagerCheck?${params.toString()}`
         );
 
         const { items, total, pages } = unwrapItems<Transaction>(purchasesResponse);
+
         setsales(items);
         setTotalCount(total);
         setTotalPages(pages);
+
+        // If we've overshot (e.g. after a filter change), snap back.
+        if (pages > 0 && targetPage > pages) setPage(pages);
       } catch (error) {
         console.error("Error loading purchases:", error);
       } finally {
         setLoading(false);
       }
     },
-    [selectedShop, selectedSupplier, page, pageSize]
+    [selectedShop, selectedSupplier, page, pageSize, searchTerm]
   );
 
-  // Initial load: suppliers only. Purchases are loaded by the effect below.
+  // Initial load: suppliers only.
   useEffect(() => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
@@ -153,13 +171,13 @@ export default function PurchasePage() {
     })();
   }, [loadSuppliers]);
 
-  // Reload purchases whenever shop, supplier, or page changes.
+  // Reload purchases whenever shop, supplier, page or search changes.
   useEffect(() => {
     loadPurchases(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedShop, selectedSupplier, page]);
+  }, [selectedShop, selectedSupplier, page, searchTerm]);
 
-  // Reset to page 1 when the supplier filter changes.
+  // Reset to page 1 when supplier changes.
   useEffect(() => {
     setPage(1);
   }, [selectedSupplier]);
@@ -229,10 +247,12 @@ export default function PurchasePage() {
     setActiveTab("items");
   };
 
+ 
   // ────────────────────────────────────────────────
   // MANAGER RESPONSE
   // ────────────────────────────────────────────────
   const submitManagerResponse = async (action: 'approve' | 'decline'): Promise<void> => {
+    if (action ==='approve' && !selectedTransaction?.businessPartnerId && showAlert === false) return setShowAlert(true);
     if (action === 'decline' && !remarks.trim()) {
       setRemarksError("Remarks are required when declining.");
       return;
@@ -252,9 +272,7 @@ export default function PurchasePage() {
 
       toast.success({
         title: action === 'approve' ? 'Purchase approved' : 'Purchase declined',
-        description: `Transaction ${selectedTransaction?.transactionCode} was ${
-          action === 'approve' ? 'approved' : 'declined'
-        } successfully.`,
+        description: `successfully.`,
       });
 
       closeDetailsModal();
@@ -266,6 +284,10 @@ export default function PurchasePage() {
       setSubmitting(false);
     }
   };
+
+   const handleContinue = () => {
+    submitManagerResponse("approve")
+  }
 
   // ────────────────────────────────────────────────
   // TABLE COLUMNS
@@ -372,7 +394,7 @@ export default function PurchasePage() {
                 const price = item.unitPrice ?? 0;
                 return (
                   <tr key={item.id ?? idx} className="border-t">
-                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">{item.itemName ?? item.name ?? "—"}</td>
+                    <td className="px-2 sm:px-3 py-1.5 sm:py-2">{item.name ?? item.itemName ?? "—"}</td>
                     <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right">{qty}</td>
                     <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right">
                       {formatNumberWithCommas(price.toFixed(2))}
@@ -418,7 +440,9 @@ export default function PurchasePage() {
                       : "—"}
                   </td>
                   <td className="px-2 sm:px-3 py-1.5 sm:py-2">
-                    {paymentMethods.find((m) => m.id === p.paymentMethod)?.name ?? "—"}
+                    {p.paymentMethodName ??
+                      paymentMethods?.find((m) => m.id === p.paymentMethod)?.name ??
+                      "—"}
                   </td>
                   <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right font-medium">
                     {formatNumberWithCommas((p.amount ?? 0).toFixed(2))}
@@ -519,104 +543,153 @@ export default function PurchasePage() {
     { key: 'reversals', label: 'Reversals', icon: RotateCcw },
   ];
 
-  // ✅ Pagination controls (rendered below the DataTable)
-  const paginationControls = totalPages > 1 && (
-    <div className="flex items-center justify-between gap-2 mt-3 px-2">
-      <span className="text-xs text-muted-foreground">
-        Page {page} of {totalPages} · {totalCount} total
-      </span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
-  );
-
   return (
-    <Suspense fallback={<LoadingOverlay />}>
-      {loading && <LoadingOverlay />}
-      <div className="min-h-screen w-full overflow-x-hidden">
+    <>
+      {(loading || submitting) &&  <LoadingOverlay />}
+      <div className=" w-full overflow-x-hidden">
         <Header title="Purchases from suppliers" />
         <div className="relative">
           <div className="flex flex-row sm:flex-row justify-between gap-2 sm:gap-4 mb-2" />
 
           <CardContent className="m-0 p-0 overflow-x-auto">
-            {/* ✅ DataTable now receives a real array from the paginated response. */}
             <DataTable
               title="All Purchases"
               data={sales}
               columns={columns}
-              searchKey="supplierName"
               addLabel="Add Purchase"
               emptyMessage="No data found."
               onRowClick={(row) => openTransactionDetails(row)}
               height="h-[calc(100vh-280px)] sm:h-[calc(100vh-250px)]"
+              paginationMode="backend"
+              serverPagination={{
+                page,
+                totalPages,
+                totalCount,
+                onPageChange: (p) => setPage(p),
+                onSearchChange: (term) => {
+                  setSearchTerm(term);
+                  setPage(1);
+                },
+              }}
             />
-            {paginationControls}
           </CardContent>
 
           {/* ──────────────────────────── DETAILS MODAL ──────────────────────────── */}
           <Modal
             isOpen={detailsModalOpen}
             onClose={closeDetailsModal}
-            title={`Purchase ${selectedTransaction?.transactionCode ?? ""}`}
+            title=""
             size="full"
             height="585px"
           >
             <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto px-1 sm:px-3 sm:px-6 py-3 sm:py-4 space-y-4 sm:space-y-6">
-                {/* Summary */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                  <div className="rounded-lg border p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Supplier</p>
-                    <p className="font-medium text-xs sm:text-sm truncate">
+              {/* STICKY HEADER */}
+              <div className="sticky top-0 z-20 bg-white border-b px-2 sm:px-4 pt-2 pb-3 -mx-2 sm:-mx-4">
+                <div className="flex flex-col sm:flex-col lg:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
+                  <div className="w-full sm:w-auto">
+                    <h2 className="text-sm sm:text-lg font-bold text-gray-800 break-words">
+                      Stock-In {selectedTransaction?.transactionCode ?? ""}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
+                      <span className="text-xs sm:text-sm text-gray-600">
+                        Supplier:{' '}
+                        <span className="font-semibold">
+                          {suppliers?.find((x) => x.id === selectedTransaction?.supplierId)
+                            ?.supplierCompanyName || "—"}
+                        </span>
+                      </span>
+                      <span className="text-xs sm:text-sm text-gray-600">
+                        Date:{' '}
+                        <span className="font-semibold">
+                          {selectedTransaction?.transactionDate
+                            ? alphaNumericDate(
+                                new Date(selectedTransaction.transactionDate).toLocaleDateString()
+                              )
+                            : "—"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+          
+                  {/* Mobile total */}
+                  <div className="w-full sm:hidden rounded-lg bg-gray-50 px-3 py-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Total Amount
+                    </span>
+                    <span className="text-lg font-bold text-primary">
+                      {formatNumberWithCommas(derivedTotalAmount.toFixed(2))}
+                    </span>
+                  </div>
+                </div>
+          
+           {/* Mobile balance chip — uses derivedBalance */}
+            {/* Mobile balance chip — uses derivedBalance */}
+                <div className="sm:hidden mt-2 flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Paid</span>
+                  <span
+                    className={`font-bold text-blue-500`}
+                  >
+                    {formatNumberWithCommas(derivedPaidAmount.toFixed(2))}
+                  </span>
+                </div>
+
+                <div className="sm:hidden mt-2 flex items-center justify-between text-xs">
+                  <span className="text-gray-600">{derivedBalance > 0 ? "Debt" :"Balance"}</span>
+                  <span
+                    className={`font-bold ${
+                      derivedBalance > 0
+                        ? "text-red-500"
+                        : derivedBalance < 0
+                        ? "text-blue-500"
+                        : ""
+                    }`}
+                  >
+                    {formatNumberWithCommas(derivedBalance.toFixed(2))}
+                  </span>
+                </div>
+               
+              </div>
+          
+              {/* SCROLLABLE BODY */}
+              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-3 sm:py-4 space-y-4 sm:space-y-6">
+                {/* Desktop summary cards — added a "Paid" card and fixed "Balance" */}
+                <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Supplier</p>
+                    <p className="font-medium text-sm truncate">
                       {suppliers?.find((x) => x.id === selectedTransaction?.supplierId)
                         ?.supplierCompanyName || "—"}
                     </p>
                   </div>
-                  <div className="rounded-lg border p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Date</p>
-                    <p className="font-medium text-xs sm:text-sm">
-                      {selectedTransaction?.transactionDate
-                        ? alphaNumericDate(
-                            new Date(selectedTransaction.transactionDate).toLocaleDateString()
-                          )
-                        : "—"}
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Total Amount</p>
+                    <p className="font-bold text-primary text-sm">
+                      {formatNumberWithCommas(derivedTotalAmount.toFixed(2))}
                     </p>
                   </div>
-                  <div className="rounded-lg border p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Total Amount</p>
-                    <p className="font-bold text-primary text-xs sm:text-sm">
-                      {formatNumberWithCommas((transactionDetails?.totalAmount ?? 0).toFixed(2))}
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Paid</p>
+                    <p className="font-bold text-blue-500 text-sm">
+                      {formatNumberWithCommas(derivedPaidAmount.toFixed(2))}
                     </p>
                   </div>
-                  <div className="rounded-lg border p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">Balance</p>
-                    <p className="font-bold text-red-500 text-xs sm:text-sm">
-                      {formatNumberWithCommas(
-                        (
-                          (transactionDetails?.totalAmount ?? 0) -
-                          (transactionDetails?.paidAmount ?? 0)
-                        ).toFixed(2)
-                      )}
+                  <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground"> {derivedBalance > 0 ? "Debt" : "Balance"}</p>
+                      <p
+                        className={`font-bold text-sm ${
+                          derivedBalance > 0
+                            ? "text-red-500"
+                            : derivedBalance < 0
+                            ? "text-blue-500"
+                            : ""
+                        }`}
+                      >
+                      {formatNumberWithCommas(derivedBalance.toFixed(2))}
                     </p>
                   </div>
+                 
                 </div>
-
+          
                 {/* Tab content */}
                 <div>
                   {activeTab === 'items' && renderItemsTab()}
@@ -624,7 +697,7 @@ export default function PurchasePage() {
                   {activeTab === 'deliveries' && renderDeliveriesTab()}
                   {activeTab === 'reversals' && renderReversalsTab()}
                 </div>
-
+          
                 {/* Remarks */}
                 <div>
                   <Label htmlFor="remarks" className="text-xs sm:text-sm font-semibold">
@@ -648,7 +721,7 @@ export default function PurchasePage() {
                   )}
                 </div>
               </div>
-
+          
               {/* Sticky footer */}
               <div className="border-t px-3 sm:px-6 py-2.5 sm:py-3 flex flex-row justify-end gap-2 sm:gap-3 bg-background">
                 <Button
@@ -671,8 +744,20 @@ export default function PurchasePage() {
           </Modal>
         </div>
 
+          <SweetAlert
+            isOpen={showAlert}
+            onClose={() => setShowAlert(false)}
+            onConfirm={handleContinue}     // ← Action on confirm
+            onCancel={() => setShowAlert(false)}       // ← Action on cancel
+            type="question"
+            title="This purchase has no Supplier"
+            message="Once approved, stock levels of the items will be affected, Do you want to continue ?"
+            confirmText="Yes, Continue"
+            showCancelButton={true}
+            showCloseButton={false}
+          />
         {toast.ToastComponent}
       </div>
-    </Suspense>
+    </>
   );
 }

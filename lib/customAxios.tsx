@@ -60,6 +60,29 @@ let initialAuthCheckResult: boolean | null = null;
 let hasReconciledWithServer = false;
 
 let consecutiveRefreshFailures = 0;
+const REFRESH_FAILURE_THRESHOLD = 2;
+
+// ---------- forced-logout signal ----------
+type ForcedLogoutListener = () => void | Promise<void>;
+const forcedLogoutListeners = new Set<ForcedLogoutListener>();
+
+export const onForcedLogout = (listener: ForcedLogoutListener): (() => void) => {
+  forcedLogoutListeners.add(listener);
+  return () => {
+    forcedLogoutListeners.delete(listener);
+  };
+};
+
+const notifyForcedLogout = async (): Promise<void> => {
+  const listeners = Array.from(forcedLogoutListeners);
+  for (const listener of listeners) {
+    try {
+      await listener();
+    } catch (err) {
+      console.error('[auth] forced-logout listener failed:', err);
+    }
+  }
+};
 
 let userStateSetter: ((user: Partial<User>) => void) | null = null;
 let companyStateSetter: ((company: Partial<Company>) => void) | null = null;
@@ -102,39 +125,107 @@ axiosInstance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// ---------- refresh (deduped) ----------
+// ---------- refresh ----------
 type RetriableConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
   _skipAuthCheck?: boolean;
   _skipRefresh?: boolean;
 };
 
-let refreshPromise: Promise<string | null> | null = null;
+// ✅ Type `profile` to match `Partial<User>` and `Partial<Company>` exactly.
+// No hard-coded `number` — whatever your `@/lib/types` declares for
+// `User['id']`, `User['companyId']`, `Company['id']`, `Company['name']`,
+// `User['routes']`, `User['locations']` is what this uses.
+type RefreshResult = {
+  token: string | null;
+  profile?: {
+    id?: User['id'];
+    fullName?: string;
+    company?: {
+      id?: Company['id'];
+      name?: Company['name'];
+    };
+    routes?: NonNullable<User['routes']>;
+    locations?: NonNullable<User['locations']>;
+  };
+};
 
-const refreshAccessToken = async (): Promise<string | null> => {
+let refreshPromise: Promise<RefreshResult> | null = null;
+
+const recordRefreshFailure = async (reason: string): Promise<void> => {
+  consecutiveRefreshFailures += 1;
+
+  console.warn(
+    `[auth] refresh failure #${consecutiveRefreshFailures}/${REFRESH_FAILURE_THRESHOLD} (${reason})`
+  );
+
+  if (consecutiveRefreshFailures < REFRESH_FAILURE_THRESHOLD) return;
+
+  await notifyForcedLogout();
+};
+
+const refreshAccessToken = async (): Promise<RefreshResult> => {
   if (refreshPromise) return refreshPromise;
 
-  refreshPromise = (async () => {
+  refreshPromise = (async (): Promise<RefreshResult> => {
+    let failureReason: string | null = null;
+
     try {
       const res = await axios.post(
-        `${baseURL}/auth/refresh-token`,
+        `${baseURL}/auth/refresh`,
         {},
         { withCredentials: true }
       );
       const token: string | undefined =
         res.data?.accessToken ?? res.data?.token;
-      if (token) {
-        accessToken = token;
-        if (res.data?.accessTokenExpires) {
-          accessTokenExpiry = new Date(res.data.accessTokenExpires);
-        }
-        safeSession.set(SK.accessToken, token);
+
+      if (!token) {
+        failureReason = 'refresh returned 200 with no token';
+        return { token: null };
       }
-      return token ?? null;
-    } catch {
-      return null;
+
+      accessToken = token;
+      if (res.data?.accessTokenExpires) {
+        accessTokenExpiry = new Date(res.data.accessTokenExpires);
+      }
+      safeSession.set(SK.accessToken, token);
+
+      // res.data is `any`; the casts narrow it to the exact field types
+      // declared in RefreshResult. Nothing here is invented — every field
+      // is the same one your backend has always returned.
+      return {
+        token,
+        profile: {
+          id: res.data?.id as User['id'] | undefined,
+          fullName: res.data?.fullName as string | undefined,
+          company: res.data?.company
+            ? {
+                id: res.data.company.id as Company['id'] | undefined,
+                name: res.data.company.name as Company['name'] | undefined,
+              }
+            : undefined,
+          routes: (res.data?.routes ?? []) as NonNullable<User['routes']>,
+          locations: (res.data?.locations ?? []) as NonNullable<
+            User['locations']
+          >,
+        },
+      };
+    } catch (err: any) {
+      const status = err?.response?.status;
+      failureReason =
+        status === 401
+          ? 'refresh returned 401'
+          : `refresh failed with status ${status ?? 'unknown'}`;
+      return { token: null };
     } finally {
-      refreshPromise = null;
+      if (failureReason) {
+        await recordRefreshFailure(failureReason);
+        refreshPromise = null;
+      } else {
+        setTimeout(() => {
+          refreshPromise = null;
+        }, 150);
+      }
     }
   })();
 
@@ -150,22 +241,24 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status !== 401) return Promise.reject(error);
     if (original._retry) return Promise.reject(error);
     if (original._skipRefresh) return Promise.reject(error);
-    if (original.url?.includes('/auth/refresh-token')) {
+
+    if (original.url?.includes('/auth/refresh')) {
+      await recordRefreshFailure(`direct 401 on ${original.url}`);
       return Promise.reject(error);
     }
 
     original._retry = true;
 
-    const token = await refreshAccessToken();
+    const result = await refreshAccessToken();
 
-    if (!token) {
+    if (!result.token) {
       accessToken = null;
       accessTokenExpiry = null;
       safeSession.remove(SK.accessToken);
       return Promise.reject(error);
     }
 
-    original.headers.Authorization = `Bearer ${token}`;
+    original.headers.Authorization = `Bearer ${result.token}`;
     return axiosInstance(original);
   }
 );
@@ -218,7 +311,6 @@ export const getSelectedShop = (): string =>
   safeSession.get(SK.selectedShop) ?? '';
 
 export const setSelectedShopPersisted = (id: string) => {
-  // ✅ Empty value must REMOVE the key, not write '' or '""'.
   if (id) safeSession.set(SK.selectedShop, id);
   else {
     safeSession.remove(SK.selectedShop);
@@ -249,51 +341,41 @@ export const performInitialAuthCheck = async (
 
   initialAuthCheckPromise = (async () => {
     try {
-      const response = await axios.post(
-        `${baseURL}/auth/refresh-token`,
-        {},
-        { withCredentials: true }
-      );
+      const result = await refreshAccessToken();
 
-      const fullName = response?.data?.fullName || '';
+      if (!result.token || !result.profile) {
+        initialAuthCheckDone = true;
+        initialAuthCheckResult = false;
+        hasReconciledWithServer = true;
+        initialAuthCheckPromise = null;
+        return false;
+      }
+
+      const data = result.profile;
+      const fullName = data.fullName || '';
       const nameParts = fullName.split(' ').filter(Boolean);
+
+      // ✅ These now compile without casts — `data.id` is `User['id']`,
+      // `data.company?.id` is `Company['id']` (which should equal
+      // `User['companyId']` in your types).
       const userData: Partial<User> = {
         lastName: nameParts[nameParts.length - 1] || '',
         firstName: nameParts[0] || '',
-        id: response?.data?.id,
-        companyId: response?.data?.company?.id,
-        routes: response?.data?.routes || [],
-        locations: response?.data?.locations || [],
+        id: data.id,
+        companyId: data.company?.id,
+        routes: data.routes || [],
+        locations: data.locations || [],
       };
 
       const companyData: Partial<Company> = {
-        id: response?.data?.company?.id,
-        name: response?.data?.company?.name,
+        id: data.company?.id,
+        name: data.company?.name,
       };
-
-      if (response.data.accessToken) {
-        accessToken = response.data.accessToken;
-        accessTokenExpiry = new Date(response.data.accessTokenExpires);
-        safeSession.set(SK.accessToken, accessToken ?? '');
-      }
 
       updateAuthState(userData, companyData);
       safeSession.set(SK.isAuthenticated, 'true');
 
       consecutiveRefreshFailures = 0;
-
-      // ✅ ROOT-CAUSE FIX: removed the auto-select-shop block.
-      // Previously:
-      //   if (isBrowser() && !safeSession.get(SK.selectedShop)) {
-      //     const locations = userData.locations ?? [];
-      //     if (locations.length > 0) {
-      //       safeSession.set(SK.selectedShop, String(locations[0].id));
-      //     }
-      //   }
-      // That block silently re-populated selectedShop on every auth
-      // reconciliation (mount, retry, hard reload), which caused
-      // /select-shop to be skipped after logout + re-login.
-      // The shop is now chosen explicitly on /select-shop.
 
       initialAuthCheckDone = true;
       initialAuthCheckResult = true;
@@ -306,13 +388,6 @@ export const performInitialAuthCheck = async (
       initialAuthCheckResult = false;
       hasReconciledWithServer = true;
       initialAuthCheckPromise = null;
-
-      if (error?.response?.status === 401) {
-        consecutiveRefreshFailures++;
-        if (consecutiveRefreshFailures >= 2) {
-          clearAuthState();
-        }
-      }
 
       return false;
     }
@@ -394,9 +469,6 @@ export const login = async (email: string, password: string): Promise<any> => {
     consecutiveRefreshFailures = 0;
 
     safeSession.set(SK.isAuthenticated, 'true');
-
-    // ✅ Login NEVER auto-selects a shop. The user picks one on
-    // /select-shop (or is skipped if sessionStorage already has one).
 
     return response;
   } catch (error) {

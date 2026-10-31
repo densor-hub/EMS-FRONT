@@ -41,12 +41,10 @@ export default function CustomersPage() {
   const [address, setAddress] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
 
   const loadData = async () => {
     try {
+      setIsLoading(true)
       const response = await axiosInstance.get(
         `/Customers?locationId=${selectedShop || sessionShop}`
       );
@@ -162,11 +160,10 @@ export default function CustomersPage() {
     }
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: config.currency,
-    }).format(amount);
+    useEffect(() => {
+    loadData();
+  }, [selectedShop]);
+
 
   const columns = [
     {
@@ -197,7 +194,7 @@ export default function CustomersPage() {
       sortable: true,
       render: (customer: Customer) => (
         <span className="text-foreground">
-          {formatCurrency(customer.creditLimit)}
+          {currency(customer.creditLimit?.toString())}
         </span>
       ),
     },

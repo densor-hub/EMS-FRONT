@@ -112,7 +112,7 @@ const TransactionItemSelection = (props: iTransactionItemSelection) => {
        props?.setQuantity("");
      }, [props?.selectedItem, props?.quantity, props?.cart, props?.selectedTransaction, props?.isStockTransfer, toast]);
 
-{console.log(props?.transactionActionType)}
+// {console.log(props?.transactionActionType)}
 
      //console.log(props.transactionActionType)
     return (

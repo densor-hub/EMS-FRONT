@@ -1,5 +1,5 @@
 {
-  "version": "3.0",
+  "version": "3.2",
   "title": "Gold/Silver — SMC + SNR + MSNR + News",
   "start": "first_things",
   "nodes": {
@@ -21,30 +21,30 @@
       ],
       "conditionalNext": [
         { "when": ["ft_tonyike"], "next": "tony_ike_4h" },
-        { "when": ["ft_structure", "ft_5m_tl"], "next": "slp_storyline" },
+        { "when": ["ft_structure", "ft_5m_tl"], "next": "route_setup", "mode": "lower_tf" },
         { "when": ["ft_news"], "next": "news_check" }
       ],
-      "onYes": "prerequisite",
+      "onYes": "four_h_storyline_map",
       "onNo": "wait_state"
     },
 
-   "news_check": {
-  "id": "news_check",
-  "title": "News",
-  "type": "gate",
-  "question": "Which red release fired today? Direction?",
-  "checks": [
-    { "id": "nfp_buys", "label": "NFP — Red Actual (Buys)" },
-    { "id": "nfp_sells", "label": "NFP — (Sells)" },
-    { "id": "cpi_buys", "label": "CPI — Red Actual (Buys)" },
-    { "id": "cpi_sells", "label": "CPI — (Sells)" },
-    { "id": "ppi_buys", "label": "PPI — Red Actual (Buys)" },
-    { "id": "ppi_sells", "label": "PPI — (Sells)" },
-    { "id": "no_release", "label": "No red release today" }
-  ],
-  "onYes": "first_things",
-  "onNo": "first_things"
-},
+    "news_check": {
+      "id": "news_check",
+      "title": "News",
+      "type": "gate",
+      "question": "Which red release fired today? Direction?",
+      "checks": [
+        { "id": "nfp_buys", "label": "NFP — Red Actual (Buys)" },
+        { "id": "nfp_sells", "label": "NFP — (Sells)" },
+        { "id": "cpi_buys", "label": "CPI — Red Actual (Buys)" },
+        { "id": "cpi_sells", "label": "CPI — (Sells)" },
+        { "id": "ppi_buys", "label": "PPI — Red Actual (Buys)" },
+        { "id": "ppi_sells", "label": "PPI — (Sells)" },
+        { "id": "no_release", "label": "No red release today" }
+      ],
+      "onYes": "first_things",
+      "onNo": "first_things"
+    },
 
     "tony_ike_4h": {
       "id": "tony_ike_4h",
@@ -59,14 +59,14 @@
         { "id": "tk4_place", "label": "Trade placed" }
       ],
       "onYes": "order_block_validation",
-      "onNo": "prerequisite"
+      "onNo": "market_condition"
     },
 
-    "prerequisite": {
-      "id": "prerequisite",
-      "title": "4H Storyline — Map Building (Priority 2)",
+    "four_h_storyline_map": {
+      "id": "four_h_storyline_map",
+      "title": "4H Storyline — Build (Priority 2)",
       "type": "gate",
-      "question": "Build the 4H map.",
+      "question": "Build the 4H map: bias, SL zones, MSNR levels, optimal SL line.",
       "checks": [
         { "id": "p_sl_zones", "label": "4H stop-loss zones (support & resistance) marked" },
         { "id": "p_msnr", "label": "Next 2–3 MSNR levels after stop-loss zones marked" },
@@ -88,29 +88,107 @@
       "type": "choice",
       "question": "What is the market condition right now?",
       "options": [
-        { "value": "trending_strong", "label": "Trending — strong, obvious momentum", "next": "route_setup" },
-        { "value": "trending_normal", "label": "Trending — normal", "next": "route_setup" },
-        { "value": "tl_broken", "label": "Trendline broken and closed", "next": "route_setup" },
-        { "value": "consolidation_choppy", "label": "Consolidation / bias unclear / choppy", "next": "route_setup" },
-        { "value": "opposing_tls", "label": "Opposing trendlines", "next": "route_setup" },
-        { "value": "fresh_impulse", "label": "Fresh impulse (candle A → B engulfing)", "next": "route_setup" },
-        { "value": "counter_trend", "label": "Counter-trend opportunity", "next": "route_setup" },
-        { "value": "mss_choch", "label": "Valid MSS/CHOCH structure", "next": "route_setup" },
-        { "value": "market_gap", "label": "Market Gap present (Monday open)", "next": "route_setup" }
+        { "value": "trending_strong", "label": "Trending — strong, obvious momentum", "next": "market_condition_checks" },
+        { "value": "trending_normal", "label": "Trending — normal", "next": "market_condition_checks" },
+        { "value": "tl_broken", "label": "Trendline broken and closed", "next": "market_condition_checks" },
+        { "value": "consolidation_choppy", "label": "Consolidation / bias unclear / choppy", "next": "market_condition_checks" },
+        { "value": "opposing_tls", "label": "Opposing trendlines", "next": "market_condition_checks" },
+        { "value": "fresh_impulse", "label": "Fresh impulse (candle A → B engulfing)", "next": "market_condition_checks" },
+        { "value": "counter_trend", "label": "Counter-trend opportunity", "next": "market_condition_checks" },
+        { "value": "mss_choch", "label": "Valid MSS/CHOCH structure", "next": "market_condition_checks" },
+        { "value": "market_gap", "label": "Market Gap present (Monday open)", "next": "market_condition_checks" }
       ]
+    },
+
+    "market_condition_checks": {
+      "id": "market_condition_checks",
+      "title": "Market Condition — Setup Checks",
+      "type": "gate",
+      "question": "Confirm the setup checks for this market condition.",
+      "checks": [],
+      "conditionalChecks": {
+        "trending_strong": [
+          { "id": "map_strong_with_trend", "label": "Trading with the trend and momentum" },
+          { "id": "map_strong_tl_support", "label": "Or: use support of bias/momentum to trade trend line on LTF until it breaks" },
+          { "id": "map_strong_target", "label": "Target = marked MSNR levels after support (entry ±300 points / 30 pips from trend line)" },
+          { "id": "map_strong_rts", "label": "Until trend line breaks: MSNR against momentum keeps failing → becomes Resistance Turn Support" },
+          { "id": "map_strong_rts_tl", "label": "RTS coincides with normal trend line → high probability → wait for 5m liquidity sweep to trend line or ORB" }
+        ],
+        "trending_normal": [
+          { "id": "map_normal_momentum", "label": "Momentum and bias found" },
+          { "id": "map_normal_tl", "label": "5m trend line visible on 15m/30m/1H supporting bias" },
+          { "id": "map_normal_entries", "label": "Entries with trend line until it breaks and closes on H1" },
+          { "id": "map_normal_orb", "label": "ORB marked/validated, aligned with trend line (slightly below for buys / above for sells)" },
+          { "id": "map_normal_liquidity", "label": "Obvious liquidity marked" },
+          { "id": "map_normal_multi_tf", "label": "ORB on multiple timeframes + obvious liquidity = high probability" }
+        ],
+        "tl_broken": [
+          { "id": "map_tl_verified", "label": "Trend line carefully marked and verified" },
+          { "id": "map_tl_break", "label": "Price broke and closed beyond trend line" },
+          { "id": "map_tl_no_retest_only", "label": "Not entering on retest alone" },
+          { "id": "map_tl_liquidity", "label": "Navigated timeframes for obvious liquidity to sweep" },
+          { "id": "map_tl_orb", "label": "ORB or BB validated after the liquidity" },
+          { "id": "map_tl_place", "label": "Trade placed" }
+        ],
+        "consolidation_choppy": [
+          { "id": "map_choppy_balanced", "label": "Balanced momentum / choppy / unclear bias on 4H" },
+          { "id": "map_choppy_low_prob", "label": "MSNR levels as SL zones = low probability both ways" },
+          { "id": "map_choppy_wait", "label": "Wait for confirmation on MSNR levels" },
+          { "id": "map_choppy_str_rts", "label": "On failure → use STR or RTS" },
+          { "id": "map_choppy_two_tls", "label": "Two opposing trend lines → use breakout support approach" }
+        ],
+        "opposing_tls": [
+          { "id": "map_opp_momentum", "label": "Recent momentum or bias identified" },
+          { "id": "map_opp_poi", "label": "Opposing HTF (4H) POI failing to reverse momentum but persistent to counter" },
+          { "id": "map_opp_consolidation", "label": "Consolidation for hours → valid opposing LTF→HTF trend lines" },
+          { "id": "map_opp_breakout", "label": "Breakout in support of momentum" }
+        ],
+        "fresh_impulse": [
+          { "id": "map_impulse_momentum", "label": "Trade is for current momentum" },
+          { "id": "map_impulse_activate", "label": "4H ORB or MSNR level activates bias" },
+          { "id": "map_impulse_A", "label": "D/4H candle A: good body + obvious wick respecting bias" },
+          { "id": "map_impulse_B", "label": "Next D/4H candle B: engulfs previous with body" },
+          { "id": "map_impulse_inducement", "label": "30m / 15m valid inducement and liquidity" },
+          { "id": "map_impulse_entry", "label": "Entry after liquidity" }
+        ],
+        "counter_trend": [
+          { "id": "map_counter_extreme", "label": "First MSNR = inducement → use EXTREME traditional MSNR" },
+          { "id": "map_counter_itw", "label": "Use InTheWicks for tight stop-loss entry" },
+          { "id": "map_counter_lwtp", "label": "Use HTF long wick TP for possible TP levels" },
+          { "id": "map_counter_fallback", "label": "Fallback: 5m MSS or trend-line break-and-retest within marked zone (may fail 2–3 times)" },
+          { "id": "map_counter_msnr_ambiguous", "label": "MSNR multiple/confusing → traditional or latter" },
+          { "id": "map_counter_msnr_fresh", "label": "MSNR un-mitigated (fresh)" },
+          { "id": "map_counter_mss", "label": "15m/30m obvious MSS/CHOCH for bias before targeted entry" }
+        ],
+        "mss_choch": [
+          { "id": "map_mss_valid", "label": "Valid MSS or valid CHOCH" },
+          { "id": "map_mss_pullback", "label": "Pullback inducement → liquidity after MSS/CHOCH" },
+          { "id": "map_mss_poi", "label": "Next POI (validated OB, validated BB, V MSNR, or A MSNR)" },
+          { "id": "map_mss_sl", "label": "Optimal stop loss line" },
+          { "id": "map_mss_place", "label": "Trade placed" }
+        ],
+        "market_gap": [
+          { "id": "map_gap_type", "label": "Gap type identified (consolidation / weekend macro / dollar news)" },
+          { "id": "map_gap_direction", "label": "Direction: bullish / bearish" },
+          { "id": "map_gap_zone", "label": "Buy zone / sell zone marked" }
+        ]
+      },
+      "onYes": "order_block_validation",
+      "onNo": "wait_state"
     },
 
     "route_setup": {
       "id": "route_setup",
       "title": "Which Setup?",
       "type": "choice",
-      "question": "Choose the setup. Options are filtered by market condition and sorted by priority.",
+      "question": "Choose the setup.",
       "options": [
         {
           "value": "tony_ike_4h",
           "label": "Tony Ike — 4H (Priority 1)",
           "next": "tony_ike_4h",
           "priority": 1,
+          "modes": ["htf"],
           "enabledBy": ["mss_choch", "trending_normal"]
         },
         {
@@ -118,6 +196,7 @@
           "label": "4H Storyline (Priority 2)",
           "next": "four_h_storyline",
           "priority": 2,
+          "modes": ["htf"],
           "enabledBy": ["trending_strong", "trending_normal", "consolidation_choppy", "fresh_impulse", "counter_trend"]
         },
         {
@@ -125,6 +204,7 @@
           "label": "1H / 30m / 15m SLP Storyline (Priority 3)",
           "next": "slp_storyline",
           "priority": 3,
+          "modes": ["lower_tf"],
           "enabledBy": ["trending_normal", "fresh_impulse"]
         },
         {
@@ -132,6 +212,7 @@
           "label": "Tony Ike — 1H / 30m (Priority 4)",
           "next": "tony_ike_1h_30m",
           "priority": 4,
+          "modes": ["lower_tf"],
           "enabledBy": ["mss_choch", "trending_normal"]
         },
         {
@@ -139,6 +220,7 @@
           "label": "Tony Ike — 15m (Priority 5)",
           "next": "tony_ike_15m",
           "priority": 5,
+          "modes": ["lower_tf"],
           "enabledBy": ["mss_choch"]
         },
         {
@@ -146,6 +228,7 @@
           "label": "Trading With Trend (Priority 6)",
           "next": "trading_with_trend",
           "priority": 6,
+          "modes": ["htf", "lower_tf"],
           "enabledBy": ["trending_strong", "trending_normal", "tl_broken", "opposing_tls"]
         },
         {
@@ -153,6 +236,7 @@
           "label": "Market Gap",
           "next": "market_gap",
           "priority": 7,
+          "modes": ["htf", "any"],
           "enabledBy": ["market_gap"]
         }
       ]
@@ -370,16 +454,19 @@
 
     "sl_tp_validation": {
       "id": "sl_tp_validation",
-      "title": "SL / TP Validation",
+      "title": "Profit Target — SL / TP Validation",
       "type": "gate",
-      "question": "Confirm the SL / TP layer for this trade.",
+      "question": "Confirm SL and profit target(s) for this trade.",
       "checks": [
         { "id": "sltp_optimal_sl", "label": "4H optimal SL zone identified (may be valid OB but not entirely; valid MSNR after liquidity; swept liquidity before it)" },
         { "id": "sltp_safe_entry", "label": "Safe entry origin identified (emanates from 4H optimal SL line)" },
         { "id": "sltp_lwtp", "label": "Long wick TP identified (HTF powerful sweep + momentum dies + 4H storyline for reversal)" },
-        { "id": "sltp_super_slz", "label": "Super long 4H SLZ breakdown applied (feeds main trend = whole stretch; feeds opposition = split → inducement → optimal SLZ)" }
+        { "id": "sltp_super_slz", "label": "Super long 4H SLZ breakdown applied (feeds main trend = whole stretch; feeds opposition = split → inducement → optimal SLZ)" },
+        { "id": "tp_htf_lw", "label": "TP1: HTF long wick TP (powerful HTF sweep → momentum fails → price returns to and often breaks that level)" },
+        { "id": "tp_opp_ob", "label": "TP2: Opposition order block validation" },
+        { "id": "tp_msnr", "label": "TP3: Next validated 4H MSNR level" }
       ],
-      "onYes": "entries",
+      "onYes": "profit_protection",
       "onNo": "wait_state"
     },
 

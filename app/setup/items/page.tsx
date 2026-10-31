@@ -17,7 +17,7 @@ import { currency, formatNumberWithCommas, removeCommasFromNumbers, toastErrors,
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
 import { useToaster } from '@/components/util/CustomToast';
-import {  config } from '@/components/util/AppConfig';
+import {  config, settings } from '@/components/util/AppConfig';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
 import { CustomSelect } from '@/components/util/CustomSelect';
@@ -53,12 +53,9 @@ export default function ItemsPage() {
    //alert
    const [showAlert, setShowAlert] = useState(false);
 
-useEffect(() => {
-    loadItems();
-    locadLocations();
-}, [user?.companyId, selectedShop]);
 
   const loadItems = async () => {
+    setIsLoading(true)
     try {
       const data = await axiosInstance.get(`/items/Admin-View?LocationId=${selectedShop || sessionShop}`);
       setItems(data?.data);
@@ -70,6 +67,7 @@ useEffect(() => {
 
   const locadLocations = async () => {
     try {
+       setIsLoading(true)
       //shops 
       const shopsData = await axiosInstance.get('/locations');
       //  const rolesData = await axiosInstance.get('/positions');
@@ -78,8 +76,17 @@ useEffect(() => {
 
     } catch (error) {
       console.log(error)
+    } finally{
+       setIsLoading(false)
     }
   };
+
+  useEffect(() => {
+    locadLocations().then(() => {
+      loadItems();
+    });
+}, [user?.companyId, selectedShop]);
+
 
   const resetForm = () => {
     setName('');
@@ -232,7 +239,7 @@ useEffect(() => {
    
     {
       key: 'sellingPrice' as keyof Item,
-      label: `Selling Price  ${config.currency}`,
+      label: `Selling Price  ${settings?.currency}`,
       sortable: true,
       render: (item: Item) => (
         <span className="font-medium text-foreground text-center">{currency(item.sellingPrice?.toString())}</span>
@@ -417,7 +424,7 @@ useEffect(() => {
               <Label htmlFor="costPrice" className="text-foreground">Unit Cost Price *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {config.currency}
+                 {settings?.currency}
                 </span>
                 <Input
                   id="costPrice"
@@ -435,7 +442,7 @@ useEffect(() => {
               <Label htmlFor="sellingPrice" className="text-foreground">Unit Selling Price *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {config.currency}
+                 {settings?.currency}
                 </span>
                 <Input
                   id="sellingPrice"
@@ -453,7 +460,7 @@ useEffect(() => {
               <Label htmlFor="reorderLevel" className="text-foreground">Reorder Level * <span className='text-xs'>(Pieces)</span></Label>
               <div className="relative">
                 {/* <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {config.currency}
+                 {settings?.currency}
                 </span> */}
                 <Input
                   id="reorderLevel"

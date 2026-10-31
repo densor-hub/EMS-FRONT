@@ -13,10 +13,10 @@ import { MultiSelectComponent, Select, SelectContent, SelectItem, SelectTrigger,
 import type { Employee, Shop, Role } from '@/lib/types';
 import { Edit, Trash2, User, Mail, Phone, DollarSign, Calendar } from 'lucide-react';
 import axiosInstance from '@/lib/customAxios';
-import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
+import { alphaNumericDate, currency, formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 import { useAuth } from '@/lib/auth-context';
 import SweetAlert from '@/components/util/SweetAlert';
 
@@ -31,7 +31,7 @@ const employeeStatuses = [
 
 export default function EmployeesPage() {
   const toast = useToaster();
-  const { selectedShop } = useAuth();
+  const { selectedShop, user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -56,10 +56,7 @@ export default function EmployeesPage() {
   const [isAppUser, setIsAppUser] = useState(true);
   const [status, setStatus] = useState('');
 
-  useEffect(() => {
-    loadEmployees();
-    loadData();
-  }, []);
+
 
   const loadEmployees = async () => {
     try {
@@ -72,10 +69,12 @@ export default function EmployeesPage() {
 
   const loadData = async () => {
     try {
-      const shopsData = await axiosInstance.get('/locations');
-      const rolesData = await axiosInstance.get(`/positions?ForTransactions`);
-      setShops(shopsData?.data);
-      setRoles(rolesData?.data);
+      await axiosInstance.get(`/locations?companyId=${user?.companyId}`).then(async(res) => {
+        setShops(res?.data);
+          const rolesData = await axiosInstance.get(`/positions?ForTransactions`);
+          setRoles(rolesData?.data);
+      });
+      
     } catch (error) {
       console.log(error);
     }
@@ -210,11 +209,12 @@ export default function EmployeesPage() {
     }
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: `${config.currency}`,
-    }).format(amount);
+    useEffect(() => {
+    loadData().finally(() => {
+     loadEmployees();
+    });
+  }, [selectedShop]);
+
 
   const columns = [
     {
@@ -248,11 +248,11 @@ export default function EmployeesPage() {
     },
     {
       key: 'salary' as keyof Employee,
-      label: 'Salary',
+      label: `Salary ${settings?.currency}`,
       sortable: true,
       render: (employee: Employee) => (
         <span className="font-medium text-foreground">
-          {formatCurrency(employee.salary)}
+          {currency(employee?.salary?.toString())}
         </span>
       ),
     },
@@ -443,7 +443,7 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="salary" className="text-foreground">
-                Monthly Salary ({config.currency})
+                Monthly Salary ({settings?.currency})
               </Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

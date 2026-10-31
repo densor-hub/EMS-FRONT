@@ -4,15 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "lucide-react";
-import { config } from "@/components/util/AppConfig";
+import { config, settings } from "@/components/util/AppConfig";
 
-const paymentMethods  =  [
-  {name :"Mobile Money" , id : 1}, 
-  {name :"Cash", id :2}, 
-  {name :"Cheque" , id : 3}, 
-  {name :"Bank Transfer " , id : 4},
-  // {name :"Other" , id : 5} 
-]
+const paymentMethods  =  config?.paymentMethods
 
 interface AddPaymentProps {
   amountPaid : string,
@@ -30,7 +24,7 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
   return <div className="md:flex space-between space-x-2">
       {/* Amount Paid Input */}
                   <div className="space-y-2 md:w=[58%]">
-                    <Label htmlFor="quantity" className="text-foreground">Amount Paid {`(${config.currency})`}<span className="text-destructive">*</span></Label> 
+                    <Label htmlFor="quantity" className="text-foreground">Amount Paid {`(${settings?.currency})`}<span className="text-destructive">*</span></Label> 
                     <Input
                       id="quantity"
                       value={amountPaid}
@@ -47,7 +41,7 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
                       <SelectValue placeholder="Select item" />
                     </SelectTrigger>
                     <SelectContent>
-                      {paymentMethods.map(item => (
+                      {paymentMethods?.map(item => (
                         <SelectItem key={item.id} value={item.id.toString()}>
                           <div className="flex flex-col">
                             <span>{item.name}</span>

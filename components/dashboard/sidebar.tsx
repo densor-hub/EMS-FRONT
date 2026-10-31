@@ -17,7 +17,8 @@ import {
   SendToBackIcon,
   PlusCircleIcon,
   AwardIcon,
-  SplitIcon
+  SplitIcon,
+  ShoppingBasket,
 } from 'lucide-react';
 
 interface NavItem {
@@ -55,13 +56,13 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: 'Stock Management',
-    href: '/stock-management/stock',
-    icon: <LucideShoppingCart size={20} />,
+    label: 'Stock Check',
+    href: '/stock-check',
+    icon: <ShoppingBasket size={20} />,
     children: [
-      { label: 'Stock Lock', href: '/stock-management/stock-lock' },
-      { label: 'Stock Take', href: '/stock-management/stock-take' },
-      { label: 'Stock Verification', href: '/stock-management/stock-verification' },
+      { label: 'Stock Lock', href: '/stock-check/stock-lock' },
+      { label: 'Stock Take', href: '/stock-check/stock-take' },
+      { label: 'Verification', href: '/stock-check/verification' },
     ],
   },
   {
@@ -80,9 +81,9 @@ const navItems: NavItem[] = [
     href: '/purchases',
     icon: <PlusCircleIcon size={20} />,
     children: [
-      { label: 'Request', href: '/purchases/request' },
+      { label: 'Purchase', href: '/purchases/purchase' },
       { label: 'Manager Check', href: '/purchases/manager-check' },
-      { label: 'Receivals', href: '/purchases/receivals' },
+      { label: 'Stock-in', href: '/purchases/stock-in' },
       { label: 'Payments', href: '/purchases/payments' },
     ],
   },
@@ -110,6 +111,9 @@ const navItems: NavItem[] = [
     ],
   },
   { label: 'Reports', href: '/reports', icon: <BarChart3 size={20} /> },
+  // ✅ Settings lives here now — filtered by the same route-permission rules
+  //    as every other item, and gets the same active-state styling.
+  { label: 'Settings', href: '/settings', icon: <Settings size={20} /> },
 ];
 
 const filterNavByRoutes = (
@@ -120,22 +124,15 @@ const filterNavByRoutes = (
     const filteredChildren = item.children
       ? filterNavByRoutes(item.children, allowedCodes)
       : undefined;
-
     const hasChildren = !!filteredChildren && filteredChildren.length > 0;
     const selfAllowed = allowedCodes.has(item.href);
-
     if (!hasChildren && !selfAllowed) return [];
-
     const next: NavItem = {
       label: item.label,
       href: item.href,
       icon: item.icon,
     };
-
-    if (hasChildren) {
-      next.children = filteredChildren;
-    }
-
+    if (hasChildren) next.children = filteredChildren;
     return [next];
   });
 };
@@ -223,6 +220,67 @@ const NavItemRenderer = ({
   );
 };
 
+// Stable component — not re-created on every Sidebar render.
+function NavContent({
+  company,
+  user,
+  selectedShop,
+  visibleNavItems,
+  expandedItems,
+  toggleExpanded,
+  isActive,
+  isParentActive,
+  onClose,
+}: {
+  company: any;
+  user: any;
+  selectedShop: any;
+  visibleNavItems: NavItem[];
+  expandedItems: string[];
+  toggleExpanded: (label: string) => void;
+  isActive: (href: string) => boolean;
+  isParentActive: (item: NavItem) => boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex flex-col h-screen">
+      <div className="p-4 border-b border-border h-16">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+            <Building2 size={20} className="text-primary-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-semibold text-xs text-muted-foreground truncate">
+              {company?.name || 'Company Name'}
+            </h2>
+            <p className="font-semibold text-foreground truncate">
+              {user?.locations?.find(
+                (x: any) => String(x.id) === String(selectedShop)
+              )?.name ?? ''}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto p-3">
+        <ul className="space-y-1">
+          {visibleNavItems.map((item) => (
+            <NavItemRenderer
+              key={item.label}
+              item={item}
+              expandedItems={expandedItems}
+              toggleExpanded={toggleExpanded}
+              isActive={isActive}
+              isParentActive={isParentActive}
+              onClose={onClose}
+            />
+          ))}
+        </ul>
+      </nav>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user, company, selectedShop } = useAuth();
@@ -240,11 +298,9 @@ export function Sidebar() {
     return filterNavByRoutes(navItems, allowedCodes);
   }, [(user as any)?.routes, allowedCodes]);
 
-  // Auto-expand parent when a child route is active
   useEffect(() => {
     const findActiveMenus = (): string[] => {
       const activeMenus: string[] = [];
-
       const topLevelItem = navItems.find((item) => item.href === pathname);
       if (topLevelItem) {
         if (topLevelItem.children && topLevelItem.children.length > 0) {
@@ -252,7 +308,6 @@ export function Sidebar() {
         }
         return activeMenus;
       }
-
       for (const item of navItems) {
         if (item.children) {
           for (const child of item.children) {
@@ -274,10 +329,8 @@ export function Sidebar() {
           }
         }
       }
-
       return activeMenus;
     };
-
     const activeMenus = findActiveMenus();
     if (activeMenus.length > 0) {
       setExpandedItems((prev) => [...new Set([...prev, ...activeMenus])]);
@@ -304,64 +357,18 @@ export function Sidebar() {
     return checkChildren(item.children) || pathname === item.href;
   };
 
-  const NavContent = () => (
-    <div className="flex flex-col h-screen">
-      <div className="p-4 border-b border-border h-16">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <Building2 size={20} className="text-primary-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-xs text-muted-foreground truncate">
-              {(company as any)?.name || 'Company Name'}
-            </h2>
-            <p className="font-semibold text-foreground truncate">
-              {(user as any)?.locations?.find(
-                (x: any) => String(x.id) === String(selectedShop)
-              )?.name ?? ''}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-1">
-          {visibleNavItems.map((item) => (
-            <NavItemRenderer
-              key={item.label}
-              item={item}
-              expandedItems={expandedItems}
-              toggleExpanded={toggleExpanded}
-              isActive={isActive}
-              isParentActive={isParentActive}
-              onClose={() => setIsMobileOpen(false)}
-            />
-          ))}
-        </ul>
-      </nav>
-
-      <div className="border-t border-border p-3">
-        <Link
-          href="/dashboard/settings"
-          onClick={() => setIsMobileOpen(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-        >
-          <Settings size={20} />
-          Settings
-        </Link>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="bg-sidebar">
+    <>
+      {/* Mobile hamburger trigger */}
       <button
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed mt-1.5 left-4 z-50 p-2 rounded-lg bg-card border border-border text-foreground"
+        aria-label="Open menu"
       >
-        <Menu size={12} />
+        <Menu size={16} />
       </button>
 
+      {/* Mobile backdrop */}
       {isMobileOpen && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
@@ -369,23 +376,44 @@ export function Sidebar() {
         />
       )}
 
-      <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform ${
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <button
-          onClick={() => setIsMobileOpen(false)}
-          className="absolute top-4 right-4 p-1 rounded text-muted-foreground hover:text-foreground z-10"
-        >
-          <X size={20} />
-        </button>
-        <NavContent />
-      </aside>
+      {/* Mobile drawer */}
+      {isMobileOpen && (
+        <aside className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border transform transition-transform translate-x-0">
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            className="absolute top-4 right-4 p-1 rounded text-muted-foreground hover:text-foreground z-10"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+          <NavContent
+            company={company}
+            user={user}
+            selectedShop={selectedShop}
+            visibleNavItems={visibleNavItems}
+            expandedItems={expandedItems}
+            toggleExpanded={toggleExpanded}
+            isActive={isActive}
+            isParentActive={isParentActive}
+            onClose={() => setIsMobileOpen(false)}
+          />
+        </aside>
+      )}
 
+      {/* Desktop column */}
       <aside className="hidden lg:block w-72 border-r border-sidebar-border sticky top-0">
-        <NavContent />
+        <NavContent
+          company={company}
+          user={user}
+          selectedShop={selectedShop}
+          visibleNavItems={visibleNavItems}
+          expandedItems={expandedItems}
+          toggleExpanded={toggleExpanded}
+          isActive={isActive}
+          isParentActive={isParentActive}
+          onClose={() => setIsMobileOpen(false)}
+        />
       </aside>
-    </div>
+    </>
   );
 }

@@ -25,7 +25,7 @@ import SkeletonLoading, { LoadingOverlay } from '@/components/SkeletonLoading';
 import StatusBadge from '@/components/ui/statusbadge'
 import { Textarea } from '@/components/ui/textarea';
 import { CustomSelect } from '@/components/util/CustomSelect';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 import { sessionStore } from '@/helpers/formatStrings';
 
 // Dynamic imports
@@ -35,13 +35,6 @@ const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"
   ssr: false
 });
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 }
-];
 
 export default function PurcahsePage() {
    const sessionShop = sessionStore.get("selectedShop");
@@ -73,7 +66,7 @@ export default function PurcahsePage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedShop]);
 
   const loadData = async (): Promise<void> => {
     if (isLoadingRef.current) return;
@@ -136,10 +129,9 @@ export default function PurcahsePage() {
 
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
-      setIsLoadingDetails(true);
+      setLoading(true);
       const response = await axiosInstance.get(`/Transactions/${transactionId}/location/${selectedShop || sessionShop}`);
-      console.log(response?.data)
-      setTransactionDetails(response?.data);
+      setLoading(response?.data);
       return response?.data;
     } catch (error: any) {
       console.error("Error fetching transaction details:", error);
@@ -149,7 +141,7 @@ export default function PurcahsePage() {
       });
       return null;
     } finally {
-      setIsLoadingDetails(false);
+      setLoading(false);
     }
   };
 
@@ -165,17 +157,16 @@ export default function PurcahsePage() {
   };
 
   const  getStockTransfers =  async () => {
-      const stockTransfers = await axiosInstance.get(`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStore.get("selectedShop")}`)
-      setStockTransfers(stockTransfers?.data);
+    setLoading(true)
+      await axiosInstance.get(`/StockTransfer/Manager-Check?LocationId=${selectedShop || sessionStore.get("selectedShop")}`).then((res) => {
+        setStockTransfers(res?.data)
+        setLoading(false)
+      })
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     getStockTransfers();
-  }, [selectedShopForStockTrans]);
+  }, [selectedShopForStockTrans, selectedShop]);
 
   const columns = [
      {
@@ -259,8 +250,8 @@ export default function PurcahsePage() {
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Request Qty</th>
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Available Qty</th>
                   <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Actual Qty</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Unit Price {`${config.currency}`}</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Total {`${config.currency}`}</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Unit Price {`${settings?.currency}`}</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Total {`${settings?.currency}`}</th>
               </tr>
             </thead>
             <tbody>
@@ -281,7 +272,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  {`${config?.currency}`} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {`${settings?.currency}`} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>

@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Header } from '@/components/dashboard/header';
 import { DataTable } from '@/components/dashboard/data-table';
 import { Modal } from '@/components/dashboard/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import type { Item } from '@/lib/types';
-import { Split, ArrowRight, Clock } from 'lucide-react';
+import { Split, ArrowRight } from 'lucide-react';
 import {
   formatNumberWithCommas,
   toastErrors,
@@ -49,10 +49,10 @@ const safeNumber = (value: unknown): string => {
 
 export default function ItemSplitActivityPage() {
   const sessionShop = sessionStore.get('selectedShop');
-  const { user, selectedShop } = useAuth();
+  const { selectedShop } = useAuth();
   const toast = useToaster();
 
-  // ✅ Location comes from context/session, not from a dropdown
+  // ✅ Location comes from context/session
   const locationId = selectedShop || sessionShop || '';
 
   const [transactions, setTransactions] = useState<ItemSplitTransaction[]>([]);
@@ -60,37 +60,69 @@ export default function ItemSplitActivityPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ---- Modal form state (only source + target) ----
+  // ---- Modal form state ----
   const [sourceItemId, setSourceItemId] = useState('');
   const [targetItemId, setTargetItemId] = useState('');
 
-  const loadTransactions = useCallback(async () => {
-    try {
-      const data = await axiosInstance.get('/Split/Transaction');
-      setTransactions(data?.data ?? []);
-    } catch (error) {
-      console.error('Error loading split transactions:', error);
-    }
-  }, []);
+  // ✅ Guard against out-of-order responses when location changes rapidly.
+  // Each fetch "session" gets a token; only the latest one may commit state.
+  const requestTokenRef = useRef(0);
 
-  const loadItems = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const data = await axiosInstance.get(
-        `/items/Admin-View?LocationId=${selectedShop || sessionShop}`
-      );
-      setItems(data?.data ?? []);
-    } catch (error) {
-      console.error('Error loading items:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedShop, sessionShop]);
+  const loadTransactions = useCallback(
+    async (token: number) => {
+      if (!locationId) return;
+      try {
+        const data = await axiosInstance.get(
+          `/Split/Transactions/${locationId}`
+        );
+        if (token !== requestTokenRef.current) return; // stale — discard
+        setTransactions(data?.data ?? []);
+      } catch (error) {
+        if (token !== requestTokenRef.current) return;
+        console.error('Error loading split transactions:', error);
+      }
+    },
+    [locationId]
+  );
+
+  const loadItems = useCallback(
+    async (token: number) => {
+      if (!locationId) return;
+      try {
+        setIsLoading(true);
+        const data = await axiosInstance.get(
+          `/items/Admin-View?LocationId=${locationId}`
+        );
+        if (token !== requestTokenRef.current) return; // stale — discard
+        setItems(data?.data ?? []);
+      } catch (error) {
+        if (token !== requestTokenRef.current) return;
+        console.error('Error loading items:', error);
+      } finally {
+        if (token === requestTokenRef.current) setIsLoading(false);
+      }
+    },
+    [locationId]
+  );
 
   useEffect(() => {
-    loadTransactions();
-    loadItems();
-  }, [user?.companyId, selectedShop, loadTransactions, loadItems]);
+    if (!locationId) {
+      setTransactions([]);
+      setItems([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const token = ++requestTokenRef.current;
+
+    (async () => {
+      await loadItems(token);
+      // Only fetch transactions if this run is still current
+      if (token === requestTokenRef.current) {
+        await loadTransactions(token);
+      }
+    })();
+  }, [locationId, loadItems, loadTransactions]);
 
   const resetForm = () => {
     setSourceItemId('');
@@ -107,7 +139,7 @@ export default function ItemSplitActivityPage() {
     resetForm();
   };
 
-  // ---- Dropdown options (same filtering behavior as before) ----
+  // ---- Dropdown options ----
   const sourceItemOptions = useMemo(
     () =>
       items
@@ -139,11 +171,17 @@ export default function ItemSplitActivityPage() {
       return;
     }
     if (sourceItemId === targetItemId) {
-      toast.warning({ title: 'Source and target items must be different', description: '' });
+      toast.warning({
+        title: 'Source and target items must be different',
+        description: '',
+      });
       return;
     }
     if (!locationId) {
-      toast.warning({ title: 'No location selected', description: 'Select a shop from the header first.' });
+      toast.warning({
+        title: 'No location selected',
+        description: 'Select a shop from the header first.',
+      });
       return;
     }
 
@@ -156,7 +194,10 @@ export default function ItemSplitActivityPage() {
       });
       closeModal();
       toastSuccess(toast, 'Split recorded successfully');
-      await loadTransactions();
+
+      // Refresh transactions for the *current* location
+      const token = ++requestTokenRef.current;
+      await loadTransactions(token);
     } catch (error: any) {
       console.error('Error recording split:', error?.response);
       toastErrors(toast, error, '');
@@ -245,7 +286,6 @@ export default function ItemSplitActivityPage() {
       sortable: true,
       render: (t: ItemSplitTransactionRow) => (
         <div className="flex items-center gap-1 text-muted-foreground text-sm">
-          {/* <Clock className="w-3 h-3" /> */}
           <span>{alphaNumericDate(t.createdAt)}</span>
         </div>
       ),

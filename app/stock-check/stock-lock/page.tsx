@@ -5,16 +5,10 @@ import { Header } from '@/components/dashboard/header';
 import { Skeleton } from "@/components/ui/skeleton";
 import StockLockDownUi from "@/components/util/StockLockDownUi";
 
-export default function SalePage() {
+export default function StockLockPage() {
   // const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
-  
-
-
-  useEffect(() => {
-  //  loadData();
-  }, []);
 
   if (loading) {
     return (

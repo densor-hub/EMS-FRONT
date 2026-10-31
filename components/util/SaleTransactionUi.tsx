@@ -1,46 +1,75 @@
 "use client";
 
-import { useState, useEffect, useRef, SetStateAction, Dispatch, useCallback, useMemo, memo, Component, ErrorInfo, ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  SetStateAction,
+  Dispatch,
+  useCallback,
+  useMemo,
+  memo,
+  Component,
+  ErrorInfo,
+  ReactNode,
+} from "react";
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import CheckoutCard from "./CheckoutCard";
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  X,
-  AlertCircle
-} from 'lucide-react';
-import type { Item, Supplier, Transaction, IdAndName, ItemStockLevelDTO , CouponResponse} from "@/lib/types";
+import { AlertCircle } from 'lucide-react';
+import { X } from 'lucide-react';
+import type {
+  Item,
+  Supplier,
+  Transaction,
+  ItemStockLevelDTO,
+  CouponResponse,
+} from "@/lib/types";
 import Loading from "@/app/dashboard/loading";
 import axiosInstance from "@/lib/customAxios";
 import { useAuth } from "@/lib/auth-context";
-import { currency, formatNumberWithCommas, removeCommasFromNumbers, toastErrors, toastSuccess } from "@/helpers/formatStrings";
+import {
+  currency,
+  formatNumberWithCommas,
+  removeCommasFromNumbers,
+  toastErrors,
+  toastSuccess,
+  sessionStore,
+} from "@/helpers/formatStrings";
 import { useRouter } from 'next/navigation';
-import POSReceipt, {POSReceiptProps} from "./POSReceipt";
+import POSReceipt, { POSReceiptProps } from "./POSReceipt";
 import ItemSelection from "./ItemSelection";
 import { CartItem } from "@/lib/types";
-import ReusableCart, {CartColumn} from "./SaleCart";
-import { config } from "./AppConfig";
+import ReusableCart, { CartColumn } from "./SaleCart";
+import { config, paymentMethods, settings } from "./AppConfig";
 import { useToaster } from "./CustomToast";
-import { it } from "node:test";
-import { sessionStore } from "@/helpers/formatStrings";
+import CheckoutCard from "./CheckoutCard";
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Types
+// ─────────────────────────────────────────────────────────────────────────────
 interface TransactionUI {
   setOpen: (isOpen: boolean) => void;
   reloadUrl?: string;
   reloadSetterFunction?: Dispatch<SetStateAction<Transaction[]>>;
   submitUrl?: string;
   instantSale: boolean;
-  businessPartnerLable? : string;
-  transactionActionType? : string;
+  businessPartnerLable?: string;
+  transactionActionType?: string;
   businessPartnerValue?: string;
   businessPartnerName?: string;
+  allowItemSelection?: boolean;
+  items?: Item[];
+  cartItems?: CartItem[];
+  transactionNumber?: string;
+  onSubmitted?: (result: any) => void;
 }
 
-// Error Boundary Component
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error?: Error }
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false };
@@ -60,63 +89,63 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
         <div className="p-6 text-center">
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
-          <p className="text-muted-foreground mb-4">{this.state.error?.message || 'An unexpected error occurred'}</p>
+          <p className="text-muted-foreground mb-4">
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </p>
           <Button onClick={() => this.setState({ hasError: false })}>
             Try Again
           </Button>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
 
-// Constants
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+// const formatCurrency = (amount: number): string =>
+//   new Intl.NumberFormat('en-US', {
+//     minimumFractionDigits: 2,
+//     maximumFractionDigits: 2,
+//   }).format(amount);
 
-const parseFormattedNumber = (value: string): number => {
-  return parseFloat(value.replace(/,/g, '')) || 0;
-};
+const parseFormattedNumber = (value: string): number =>
+  parseFloat(value.replace(/,/g, '')) || 0;
 
-// Custom hook for cart mana// Custom hook for cart management
+// ─────────────────────────────────────────────────────────────────────────────
+// useCart
+// ─────────────────────────────────────────────────────────────────────────────
 const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
-  
-  const addItem = useCallback((item: Item, quantity: number, remainingQuantity?: number, price?: number | null) => {
-    setCart(prevCart => {
-      const existingIndex = prevCart.findIndex((c) => c.id === item.id);
-      
-      // ✅ FIX: Use the passed price, or fallback to selling price
-      // If price is explicitly passed (including 0), use it
-      // Otherwise use the item's selling price
-      const itemPrice = (price !== undefined && price !== null) 
-        ? price 
-        : item.sellingPrice;
-      
-      if (existingIndex >= 0) {
-        // Update existing item
-        const newCart = [...prevCart];
-        const currentReceivingQty = newCart[existingIndex].receivingQuantity || 0;
-        const newReceivingQty = currentReceivingQty + quantity;
-        
-        newCart[existingIndex] = {
-          ...newCart[existingIndex],
-          price: itemPrice,
-          quantity: newReceivingQty,
-          receivingQuantity: newReceivingQty,
-          remainingQuantity: remainingQuantity && remainingQuantity > 0 
-            ? (remainingQuantity || 0) - newReceivingQty 
-            : 0,
-        };
-        return newCart;
-      } else {
-        // Create new cart item
+
+  const addItem = useCallback(
+    (item: Item, quantity: number, remainingQuantity?: number, price?: number | null) => {
+      setCart((prevCart) => {
+        const existingIndex = prevCart.findIndex((c) => c.id === item.id);
+
+        const itemPrice =
+          price !== undefined && price !== null ? price : item.sellingPrice;
+
+        if (existingIndex >= 0) {
+          const newCart = [...prevCart];
+          const currentReceivingQty = newCart[existingIndex].receivingQuantity || 0;
+          const newReceivingQty = currentReceivingQty + quantity;
+
+          newCart[existingIndex] = {
+            ...newCart[existingIndex],
+            price: itemPrice,
+            quantity: newReceivingQty,
+            receivingQuantity: newReceivingQty,
+            remainingQuantity:
+              remainingQuantity && remainingQuantity > 0
+                ? (remainingQuantity || 0) - newReceivingQty
+                : 0,
+          };
+          return newCart;
+        }
+
         const newCartItem: CartItem = {
           id: item.id,
           name: item.name || 'Unknown Item',
@@ -125,34 +154,29 @@ const useCart = () => {
           quantity: quantity || 0,
           deliveredQuantity: 0,
           receivingQuantity: quantity,
-          remainingQuantity: remainingQuantity && remainingQuantity > 0 
-            ? (remainingQuantity || 0) - quantity 
-            : 0,
+          remainingQuantity:
+            remainingQuantity && remainingQuantity > 0
+              ? (remainingQuantity || 0) - quantity
+              : 0,
         };
         return [...prevCart, newCartItem];
-      }
-    });
-  }, []);
-
-  const removeItem = useCallback((index: number) => {
-    setCart(prev => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const clearCart = useCallback(() => {
-    setCart([]);
-  }, []);
-
-  const total = useMemo(() => 
-    cart.reduce((sum, c) => sum + c.quantity * c.price, 0),
-    [cart]
+      });
+    },
+    []
   );
 
-  const itemCount = useMemo(() => cart.length, [cart]);
+  const removeItem = useCallback((index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
-  return { cart, setCart, addItem, removeItem, clearCart, total, itemCount };
+  const clearCart = useCallback(() => setCart([]), []);
+
+  return { cart, setCart, addItem, removeItem, clearCart };
 };
 
-// Custom hook for stock checking with debouncing
+// ─────────────────────────────────────────────────────────────────────────────
+// useStockCheck
+// ─────────────────────────────────────────────────────────────────────────────
 const useStockCheck = (selectedShop: string, toast: any) => {
   const [stockLevel, setStockLevel] = useState<ItemStockLevelDTO | null>(null);
   const [checkingStock, setCheckingStock] = useState(false);
@@ -160,111 +184,102 @@ const useStockCheck = (selectedShop: string, toast: any) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Stable ref to toast so the checkStock callback identity doesn't flip
+  // when useToaster() returns a new object each render.
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
   useEffect(() => {
     isMountedRef.current = true;
-    
     return () => {
       isMountedRef.current = false;
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, []);
 
-  const checkStock = useCallback(async (itemId: string) => {
-    if (!itemId) {
-      setStockLevel(null);
-      return;
-    }
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    debounceTimerRef.current = setTimeout(async () => {
-      if (!isMountedRef.current) return;
-      
-      abortControllerRef.current = new AbortController();
-      
-      setCheckingStock(true);
-      try {
-        const sessionShop = sessionStore.get("selectedShop");
-        const locationId = selectedShop || sessionShop;
-        
-        if (!locationId) {
-          console.warn('No location ID available for stock check');
-          if (isMountedRef.current) {
-            setCheckingStock(false);
-          }
-          return;
-        }
-
-        const response = await axiosInstance.get(`/Items/Stock-Level/${itemId}?locationId=${locationId}`, {
-          signal: abortControllerRef.current?.signal
-        });
-        
-        if (isMountedRef.current && response?.data) {
-          setStockLevel(response.data);
-          
-          if (response.data.availableQuantity < 5 && response.data.availableQuantity > 0) {
-            toast.warning?.({
-              title: 'Low Stock Warning',
-              description: `Only ${response.data.availableQuantity} units left in stock for ${response.data.name}`,
-            });
-          }
-          
-          if (response.data.availableQuantity === 0) {
-            toast.warning?.({
-              title: 'Out of Stock',
-              description: `${response.data.name} is currently out of stock`,
-            });
-          }
-        }
-      } catch (error: any) {
-        if (error?.name === 'CanceledError' || error?.name === 'AbortError') {
-          console.log('Stock check cancelled');
-          return;
-        }
-        
-     //   console.error('Error checking stock level:', error);
-        if (isMountedRef.current) {
-          setStockLevel({
-            name: '',
-            code: '',
-            reorderLevel: 0,
-            availableQuantity: 0,
-            actualQuantity: 0
-          });
-          if (error?.response) {
-            toastErrors(toast, error);
-          }
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setCheckingStock(false);
-        }
+  const checkStock = useCallback(
+    async (itemId: string) => {
+      if (!itemId) {
+        setStockLevel(null);
+        return;
       }
-    }, 300);
 
-  }, [selectedShop]);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+
+      debounceTimerRef.current = setTimeout(async () => {
+        if (!isMountedRef.current) return;
+
+        abortControllerRef.current = new AbortController();
+        setCheckingStock(true);
+
+        try {
+          const sessionShop = sessionStore.get("selectedShop");
+          const locationId = selectedShop || sessionShop;
+
+          if (!locationId) {
+            console.warn('No location ID available for stock check');
+            if (isMountedRef.current) setCheckingStock(false);
+            return;
+          }
+
+          const response = await axiosInstance.get(
+            `/Items/Stock-Level/${itemId}?locationId=${locationId}`,
+            { signal: abortControllerRef.current?.signal }
+          );
+
+          if (isMountedRef.current && response?.data) {
+            setStockLevel(response.data);
+
+            if (response.data.availableQuantity < 5 && response.data.availableQuantity > 0) {
+              toastRef.current.warning?.({
+                title: 'Low Stock Warning',
+                description: `Only ${response.data.availableQuantity} units left in stock for ${response.data.name}`,
+              });
+            }
+
+            if (response.data.availableQuantity === 0) {
+              toastRef.current.warning?.({
+                title: 'Out of Stock',
+                description: `${response.data.name} is currently out of stock`,
+              });
+            }
+          }
+        } catch (error: any) {
+          if (error?.name === 'CanceledError' || error?.name === 'AbortError') {
+            console.log('Stock check cancelled');
+            return;
+          }
+
+          if (isMountedRef.current) {
+            setStockLevel({
+              name: '',
+              code: '',
+              reorderLevel: 0,
+              availableQuantity: 0,
+              actualQuantity: 0,
+            });
+            if (error?.response) toastErrors(toastRef.current, error);
+          }
+        } finally {
+          if (isMountedRef.current) setCheckingStock(false);
+        }
+      }, 300);
+    },
+    [selectedShop]
+  );
 
   return { stockLevel, checkingStock, checkStock, setStockLevel };
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cart columns
+// ─────────────────────────────────────────────────────────────────────────────
 const columns: CartColumn<CartItem>[] = [
-  {
-    key: 'name',
-    header: 'Item',
-    align: 'left',
-    width: '40%',
-  },
+  { key: 'name', header: 'Item', align: 'left', width: '40%' },
   {
     key: 'quantity',
     header: 'Qty',
@@ -274,25 +289,35 @@ const columns: CartColumn<CartItem>[] = [
   },
   {
     key: 'price',
-    header: `Price (${config.currency?.toUpperCase()})`,
+    header: `Price (${settings?.currency?.toUpperCase()})`,
     align: 'right',
     width: '20%',
     render: (item) => `${currency(item.price.toFixed(2)?.toString())}`,
   },
   {
     key: 'total',
-    header: `Total (${config.currency?.toUpperCase()})`,
+    header: `Total (${settings?.currency?.toUpperCase()})`,
     align: 'right',
     width: '25%',
     render: (item) => `${currency((item.quantity * item.price).toFixed(2).toString())}`,
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────────────────────
 function SaleTransactionUIComponent(prop: TransactionUI) {
-  const toast  = useToaster();
-  const { user, selectedShop, company } = useAuth();
+  const toast = useToaster();
+  const { user, selectedShop } = useAuth();
   const router = useRouter();
-  
+
+  // ✅ Stable ref to toast so callbacks depending on toast don't re-create
+  // every render when useToaster returns a fresh object.
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
   // State
   const [items, setItems] = useState<Item[]>([]);
   const [customers, setCustomers] = useState<Supplier[]>([]);
@@ -301,12 +326,12 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
   const [selectedBusinessPartner, setBusinessPartner] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
   const [quantity, setQuantity] = useState("");
-   const [price, setPrice] = useState("");
+  const [price, setPrice] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+
   // Coupon state
   const [couponCode, setCouponCode] = useState("");
   const [couponData, setCouponData] = useState<CouponResponse | null>(null);
@@ -315,20 +340,41 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
   const [couponError, setCouponError] = useState("");
 
   const [receiptData, setReceiptData] = useState<POSReceiptProps | null>(null);
-  
+
   // Refs
   const isLoadingRef = useRef(false);
   const isMountedRef = useRef(true);
   const hasLoadedDataRef = useRef(false);
 
-  const isPurchase = prop.transactionActionType?.toUpperCase().trim() === "PURCHASE";
-  const isSale = prop.transactionActionType?.toUpperCase().trim() === "SALE";
-  const isStock = prop.transactionActionType?.toUpperCase().trim() === "STOCK";
-  const isTrans = prop.transactionActionType?.toUpperCase().trim() === "TRANS";
+  const isPurchase = prop.transactionActionType?.toUpperCase().trim() === config.transactionTypes.PURC;
+  const isSale = prop.transactionActionType?.toUpperCase().trim() === config.transactionTypes.SALE;
+  const isStock = prop.transactionActionType?.toUpperCase().trim() === config.transactionTypes.STCK;
+  const isTrans = prop.transactionActionType?.toUpperCase().trim() ===  config.transactionTypes.TRAN;
 
-  // Custom hooks
-  const { cart, setCart, addItem, removeItem, clearCart, total: cartTotal } = useCart();
-  const { stockLevel, checkingStock, checkStock, setStockLevel } = useStockCheck(selectedShop || '', toast);
+  const isInstantSale =  isSale && prop.instantSale;
+  const isInstantSaleDelivery = isSale && prop.instantSale && ((prop.cartItems?.length || 0 )> 0)
+  const isCustomerSale = isSale && !!prop.businessPartnerValue && !!prop?.businessPartnerName
+  const isCustomerDelivery = isSale && !prop.instantSale && !!prop.businessPartnerValue && !!prop?.businessPartnerName && ((prop.cartItems?.length || 0) > 0)
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Effective cart — derived during render, stable across renders when parent
+  // doesn't supply cartItems.
+  // ───────────────────────────────────────────────────────────────────────────
+  const { cart: internalCart, setCart, addItem, removeItem, clearCart } = useCart();
+  const cart: CartItem[] = useMemo(
+    () => prop?.cartItems ?? internalCart,
+    [prop?.cartItems, internalCart]
+  );
+
+  const cartTotal = useMemo(
+    () => cart.reduce((sum, c) => sum + c.quantity * c.price, 0),
+    [cart]
+  );
+
+  const { stockLevel, checkingStock, checkStock, setStockLevel } = useStockCheck(
+    selectedShop || '',
+    toast
+  );
 
   // Set business partner from props if provided
   useEffect(() => {
@@ -338,246 +384,318 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
   }, [prop?.businessPartnerValue, selectedBusinessPartner]);
 
   // Memoized values
-  const locationId = useMemo(() => {
-    return selectedShop || sessionStore.get("selectedShop") || "";
-  }, [selectedShop]);
+  const locationId = useMemo(
+    () => selectedShop || sessionStore.get("selectedShop") || "",
+    [selectedShop]
+  );
 
-  const totalWithCoupon = useMemo(() => {
-    return cartTotal - couponAmount;
-  }, [cartTotal, couponAmount]);
+  const totalWithCoupon = useMemo(
+    () => cartTotal - couponAmount,
+    [cartTotal, couponAmount]
+  );
 
-  const balance = useMemo(() => {
-    const paid = parseFormattedNumber(amountPaid);
-    return totalWithCoupon - paid;
-  }, [totalWithCoupon, amountPaid]);
+  const balance = useMemo(
+    () => totalWithCoupon - parseFormattedNumber(amountPaid),
+    [totalWithCoupon, amountPaid]
+  );
 
-  const isBusinessPartnerValid = useMemo(() => {
-   return  (prop?.instantSale) || (!!prop?.businessPartnerValue && !!prop?.businessPartnerName)
-  }, [prop?.instantSale, prop?.businessPartnerValue, prop?.businessPartnerName])
-  
+  const isBusinessPartnerValid = useMemo(
+    () =>
+      isSale && prop?.instantSale //instant sale
+    || isSale && !prop.instantSale && ((prop?.cartItems?.length || 0) > 0) //instant sale delivery
+    || isSale &&  !prop?.instantSale && !!prop?.businessPartnerValue && !!prop?.businessPartnerName // customer sale
+    || isPurchase //&& !!prop?.businessPartnerValue && !!prop?.businessPartnerName
+    || isTrans && !!prop?.businessPartnerValue && !!prop?.businessPartnerName
+    , // intant sale delivery
+    [prop?.instantSale, prop?.businessPartnerValue, prop?.businessPartnerName]
+  );
 
-  // console.log( (prop?.instantSale && !!selectedPaymentMethod) || isTrans || (!!prop?.businessPartnerValue && !!prop?.businessPartnerName && !!selectedPaymentMethod) )
   const isCheckOutValid = useMemo(() => {
-    const hasItems = cart.length > 0;
+    const hasItems = cart.length > 0 || (prop?.cartItems || [])?.length > 0;
 
-    const hasAmount = (prop.instantSale && amountPaid && balance <=0) ||
-                      ((!!prop?.businessPartnerValue && !!prop?.businessPartnerName) && ((isSale && Number(removeCommasFromNumbers(amountPaid)) >= 0) || (isPurchase || isStock || isTrans)))
-    
-    const hasPaymentMethod =  (prop?.instantSale && !!selectedPaymentMethod) || isTrans || (!!prop?.businessPartnerValue && !!prop?.businessPartnerName && !!selectedPaymentMethod) 
-
-    const hasDate = !!date;
-
-   
-    return hasItems && hasAmount && hasPaymentMethod && isBusinessPartnerValid && hasDate;
-  }, [cart.length, prop.instantSale , balance, prop?.businessPartnerValue , prop?.businessPartnerName, amountPaid, isBusinessPartnerValid, selectedPaymentMethod,  date]);
+  //  console.log({businessP : prop?.businessPartnerValue})
 
 
- // Add item to cart - this is called by ItemSelection
-const handleAddItem = useCallback(() => {
-  if (!selectedItem || !quantity) {
-    toast.warning({
-      title: 'Missing Information',
-      description: 'Please select an item and enter quantity',
-    });
-    return;
-  }
-  
-  const item = items.find(i => i.id === selectedItem);
-  if (!item) {
-    toast.error({
-      title: 'Item Not Found',
-      description: 'Selected item no longer available',
-    });
-    return;
-  }
+    //  console.log({hasItems})
 
-  const qty = parseFloat(removeCommasFromNumbers(quantity)?.toString());
-  if (isNaN(qty) || qty <= 0) {
-    toast.warning({
-      title: 'Invalid Quantity',
-      description: 'Please enter a valid quantity',
-    });
-    return;
-  }
+    const hasAmount = isTrans || isPurchase  
+                      || (isInstantSale && settings?.saleToDeliveryMode === true && !isInstantSaleDelivery) 
+                      || (isInstantSale && settings?.saleToDeliveryMode === false &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)) 
+                      || (isInstantSaleDelivery && settings?.saleToDeliveryMode ===  true && (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon))
+                      || (isCustomerSale && ((settings?.minimumSalePaymentPercentage || 0) > 0) && Number(removeCommasFromNumbers(amountPaid)) >= (((settings?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))
+                      || (isCustomerSale && ((settings?.minimumSalePaymentPercentage === 0) &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)))
 
-  // Check stock availability for sales only
-  if (!isPurchase && !isStock && !isTrans && stockLevel && stockLevel.availableQuantity < qty) {
-    toast.warning({
-      title: 'Insufficient Stock',
-      description: `Only ${stockLevel.availableQuantity} units available`,
-    });
-    return;
-  }
+    //  isSale ? 
+    //   (
+    //    (prop.instantSale && (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon))  || //sale that requires only one person
+    //    (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon && isSale)  || // sale that requires 2 persons, sesnond person that generates receipt for taking out items
+    //    (!!prop?.businessPartnerValue && !!prop?.businessPartnerName && isSale && Number(removeCommasFromNumbers(amountPaid)) >= (((settings?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))) // customer sale
+    //   : !isSale
 
-  // ✅ Determine the price based on transaction type
-  let itemPrice: number;
-  
-  if (isPurchase) {
-    // For purchases: use the entered price
-    const enteredPrice = parseFloat(removeCommasFromNumbers(price)?.toString());
-    
-    if (!enteredPrice || enteredPrice <= 0) {
-      toast.warning({
-        title: 'Invalid Price',
-        description: 'Please enter a valid purchase price',
-      });
-      return;
-    }
-    
-    itemPrice = enteredPrice;
-  } else {
-    // For sales: use the item's selling price
-    itemPrice = item.sellingPrice || 0;
-    
-    if (itemPrice <= 0) {
-      toast.warning({
-        title: 'Invalid Price',
-        description: 'Item has no selling price set',
-      });
-      return;
-    }
-  }
 
-  // ✅ Add item to cart with the correct price
-  addItem(item, qty, stockLevel?.availableQuantity, itemPrice);
-  
-  // ✅ Reset form
-  setSelectedItem("");
-  setQuantity("");
-  setPrice("");  // ← Clear the price state
-  setStockLevel(null);
-  
-  // toast.success({
-  //   title: 'Item Added',
-  //   description: `${item.name} added to cart${isPurchase ? ` at ${formatCurrency(itemPrice)}` : ''}`,
-  // });
-
-}, [selectedItem, quantity, price, items, stockLevel, addItem, setStockLevel, isPurchase, isStock]);
-  // Validate coupon
-  const validateCoupon = useCallback(async (code: string) => {
-    if (!code.trim()) {
-      setCouponData(null);
-      setCouponAmount(0);
-      setCouponError("");
-      return;
-    }
-
-    if (code.includes('/') || code.includes('\\')) {
-      setCouponError("Coupon code cannot contain '/' or '\\' characters");
-      setCouponData(null);
-      setCouponAmount(0);
-      toast.warning({
-        title: 'Invalid Coupon',
-        description: 'Coupon code cannot contain "/" or "\\" characters',
-      });
-      return;
-    }
-
-    if (!locationId) {
-      setCouponError("No shop selected");
-      return;
-    }
-
-    setIsCheckingCoupon(true);
-    setCouponError("");
-
-    try {
-      const response = await axiosInstance.get(`/Coupon/${code}?locationId=${locationId}`);
+    //  console.log({hasAmount})
+ 
+    const hasPaymentMethod =  ((isPurchase && !!selectedPaymentMethod) || (isTrans && !selectedPaymentMethod) ||
+                 (isInstantSale && !isInstantSaleDelivery && settings?.saleToDeliveryMode === true && !selectedPaymentMethod) ||
+                 (isInstantSale && settings?.saleToDeliveryMode === false && !!selectedPaymentMethod) ||
+                 (isInstantSaleDelivery && settings?.saleToDeliveryMode === true && !!selectedPaymentMethod) ||
+                  (isCustomerSale  &&  !!selectedPaymentMethod)|| isCustomerDelivery ) //&& !!selectedPaymentMethod;
       
-      if (response?.data) {
-        const coupon: CouponResponse = response.data;
-        
-        if (coupon.used) {
-          setCouponError("This coupon has already been used");
-          setCouponData(null);
-          setCouponAmount(0);
-          toast.warning({
-            title: 'Coupon Already Used',
-            description: 'This coupon has already been redeemed',
-          });
-          return;
-        }
+    
+              // console.log({hasPaymentMethod})
 
-        if (coupon.expiryDate) {
-          const expiryDate = new Date(coupon.expiryDate);
-          const today = new Date();
-          
-          if (expiryDate < today) {
-            setCouponError("This coupon has expired");
+      const hasDate =   (isInstantSale && !isInstantSaleDelivery  && settings?.saleToDeliveryMode === true) || !!date
+      //isSale || !!date;
+    // console.log({hasDate})
+
+    // console.log({isBusinessPartnerValid})
+  
+    return hasItems && hasAmount && hasPaymentMethod && isBusinessPartnerValid && hasDate;
+  }, [
+    cart.length,
+    prop.instantSale,
+    prop?.businessPartnerValue,
+    prop?.businessPartnerName,
+    prop?.cartItems,
+    prop.allowItemSelection,
+    amountPaid,
+    isBusinessPartnerValid,
+    selectedPaymentMethod,
+    date,
+    isSale,
+    isPurchase,
+    isStock,
+    isTrans,
+    totalWithCoupon,
+  ]);
+
+  // console.log(checkVa)
+  // ───────────────────────────────────────────────────────────────────────────
+  // Add item to cart
+  // ───────────────────────────────────────────────────────────────────────────
+  const handleAddItem = useCallback(() => {
+    if (!selectedItem || !quantity) {
+      toastRef.current.warning({
+        title: 'Missing Information',
+        description: 'Please select an item and enter quantity',
+      });
+      return;
+    }
+
+    const item = items.find((i) => i.id === selectedItem);
+    if (!item) {
+      toastRef.current.error({
+        title: 'Item Not Found',
+        description: 'Selected item no longer available',
+      });
+      return;
+    }
+
+    const qty = parseFloat(removeCommasFromNumbers(quantity)?.toString());
+    if (isNaN(qty) || qty <= 0) {
+      toastRef.current.warning({
+        title: 'Invalid Quantity',
+        description: 'Please enter a valid quantity',
+      });
+      return;
+    }
+
+    if (!isPurchase && !isStock && !isTrans && stockLevel && stockLevel.availableQuantity < qty) {
+      toastRef.current.warning({
+        title: 'Insufficient Stock',
+        description: `Only ${stockLevel.availableQuantity} units available`,
+      });
+      return;
+    }
+
+    let itemPrice: number;
+
+    if (isPurchase) {
+      const enteredPrice = parseFloat(removeCommasFromNumbers(price)?.toString());
+      if (!enteredPrice || enteredPrice <= 0) {
+        toastRef.current.warning({
+          title: 'Invalid Price',
+          description: 'Please enter a valid purchase price',
+        });
+        return;
+      }
+      itemPrice = enteredPrice;
+    } else {
+      itemPrice = item.sellingPrice || 0;
+      if (itemPrice <= 0) {
+        toastRef.current.warning({
+          title: 'Invalid Price',
+          description: 'Item has no selling price set',
+        });
+        return;
+      }
+    }
+
+    addItem(item, qty, stockLevel?.availableQuantity, itemPrice);
+
+    setSelectedItem("");
+    setQuantity("");
+    setPrice("");
+    setStockLevel(null);
+  }, [
+    selectedItem,
+    quantity,
+    price,
+    items,
+    stockLevel,
+    addItem,
+    setStockLevel,
+    isPurchase,
+    isStock,
+    isTrans,
+  ]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Coupon validation
+  // ───────────────────────────────────────────────────────────────────────────
+  const validateCoupon = useCallback(
+    async (code: string) => {
+      const t = toastRef.current;
+
+      if (!code.trim()) {
+        setCouponData(null);
+        setCouponAmount(0);
+        setCouponError("");
+        return;
+      }
+
+      if (code.includes('/') || code.includes('\\')) {
+        setCouponError("Coupon code cannot contain '/' or '\\' characters");
+        setCouponData(null);
+        setCouponAmount(0);
+        t.warning({
+          title: 'Invalid Coupon',
+          description: 'Coupon code cannot contain "/" or "\\" characters',
+        });
+        return;
+      }
+
+      if (!locationId) {
+        setCouponError("No shop selected");
+        return;
+      }
+
+      setIsCheckingCoupon(true);
+      setCouponError("");
+
+      try {
+        const response = await axiosInstance.get(
+          `/Coupon/${code}?locationId=${locationId}`
+        );
+
+        if (response?.data) {
+          const coupon: CouponResponse = response.data;
+
+          if (coupon.used) {
+            setCouponError("This coupon has already been used");
             setCouponData(null);
             setCouponAmount(0);
-            toast.warning({
-              title: 'Coupon Expired',
-              description: `This coupon expired on ${new Date(coupon.expiryDate).toLocaleDateString()}`,
+            t.warning({
+              title: 'Coupon Already Used',
+              description: 'This coupon has already been redeemed',
             });
             return;
           }
+
+          if (coupon.expiryDate) {
+            const expiryDate = new Date(coupon.expiryDate);
+            const today = new Date();
+            if (expiryDate < today) {
+              setCouponError("This coupon has expired");
+              setCouponData(null);
+              setCouponAmount(0);
+              t.warning({
+                title: 'Coupon Expired',
+                description: `This coupon expired on ${new Date(
+                  coupon.expiryDate
+                ).toLocaleDateString()}`,
+              });
+              return;
+            }
+          }
+
+          setCouponData(coupon);
+          setCouponAmount(coupon.amount);
+          setCouponError("");
+          t.success({
+            title: 'Coupon Applied',
+            description: `Coupon worth ${currency(
+              coupon.amount?.toString()
+            )} applied successfully!`,
+          });
         }
+      } catch (error: any) {
+        console.error("Error validating coupon:", error);
+        setCouponData(null);
+        setCouponAmount(0);
 
-        setCouponData(coupon);
-        setCouponAmount(coupon.amount);
-        setCouponError("");
-        toast.success({
-          title: 'Coupon Applied',
-          description: `Coupon worth ${formatCurrency(coupon.amount)} applied successfully!`,
+        const errorMessage =
+          error?.response?.data?.message || 'Invalid coupon code';
+        setCouponError(errorMessage);
+
+        t.warning({
+          title: 'Invalid Coupon',
+          description: errorMessage,
         });
+      } finally {
+        setIsCheckingCoupon(false);
       }
-    } catch (error: any) {
-      console.error("Error validating coupon:", error);
-      setCouponData(null);
-      setCouponAmount(0);
-      
-      const errorMessage = error?.response?.data?.message || 'Invalid coupon code';
-      setCouponError(errorMessage);
-      
-      toast.warning({
-        title: 'Invalid Coupon',
-        description: errorMessage,
-      });
-    } finally {
-      setIsCheckingCoupon(false);
-    }
-  }, [locationId]);
+    },
+    [locationId]
+  );
 
+  // ───────────────────────────────────────────────────────────────────────────
   // Load data
+  // ───────────────────────────────────────────────────────────────────────────
   const loadData = useCallback(async (): Promise<void> => {
     if (isLoadingRef.current || !isMountedRef.current) return;
-    
+
     if (hasLoadedDataRef.current && items.length > 0 && customers.length > 0) {
       return;
     }
-    
+
     isLoadingRef.current = true;
     setLoading(true);
-    
+
     try {
       const sessionShop = sessionStore.get("selectedShop");
-      
+
       if (!selectedShop && !sessionShop) {
         router.push('/select-shop');
         return;
       }
-      
-      const locationId = selectedShop || sessionShop;
+
+      const locId = selectedShop || sessionShop;
       const [itemsResponse, customersResponse] = await Promise.all([
-        axiosInstance.get(isSale ?  `/Items/Sale?locationId=${locationId}` :  `/Items/Stocking?locationId=${locationId}`),
-        axiosInstance.get(`/customers?companyId=${user.companyId || user}&locationId=${locationId}`)
+        axiosInstance.get(
+          isSale
+            ? `/Items/Sale?locationId=${locId}`
+            : `/Items/Stocking?locationId=${locId}`
+        ),
+        axiosInstance.get(
+          `/customers?companyId=${user.companyId || user}&locationId=${locId}`
+        ),
       ]);
-      
+
       if (isMountedRef.current) {
         setCustomers(customersResponse?.data || []);
         setItems(itemsResponse?.data || []);
         hasLoadedDataRef.current = true;
-        setErrors(prev => ({ ...prev, loadData: '' }));
+        setErrors((prev) => ({ ...prev, loadData: '' }));
       }
     } catch (error: any) {
       console.error("Error loading data:", error);
-      
       if (isMountedRef.current) {
-        const errorMessage = error?.response?.data?.message || 'Failed to load data. Please refresh the page.';
-        setErrors(prev => ({ ...prev, loadData: errorMessage }));
-        
-        toast.error({
+        const errorMessage =
+          error?.response?.data?.message ||
+          'Failed to load data. Please refresh the page.';
+        setErrors((prev) => ({ ...prev, loadData: errorMessage }));
+        toastRef.current.error({
           title: 'Failed to load data',
           description: errorMessage,
         });
@@ -588,36 +706,37 @@ const handleAddItem = useCallback(() => {
         isLoadingRef.current = false;
       }
     }
-  }, [user, selectedShop, router,  items.length, customers.length]);
+  }, [user, selectedShop, router, isSale, items.length, customers.length]);
 
-  // Effects
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     const sessionShop = sessionStore.get("selectedShop");
     if (!selectedShop && !sessionShop) {
       router.push('/select-shop');
       return;
     }
-    
+
     loadData();
-    
-    const savedCart = sessionStorage.getItem('saleCart');
-    if (savedCart) {
-      try {
-        const parsed = JSON.parse(savedCart);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setCart(parsed);
+
+    if (!prop.cartItems || prop.cartItems.length === 0) {
+      const savedCart = sessionStorage.getItem('saleCart');
+      if (savedCart) {
+        try {
+          const parsed = JSON.parse(savedCart);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCart(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to restore cart:', e);
         }
-      } catch (e) {
-        console.error('Failed to restore cart:', e);
       }
     }
-    
+
     return () => {
       isMountedRef.current = false;
     };
-  }, [loadData, selectedShop, router, setCart]);
+  }, [loadData, selectedShop, router, setCart, prop.cartItems]);
 
   // Check stock level when item is selected
   useEffect(() => {
@@ -628,20 +747,22 @@ const handleAddItem = useCallback(() => {
     }
   }, [selectedItem, checkStock, setStockLevel]);
 
-  // Save cart to session storage
+  // Persist internal cart to session storage — only when parent isn't controlling it.
   useEffect(() => {
+    if (prop.cartItems && prop.cartItems.length > 0) return;
+
     const saveTimer = setTimeout(() => {
-      if (cart.length > 0) {
-        sessionStorage.setItem('saleCart', JSON.stringify(cart));
+      if (internalCart.length > 0) {
+        sessionStorage.setItem('saleCart', JSON.stringify(internalCart));
       } else {
         sessionStorage.removeItem('saleCart');
       }
     }, 500);
 
     return () => clearTimeout(saveTimer);
-  }, [cart]);
+  }, [internalCart, prop.cartItems]);
 
-  // Reset coupon when cart changes
+  // Reset coupon when cart is emptied
   useEffect(() => {
     if (cart.length === 0) {
       setCouponCode("");
@@ -651,42 +772,27 @@ const handleAddItem = useCallback(() => {
     }
   }, [cart.length]);
 
-  const resetForm = useCallback(() => {
-    clearCart();
-    setSelectedPaymentMethod("");
-    setBusinessPartner("");
-    setAmountPaid("");
-    setDate(prop?.instantSale ? new Date().toISOString().split('T')[0] : "");
-    setQuantity("");
-    setSelectedItem("");
-    setStockLevel(null);
-    setCouponCode("");
-    setCouponData(null);
-    setCouponAmount(0);
-    setCouponError("");
-    setErrors({});
-    sessionStorage.removeItem('saleCart');
-  }, [clearCart, prop?.instantSale, setStockLevel]);
-
-  useEffect(() => {
-    if (!receiptData) {
-      resetForm();
-    }
-  }, [receiptData]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Callbacks
-  const handleRemoveFromCart = useCallback((index: number) => {
-    removeItem(index);
-    // toast.info({
-    //   title: 'Item Removed',
-    //   description: 'Item has been removed from cart',
-    // });
-  }, [removeItem]);
+  // ───────────────────────────────────────────────────────────────────────────
+  // Cart handlers
+  // ───────────────────────────────────────────────────────────────────────────
+  const handleRemoveFromCart = useCallback(
+    (index: number) => {
+      if (prop.cartItems && prop.cartItems.length > 0) return;
+      removeItem(index);
+    },
+    [removeItem, prop.cartItems]
+  );
 
   const handleClearCart = useCallback(() => {
     if (cart.length === 0) return;
-    
+
+    if (prop?.cartItems && prop.cartItems.length > 0) {
+      setCart([]);
+      return;
+    }
+
     clearCart();
+    sessionStorage.removeItem('saleCart');
     setAmountPaid("");
     setSelectedPaymentMethod("");
     setBusinessPartner("");
@@ -695,135 +801,136 @@ const handleAddItem = useCallback(() => {
     setCouponAmount(0);
     setCouponError("");
     setErrors({});
-    
-    // toast.info({
-    //   title: 'Cart Cleared',
-    //   description: 'All items have been removed from cart',
-    // });
-  }, [cart.length, clearCart]);
+  }, [cart.length, clearCart, prop?.cartItems, setCart]);
 
-  const validateSubmit = useCallback((): boolean => {
-    if (cart.length === 0) {
-      // toastErrors(toast, 'Please add at least one item to the cart', "", false);
-      return false;
-    }
-    
-    if (!isBusinessPartnerValid) {
-      // toastErrors(toast, 'Please select a customer', "", false);
-      return false;
-    }
-    
-    const paid = parseFormattedNumber(amountPaid);
-    if (!amountPaid || paid <= 0) {
-      // toastErrors(toast, 'Please enter a valid amount', "", false);
-      return false;
-    }
-    
-    if (paid < totalWithCoupon) {
-      // toastErrors(toast, `Amount paid (${formatCurrency(paid)}) cannot be less than total (${formatCurrency(totalWithCoupon)})`, "", false);
-      return false;
-    }
-    
-    if (!selectedPaymentMethod) {
-      // toastErrors(toast, 'Please select a payment method', "", false);
-      return false;
-    }
-    
-    if (!date) {
-      // toastErrors(toast, 'Please select a date', "", false);
-      return false;
-    }
-    
-    return true;
-  }, [cart, totalWithCoupon, amountPaid, selectedPaymentMethod, isBusinessPartnerValid, date]);
+  // ───────────────────────────────────────────────────────────────────────────
+  // Validation + submit
+  // ───────────────────────────────────────────────────────────────────────────
+ 
+  // console.log(prop.allowItemSelection === true)
 
   const handleSubmit = useCallback(async () => {
-    if (!validateSubmit()) {
-      // toast.warning({
-      //   title: 'Validation Error',
-      //   description: 'Please fix all errors before submitting',
-      // });
-      // return;
+    const t = toastRef.current;
+
+    if (!isCheckOutValid) {
+      return t.warning({
+        description: "",
+        title: "Validations failed !",
+      });
     }
 
     setSubmitting(true);
-    
+
     try {
       const sessionShop = sessionStore.get("selectedShop");
-      const locationId = selectedShop || sessionShop || '';
+      const locId = selectedShop || sessionShop || '';
       const paidAmount = parseFormattedNumber(amountPaid);
-      
+
       const saleItems = cart.map((c) => ({
         itemId: c.id,
         quantity: c.quantity,
         unitPrice: c.price,
-        deliveredQuantity: prop.instantSale? c.quantity : 0
+        deliveredQuantity: prop.instantSale ? c.quantity : 0,
       }));
 
-      const postData = {
-        locationId: locationId,
-        businessPartnerId: prop.businessPartnerValue || null,
-        transactionResultsType: 2,
-        date: new Date(date).toISOString(),
-        totalAmount: cartTotal,
-        taxAmount: 0,
-        discountAmount: couponAmount,
-        amountPaid: paidAmount,
-        paymentMethod: Number(selectedPaymentMethod),
-        items: saleItems,
-        transactionCode: "",
-        couponCode: couponData?.code || "",
-        currencyCode: config.currency,
-        transactionType: 1
-        // remarks: `Paid: ${formatCurrency(paidAmount)}${couponData ? `, Coupon: ${couponData.code} (${formatCurrency(couponAmount)})` : ''}`
-      };
+      const postData =  isInstantSaleDelivery && settings?.saleToDeliveryMode === true ?
+         {
+            transactionId: prop?.transactionNumber,
+            amount: totalWithCoupon,
+            paymentDate: new Date().toISOString() || new Date(date).toISOString(),
+            paymentMethod: Number(selectedPaymentMethod),
+            remarks: "",
+            couponCode: couponCode,
+            currencyCode: settings?.currency,
+          }
+          : {
+            locationId: locId,
+            businessPartnerId: prop.businessPartnerValue || null,
+            transactionResultsType: 2,
+            date: new Date().toISOString() || new Date(date).toISOString(),
+            totalAmount: cartTotal,
+            taxAmount: 0,
+            discountAmount: couponAmount,
+            amountPaid: paidAmount,
+            paymentMethod: Number(selectedPaymentMethod),
+            items: saleItems,
+            transactionCode: "",
+            couponCode: couponData?.code || "",
+            currencyCode: settings?.currency,
+            transactionType: 1,
+          }
+        ;
 
-     await axiosInstance.post(prop.submitUrl || "", postData).then(async (response) => {
-        if (isSale) {
-          setReceiptData({
-            qrCode: response?.data?.qrCode, 
-            transactionNumber: response?.data?.transactionNumber, 
-            uniqueCount: response?.data?.count, 
-            showQRCode: true 
-          });
-        }
-       
-        clearCart();
-        setAmountPaid("");
-        setSelectedPaymentMethod("");
-        setBusinessPartner("");
-        setCouponCode("");
-        setCouponData(null);
-        setCouponAmount(0);
-        setCouponError("");
-        setErrors({});
-        setPrice("")
-        sessionStorage.removeItem('saleCart');
+      const response = await axiosInstance.post(prop.submitUrl || "", postData);
 
-        if (prop?.reloadUrl && prop?.reloadSetterFunction) {
+      // Reset form state
+      clearCart();
+      setAmountPaid("");
+      setSelectedPaymentMethod("");
+      setBusinessPartner("");
+      setCouponCode("");
+      setCouponData(null);
+      setCouponAmount(0);
+      setCouponError("");
+      setErrors({});
+      setPrice("");
+      sessionStorage.removeItem('saleCart');
+
+      // Optional reload
+      if (prop?.reloadUrl && prop?.reloadSetterFunction) {
+        try {
           const reloadResponse = await axiosInstance.get(prop.reloadUrl);
           prop.reloadSetterFunction(reloadResponse?.data);
+        } catch (e) {
+          console.warn('Post-submit reload failed', e);
         }
+      }
 
-        toastSuccess(toast, "", "Submitted successfully")
+      toastSuccess(t, "", "Submitted successfully");
+
+      if (prop.onSubmitted) {
+        prop.onSubmitted(response?.data);
+      } else {
+        if (isSale) {
+          setReceiptData({
+            qrCode: response?.data?.qrCode,
+            transactionNumber: response?.data?.transactionNumber,
+            uniqueCount: response?.data?.count,
+            showQRCode: true,
+          });
+        }
         if (!prop?.instantSale) {
-          setTimeout(() => {
-            prop.setOpen(false);
-          }, 2000);
+          setTimeout(() => prop.setOpen(false), 2000);
         }
-        });
-
+      }
     } catch (error: any) {
-       toastErrors(toast, error, "Technical challenge", true);
+      toastErrors(t, error, "Technical challenge", true);
       console.error("Error completing purchase:", error);
     } finally {
       setSubmitting(false);
     }
-  }, [cart, cartTotal, amountPaid, selectedPaymentMethod, selectedBusinessPartner, date, selectedShop, couponData, couponAmount, prop, validateSubmit, clearCart]);
+  }, [
+    cart,
+    cartTotal,
+    amountPaid,
+    selectedPaymentMethod,
+    selectedBusinessPartner,
+    date,
+    selectedShop,
+    couponData,
+    couponAmount,
+    couponCode,
+    prop,
+    clearCart,
+    isSale,
+    isCheckOutValid,
+    totalWithCoupon,
+  ]);
 
-
-  // Conditional returns after all hooks
-  //const sessionShop = sessionStore.get("selectedShop");
+  // console.log({businessPartnerName : prop?.businessPartnerName})
+  // ───────────────────────────────────────────────────────────────────────────
+  // Guard
+  // ───────────────────────────────────────────────────────────────────────────
   if (!selectedShop && !sessionStore.get("selectedShop")) {
     return null;
   }
@@ -832,41 +939,52 @@ const handleAddItem = useCallback(() => {
     return <Loading />;
   }
 
+  const isControlledCart = !!(prop.cartItems && prop.cartItems.length > 0);
+
   return (
     <div className="bg-gradient-to-br from-slate-50/80 via-white/80 to-gray-100/80 backdrop-blur-md px-2 pt-0">
-     <div className="m-1" >
-       {!prop?.instantSale && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 ">
-          <div className="text-sm sm:text-base mx-1 sm:mx-2">
-            {prop?.businessPartnerLable}: <b>{prop?.businessPartnerName || 'Not Selected'}</b>
+      <div className="m-1">
+        {!prop?.instantSale && (
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div className="text-sm sm:text-base mx-1 sm:mx-2">
+                <>
+                  {prop?.businessPartnerLable}: <b>{prop?.businessPartnerName || 'Not Selected'}</b>
+                </>
+            </div>
+            <Button
+              className="w-full sm:w-auto bg-red-700 hover:bg-red-500"
+              onClick={() => {prop.setOpen(false); handleClearCart()}}
+            >
+              <X className="" /> Close
+            </Button>
           </div>
-          <Button className="w-full sm:w-auto bg-red-700 hover:bg-red-500" onClick={() => prop.setOpen(false)}>
-            <X className="" /> Close
-          </Button>
-        </div>
-      )}
-     </div>
-      
+        )}
+      </div>
+
       <div className="p-0 mt-2">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
-          {/* Left Column - Items Selection and Cart */}
-          <div className="lg:col-span-3 space-y-2 ">
-            {/* Items Selection Card */}
+          <div className="lg:col-span-3 space-y-2">
             <ItemSelection
               items={items}
               quantity={quantity}
               selectedItem={selectedItem}
               setQuantity={setQuantity}
               setSelectedItem={setSelectedItem}
-              // setStockLevel={setStockLevel}
               stockLevel={stockLevel}
               isStockLevelLoading={checkingStock}
-              disableCartAdition={submitting}
-              key={"ItemSelection"}
+              disableCartAdition={submitting || isControlledCart}
+              key="ItemSelection"
               onAddItem={handleAddItem}
               transactionActionType={prop?.transactionActionType}
               setPrice={setPrice}
               price={price}
+              allowSelection={
+                (isTrans 
+                || isPurchase 
+                || isInstantSale
+                || isCustomerSale)
+                && !isInstantSaleDelivery && !isCustomerDelivery
+              }
             />
 
             <ReusableCart
@@ -875,27 +993,46 @@ const handleAddItem = useCallback(() => {
               onRemove={(item, index) => handleRemoveFromCart(index)}
               onClear={handleClearCart}
               loading={submitting}
-             emptyMessage="No data found."
+              emptyMessage="No data found."
               emptySubMessage="Add items using the form above"
-              className={prop?.instantSale ? "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-238px)] lg:max-h-[calc(100vh-238px)]" : "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-276px)] lg:max-h-[calc(100vh-276px)]"}
-              
+              className={
+                prop?.instantSale
+                  ? "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-238px)] lg:max-h-[calc(100vh-238px)]"
+                  : "h-fit max-h-[calc(100vh-430px)] lg:h-[calc(100vh-276px)] lg:max-h-[calc(100vh-276px)]"
+              }
+              allowEdits={!isControlledCart}
             />
           </div>
 
-          {/* Right Column - Customer Selection and Checkout */}
           <div className="space-y-2">
-            {/* {customerSelection} */}
-            
             <CheckoutCard
               date={date}
               onDateChange={setDate}
+              showDate = {
+                isPurchase || isTrans ||   (isInstantSale && settings?.saleToDeliveryMode === false) || isInstantSaleDelivery || isCustomerSale
+              }
               dateError={errors.date}
               datePlaceholder="Select date"
               cartTotal={cartTotal}
               amountPaid={amountPaid}
               onAmountPaidChange={setAmountPaid}
               amountPaidError={errors.amountPaid}
-              showCoupon={true}
+              showMinPaymentThreshold={
+                (isCustomerSale || isCustomerDelivery) && ((settings?.minimumSalePaymentPercentage || 0)> 0)
+              }
+              showPayment={
+                isPurchase ||
+                 (isInstantSale && settings?.saleToDeliveryMode === false) ||
+                 (isInstantSaleDelivery && settings?.saleToDeliveryMode === true) ||
+                  isCustomerSale || isCustomerDelivery 
+              }
+              showCoupon={
+                 (isInstantSale && settings?.saleToDeliveryMode === false)  || isCustomerSale
+                // (  isSale && prop.instantSale ||
+                // !!prop.businessPartnerValue && !!prop?.businessPartnerName) // purchase, stock adjustment, sale and business partners 
+                // || (!prop.instantSale && !prop?.businessPartnerName && !prop?.businessPartnerValue)
+              
+              }
               couponCode={couponCode}
               onCouponChange={setCouponCode}
               onCouponBlur={validateCoupon}
@@ -914,19 +1051,19 @@ const handleAddItem = useCallback(() => {
               cartEmpty={cart.length === 0}
               instantSale={prop.instantSale}
               transactionType={prop?.transactionActionType}
-              // height={prop.instantSale ? "calc(100vh - 75px)" : "calc(100vh - 365px)"}
-               className={prop?.instantSale ? "h-fit sm:h-[calc(100vh-110px)]" : "h-fit sm:h-[calc(100vh-118px)]"}
+              className={
+                prop?.instantSale
+                  ? "h-fit sm:h-[calc(100vh-110px)]"
+                  : "h-fit sm:h-[calc(100vh-118px)]"
+              }
             />
           </div>
         </div>
       </div>
 
       {receiptData && (
-        <div className=" fixed inset-0 z-100 top-0 left-0 right-0 min-h-screen bg-gray-100 p-4 flex justify-center">
-          <POSReceipt
-            data={receiptData}
-            setData={setReceiptData}
-          />
+        <div className="fixed inset-0 z-100 top-0 left-0 right-0 min-h-screen bg-gray-100 p-4 flex justify-center">
+          <POSReceipt data={receiptData} setData={setReceiptData} />
         </div>
       )}
 
@@ -935,7 +1072,6 @@ const handleAddItem = useCallback(() => {
   );
 }
 
-// Wrap with Error Boundary and memo
 const SaleTransactionUI = memo(SaleTransactionUIComponent);
 SaleTransactionUI.displayName = 'SaleTransactionUI';
 

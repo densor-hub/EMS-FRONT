@@ -7,31 +7,12 @@ import {
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import SaleTransactionUi from "@/components/util/SaleTransactionUi";
+import { config, settings } from "@/components/util/AppConfig";
 
 
 
 export default function SalePage() {
-  const [purchases, setPurchases] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
- 
- 
-
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <Skeleton className="h-8 w-64 mb-2" />
-        <Skeleton className="h-4 w-96 mb-8" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
   return (
     <Suspense fallback>
 
@@ -48,12 +29,12 @@ export default function SalePage() {
                 <SaleTransactionUi 
                     instantSale={true}
                     setOpen={setModalOpen} 
-                    reloadSetterFunction = {setPurchases} 
-                    reloadUrl=""
+                    // reloadSetterFunction = {setPurchases} 
+                    // reloadUrl=""
                    // reloadUrl={`/Sales/LocationId=${selectedShop}`}
                     submitUrl="/Sales/General"
-                    transactionActionType="SALE"
-                    
+                    transactionActionType={config.transactionTypes.SALE}
+                    allowItemSelection={settings?.saleToDeliveryMode}
                   />
               </div>
           </div>

@@ -5,9 +5,10 @@ import EscPosEncoder from 'esc-pos-encoder'
 import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
 import { useAuth } from '@/lib/auth-context'
 import jsPDF from 'jspdf'
-import { config } from './AppConfig'
+import { config, settings } from './AppConfig'
 import { useToaster } from './CustomToast'
-import { sessionStore } from '@/helpers/formatStrings';
+import { sessionStore } from '@/helpers/formatStrings'
+import { CartItem } from '@/lib/types'
 
 // Add WebUSB type definitions
 declare global {
@@ -48,14 +49,14 @@ export interface POSReceiptProps {
   transactionNumber: string
   merchantName?: string
   date?: string
-  items?: Array<{ name: string; code?: string; quantity: number; price: number }>
+  items?: CartItem[]
   customerName?: string
   showQRCode?: boolean
   paidAmount?: number
   balance?: number
   taxAmount?: number
   discountAmount?: number
-  uniqueCount?: number;
+  uniqueCount?: number
 }
 
 interface POSReceiptUi {
@@ -63,12 +64,17 @@ interface POSReceiptUi {
   setData: Dispatch<SetStateAction<POSReceiptProps | null>>
 }
 
-var sessionShop = sessionStore.get("selectedShop");
+const USB_PRINTER_FILTERS = [
+  { vendorId: 0x0483, productId: 0x070b },
+  { vendorId: 0x04b8 },
+  { vendorId: 0x0b05 },
+  { vendorId: 0x0a48 },
+  { vendorId: 0x1a86 },
+]
 
-const POSReceipt: React.FC<POSReceiptUi> = ({
-  data,
-  setData
-}) => {
+var sessionShop = sessionStore.get('selectedShop')
+
+const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
   const { user, selectedShop } = useAuth()
   const toast = useToaster()
   const [isPrinting, setIsPrinting] = useState(false)
@@ -76,19 +82,33 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
   const [isWebUSBSupported, setIsWebUSBSupported] = useState(true)
   const [savedDevice, setSavedDevice] = useState<any>(null)
   const receiptRef = useRef<HTMLDivElement>(null)
-  const hasAutoPrinted = useRef(false)   // guards against double-print in Strict Mode
+  const hasAutoPrinted = useRef(false)
+  const [printError, setPrintError] = useState<string | null>(null)
 
-  // Destructure data for easier access
   const {
     qrCode,
     transactionNumber,
-    merchantName = user?.locations?.find(x => x.id == (selectedShop || sessionShop))?.name || "SHOP NAME",
+    merchantName =
+      user?.locations?.find((x) => x.id == (selectedShop || sessionShop))?.name ||
+      'SHOP NAME',
     date = new Date().toLocaleString(),
     items = [],
     customerName = '',
-    showQRCode = true,
-    uniqueCount
+    // ✅ Show QR only if one was actually provided (unless explicitly overridden).
+    showQRCode = Boolean(qrCode),
+    uniqueCount,
   } = data
+
+  // ---- Helpers ----
+  const safePrice = (value: any): number => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const safeQuantity = (value: any): number => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : 0
+  }
 
   useEffect(() => {
     if (!('usb' in navigator)) {
@@ -106,52 +126,52 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
   }, [])
 
   const safeAmount = () => {
-    if (!Array.isArray(items) || items.length === 0) {
-      return 0;
-    }
+    if (!Array.isArray(items) || items.length === 0) return 0
+    return items.reduce(
+      (sum, v) => sum + safePrice(v.price) * safeQuantity(v.quantity),
+      0
+    )
+  }
 
-    const total = items.reduce((sum, v) => {
-      const price = typeof v.price === 'number' && !isNaN(v.price) ? v.price : 0;
-      const quantity = typeof v.quantity === 'number' && !isNaN(v.quantity) ? v.quantity : 0;
-      return sum + (price * quantity);
-    }, 0);
+  const amount = safeAmount()
 
-    return total;
-  };
+  const base64ToImageData = (
+    base64: string,
+    width: number = 200,
+    height: number = 200
+  ) => {
+    return new Promise<{ data: Uint8Array; width: number; height: number }>(
+      (resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')!
+          ctx.drawImage(img, 0, 0, width, height)
+          const imageData = ctx.getImageData(0, 0, width, height)
+          const raw = imageData.data
 
-  const amount = safeAmount();
+          const bitmapData = new Uint8Array(Math.ceil((width * height) / 8))
 
-  const base64ToImageData = (base64: string, width: number = 200, height: number = 200) => {
-    return new Promise<{ data: Uint8Array; width: number; height: number }>((resolve, reject) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')!
-        ctx.drawImage(img, 0, 0, width, height)
-        const imageData = ctx.getImageData(0, 0, width, height)
-        const data = imageData.data
-
-        const bitmapData = new Uint8Array(Math.ceil((width * height) / 8))
-
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const index = (y * width + x) * 4
-            const gray = (data[index] + data[index + 1] + data[index + 2]) / 3
-            const bit = gray < 128 ? 1 : 0
-            if (bit === 1) {
-              const byteIndex = Math.floor((y * width + x) / 8)
-              const bitIndex = 7 - (x % 8)
-              bitmapData[byteIndex] |= (1 << bitIndex)
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const index = (y * width + x) * 4
+              const gray = (raw[index] + raw[index + 1] + raw[index + 2]) / 3
+              const bit = gray < 128 ? 1 : 0
+              if (bit === 1) {
+                const byteIndex = Math.floor((y * width + x) / 8)
+                const bitIndex = 7 - (x % 8)
+                bitmapData[byteIndex] |= 1 << bitIndex
+              }
             }
           }
+          resolve({ data: bitmapData, width, height })
         }
-        resolve({ data: bitmapData, width, height })
+        img.onerror = reject
+        img.src = `data:image/png;base64,${base64}`
       }
-      img.onerror = reject
-      img.src = `data:image/png;base64,${base64}`
-    })
+    )
   }
 
   const generateReceiptData = async () => {
@@ -159,7 +179,11 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
       const encoder = new EscPosEncoder()
       const LINE_WIDTH = 32
 
-      const fit = (text: string, width: number, align: 'left' | 'right' | 'center' = 'left') => {
+      const fit = (
+        text: string,
+        width: number,
+        align: 'left' | 'right' | 'center' = 'left'
+      ) => {
         const s = String(text ?? '')
         if (s.length > width) return s.substring(0, width)
         if (align === 'right') return s.padStart(width, ' ')
@@ -221,13 +245,15 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
           .align('left')
           .line(SEP)
           .bold(true)
-          .line(fit('Item', 14) + fit('Qty', 6, 'right') + fit('Price', 12, 'right'))
+          .line(
+            fit('Item', 14) + fit('Qty', 6, 'right') + fit('Price', 12, 'right')
+          )
           .bold(false)
 
         items.forEach((item) => {
-          const name = fit(item.name, 14)
-          const qty = fit(String(item.quantity), 6, 'right')
-          const price = fit(item.price.toFixed(2), 12, 'right')
+          const name = fit(item.name ?? '', 14)
+          const qty = fit(String(safeQuantity(item.quantity)), 6, 'right')
+          const price = fit(safePrice(item.price).toFixed(2), 12, 'right')
           receipt = receipt.line(name + qty + price)
         })
 
@@ -236,7 +262,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
 
       if (amount > 0) {
         const totalLabel = 'TOTAL'
-        const totalValue = `${config.currency}${amount.toFixed(2)}`
+        const totalValue = `${settings?.currency}${amount.toFixed(2)}`
         receipt = receipt
           .align('left')
           .bold(true)
@@ -260,23 +286,50 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
     }
   }
 
+  /**
+   * Ask the browser for a USB device. Returns `null` if the user cancels
+   * the native picker instead of throwing `Cannot read properties of undefined`.
+   */
+  const requestPrinterDevice = async (): Promise<any | null> => {
+    try {
+      const device = await (navigator as any).usb.requestDevice({
+        filters: USB_PRINTER_FILTERS,
+      })
+      return device ?? null
+    } catch (e: any) {
+      // NotFoundError is thrown when the user cancels the picker.
+      if (e?.name === 'NotFoundError') return null
+      throw e
+    }
+  }
+
   const handleDirectPrint = async () => {
     if (!qrCode && !transactionNumber && items.length === 0) {
       toastErrors(toast, 'No receipt data to print.', 'Print Error')
       return
     }
 
-    setIsPrinting(true)
+    // Degrade gracefully when WebUSB is unavailable
+    if (!isWebUSBSupported || !('usb' in navigator)) {
+      const msg =
+        'WebUSB is not supported in this browser. Use Chrome or Edge, or tap Share to send the PDF instead.'
+      setPrintError(msg)
+      toastErrors(toast, msg, 'Print Unavailable')
+      return
+    }
 
+    setPrintError(null)
+    setIsPrinting(true)
     try {
-      let device: USBDevice
+      let device: any | null = null
 
       if (savedDevice) {
         try {
           const devices = await (navigator as any).usb.getDevices()
-          device = devices.find((d: any) =>
-            d.vendorId === savedDevice.vendorId &&
-            d.productId === savedDevice.productId
+          device = devices.find(
+            (d: any) =>
+              d.vendorId === savedDevice.vendorId &&
+              d.productId === savedDevice.productId
           )
 
           if (device) {
@@ -284,20 +337,19 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
             await device.selectConfiguration(1)
             await device.claimInterface(0)
             console.log('✅ Reconnected to saved printer')
-          } else {
-            throw new Error('Device not found')
           }
-        } catch {
+        } catch (e) {
+          console.log('🔎 Saved device lookup failed, will prompt picker…', e)
+          device = null
+        }
+
+        if (!device) {
           console.log('🔄 Saved device not found, showing picker...')
-          device = await (navigator as any).usb.requestDevice({
-            filters: [
-              { vendorId: 0x0483, productId: 0x070B },
-              { vendorId: 0x04b8 },
-              { vendorId: 0x0b05 },
-              { vendorId: 0x0a48 },
-              { vendorId: 0x1a86 },
-            ]
-          })
+          device = await requestPrinterDevice()
+          if (!device) {
+            console.log('[print] user cancelled picker')
+            return // ✅ receipt stays open
+          }
 
           await device.open()
           await device.selectConfiguration(1)
@@ -314,15 +366,11 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         }
       } else {
         console.log('🖨️ First time - showing printer picker...')
-        device = await (navigator as any).usb.requestDevice({
-          filters: [
-            { vendorId: 0x0483, productId: 0x070B },
-            { vendorId: 0x04b8 },
-            { vendorId: 0x0b05 },
-            { vendorId: 0x0a48 },
-            { vendorId: 0x1a86 },
-          ]
-        })
+        device = await requestPrinterDevice()
+        if (!device) {
+          console.log('[print] user cancelled picker')
+          return // ✅ receipt stays open
+        }
 
         await device.open()
         await device.selectConfiguration(1)
@@ -338,12 +386,16 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         console.log('💾 Saved printer for future use')
       }
 
-      const receiptData = await generateReceiptData()
-      await device.transferOut(1, receiptData)
+      const receiptBytes = await generateReceiptData()
+      await device.transferOut(1, receiptBytes)
       await device.close()
 
-      setData(null)
-      toastSuccess(toast, '✅ Receipt printed successfully! Data has been cleared.')
+      setPrintError(null)
+      setData(null) // ✅ only on success
+      toastSuccess(
+        toast,
+        '✅ Receipt printed successfully! Data has been cleared.'
+      )
     } catch (error) {
       console.error('Printing failed:', error)
 
@@ -352,51 +404,52 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         if (error.message.includes('No device found')) {
           errorMessage += 'No printer found. Please connect a POS printer.'
         } else if (error.message.includes('Access denied')) {
-          errorMessage += 'Permission denied. Please grant access to the printer.'
+          errorMessage +=
+            'Permission denied. Please grant access to the printer.'
         } else if (error.message.includes('not supported')) {
           errorMessage += 'WebUSB is not supported. Please use Chrome or Edge.'
         } else {
           errorMessage += error.message
         }
       }
+      setPrintError(errorMessage)
       toastErrors(toast, `❌ ${errorMessage}`, 'Print Error')
+      // ✅ do NOT call setData(null) here — receipt stays open
     } finally {
       setIsPrinting(false)
     }
   }
 
-  // ============ AUTO-PRINT EFFECT ============
-  // Runs once on mount when items exist. Prints, then clears the receipt data.
-  // Placed AFTER handleDirectPrint so there's no reference-before-init error.
- useEffect(() => {
-  if (!items || items.length === 0) return
-  if (!isWebUSBSupported) return
-  if (hasAutoPrinted.current) return
-
-  // *** CRITICAL: bail out unless we already have a paired printer ***
-  if (!savedDevice) {
-    console.log("[auto-print] no saved printer → user must click Print manually once")
-    return
-  }
-
-  const timer = setTimeout(async () => {
+  // ============ AUTO-PRINT EFFECT (single source of truth) ============
+  useEffect(() => {
+    if (!items || items.length === 0) return
+    if (!isWebUSBSupported) return
     if (hasAutoPrinted.current) return
-    hasAutoPrinted.current = true
-    try {
-      await handleDirectPrint()
-    } catch (e) {
-      console.error("[auto-print] failed:", e)
-    } finally {
-      setData(null)
+
+    // Bail out unless we already have a paired printer.
+    if (!savedDevice) {
+      console.log(
+        '[auto-print] no saved printer → user must print manually once'
+      )
+      return
     }
-  }, 300)
 
-  return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [items, isWebUSBSupported, savedDevice])
+    const timer = setTimeout(async () => {
+      if (hasAutoPrinted.current) return
+      hasAutoPrinted.current = true
+      try {
+        await handleDirectPrint()
+        // ✅ handleDirectPrint already calls setData(null) on success.
+        //    Do NOT call it here on failure.
+      } catch (e) {
+        console.error('[auto-print] failed:', e)
+      }
+    }, 300)
 
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, isWebUSBSupported, savedDevice])
 
-  // Share functionality
   const handleShare = async () => {
     if (!receiptRef.current) {
       toastErrors(toast, 'Receipt not found', 'Share Error')
@@ -465,11 +518,18 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
 
       let yPos = 6
 
-      const centerText = (text: string, y: number, fontSize: number = 10, fontStyle: string = 'normal', color: string = '#000000') => {
+      const centerText = (
+        text: string,
+        y: number,
+        fontSize: number = 10,
+        fontStyle: string = 'normal',
+        color: string = '#000000'
+      ) => {
         pdf.setFont(FONT, fontStyle)
         pdf.setFontSize(fontSize)
         pdf.setTextColor(color)
-        const textWidth = pdf.getStringUnitWidth(text) * fontSize / pdf.internal.scaleFactor
+        const textWidth =
+          (pdf.getStringUnitWidth(text) * fontSize) / pdf.internal.scaleFactor
         const x = (pageWidth - textWidth) / 2
         pdf.text(text, x, y)
         return y
@@ -490,27 +550,45 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         return y + 3.5
       }
 
-      const addItemRow = (name: string, qty: number, price: number, y: number) => {
+      const addItemRow = (
+        name: string,
+        qty: number,
+        price: number,
+        y: number
+      ) => {
         pdf.setFont(FONT, 'normal')
         pdf.setFontSize(8)
         pdf.setTextColor('#000000')
 
-        const totalWidth = pageWidth - (margin * 2)
-        const itemWidth = totalWidth * 0.60
-        const qtyWidth = totalWidth * 0.20
-        const priceWidth = totalWidth * 0.20
+        const totalWidth = pageWidth - margin * 2
+        const itemWidth = totalWidth * 0.6
+        const qtyWidth = totalWidth * 0.2
+        const priceWidth = totalWidth * 0.2
 
         const maxNameChars = Math.floor(itemWidth / 1.5)
-        const nameDisplay = name.substring(0, maxNameChars).padEnd(maxNameChars)
-        const qtyDisplay = String(qty).padStart(3)
-        const priceDisplay = `${price.toFixed(2)}`.padStart(8)
+        const nameDisplay = String(name ?? '')
+          .substring(0, maxNameChars)
+          .padEnd(maxNameChars)
+        const qtyDisplay = String(safeQuantity(qty)).padStart(3)
+        const priceDisplay = safePrice(price).toFixed(2).padStart(8)
 
         pdf.text(nameDisplay, margin, y)
 
-        const qtyX = margin + itemWidth + (qtyWidth - pdf.getStringUnitWidth(qtyDisplay) * 8 / pdf.internal.scaleFactor)
+        const qtyX =
+          margin +
+          itemWidth +
+          (qtyWidth -
+            (pdf.getStringUnitWidth(qtyDisplay) * 8) /
+              pdf.internal.scaleFactor)
         pdf.text(qtyDisplay, qtyX, y)
 
-        const priceX = margin + itemWidth + qtyWidth + (priceWidth - pdf.getStringUnitWidth(priceDisplay) * 8 / pdf.internal.scaleFactor)
+        const priceX =
+          margin +
+          itemWidth +
+          qtyWidth +
+          (priceWidth -
+            (pdf.getStringUnitWidth(priceDisplay) * 8) /
+              pdf.internal.scaleFactor)
         pdf.text(priceDisplay, priceX, y)
 
         return y + 4
@@ -534,7 +612,8 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
       pdf.setFontSize(7)
       pdf.setTextColor('#666666')
       const transLabel = 'Transaction #'
-      const transLabelWidth = pdf.getStringUnitWidth(transLabel) * 7 / pdf.internal.scaleFactor
+      const transLabelWidth =
+        (pdf.getStringUnitWidth(transLabel) * 7) / pdf.internal.scaleFactor
       const transLabelX = (pageWidth - transLabelWidth) / 2
       pdf.text(transLabel, transLabelX, yPos)
       yPos += 4
@@ -543,7 +622,8 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
       pdf.setFontSize(10)
       pdf.setTextColor('#000000')
       const transNum = transactionNumber
-      const transNumWidth = pdf.getStringUnitWidth(transNum) * 10 / pdf.internal.scaleFactor
+      const transNumWidth =
+        (pdf.getStringUnitWidth(transNum) * 10) / pdf.internal.scaleFactor
       const transNumX = (pageWidth - transNumWidth) / 2
       pdf.text(transNum, transNumX, yPos)
       yPos += 5
@@ -579,7 +659,9 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
           pdf.setFontSize(6)
           pdf.setTextColor('#666666')
           const verifyText = 'Scan QR to verify'
-          const verifyWidth = pdf.getStringUnitWidth(verifyText) * 6 / pdf.internal.scaleFactor
+          const verifyWidth =
+            (pdf.getStringUnitWidth(verifyText) * 6) /
+            pdf.internal.scaleFactor
           const verifyX = (pageWidth - verifyWidth) / 2
           pdf.text(verifyText, verifyX, yPos)
           yPos += 5
@@ -595,28 +677,36 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         pdf.setFontSize(8)
         pdf.setTextColor('#666666')
 
-        const totalWidth = pageWidth - (margin * 2)
-        const itemWidth = totalWidth * 0.60
-        const qtyWidth = totalWidth * 0.20
-        const priceWidth = totalWidth * 0.20
+        const totalWidth = pageWidth - margin * 2
+        const itemWidth = totalWidth * 0.6
+        const qtyWidth = totalWidth * 0.2
+        const priceWidth = totalWidth * 0.2
 
         pdf.text('Item', margin, yPos)
 
         const qtyHeader = 'Qty'
-        const qtyHeaderWidth = pdf.getStringUnitWidth(qtyHeader) * 8 / pdf.internal.scaleFactor
+        const qtyHeaderWidth =
+          (pdf.getStringUnitWidth(qtyHeader) * 8) / pdf.internal.scaleFactor
         const qtyHeaderX = margin + itemWidth + (qtyWidth - qtyHeaderWidth)
         pdf.text(qtyHeader, qtyHeaderX, yPos)
 
         const priceHeader = 'Price'
-        const priceHeaderWidth = pdf.getStringUnitWidth(priceHeader) * 8 / pdf.internal.scaleFactor
-        const priceHeaderX = margin + itemWidth + qtyWidth + (priceWidth - priceHeaderWidth)
+        const priceHeaderWidth =
+          (pdf.getStringUnitWidth(priceHeader) * 8) / pdf.internal.scaleFactor
+        const priceHeaderX =
+          margin + itemWidth + qtyWidth + (priceWidth - priceHeaderWidth)
         pdf.text(priceHeader, priceHeaderX, yPos)
         yPos += 4
 
         yPos = addSeparator(yPos, '#888888')
 
         items.forEach((item) => {
-          yPos = addItemRow(item.name, item.quantity, item.price, yPos)
+          yPos = addItemRow(
+            item.name,
+            safeQuantity(item.quantity),
+            safePrice(item.price),
+            yPos
+          )
         })
 
         yPos = addSeparator(yPos, '#888888')
@@ -629,11 +719,12 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         pdf.setTextColor('#000000')
 
         const totalText = 'TOTAL'
-        const totalAmount = `${config.currency} ${amount.toFixed(2)}`
+        const totalAmount = `${settings?.currency} ${amount.toFixed(2)}`
 
         pdf.text(totalText, margin, yPos)
 
-        const amountWidth = pdf.getStringUnitWidth(totalAmount) * 12 / pdf.internal.scaleFactor
+        const amountWidth =
+          (pdf.getStringUnitWidth(totalAmount) * 12) / pdf.internal.scaleFactor
         const amountX = pageWidth - margin - amountWidth
         pdf.text(totalAmount, amountX, yPos)
         yPos += 6
@@ -648,26 +739,32 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
       yPos += 4
 
       const pdfBlob = pdf.output('blob')
+      const file = new File([pdfBlob], `Receipt-${transactionNumber}.pdf`, {
+        type: 'application/pdf',
+      })
 
-      if (navigator.share) {
-        await navigator.share({
+      const canNativeShare =
+        typeof navigator !== 'undefined' &&
+        typeof (navigator as any).share === 'function' &&
+        typeof (navigator as any).canShare === 'function' &&
+        (navigator as any).canShare({ files: [file] })
+
+      if (canNativeShare) {
+        await (navigator as any).share({
           title: `Receipt-${transactionNumber}`,
-          files: [
-            new File([pdfBlob], `Receipt-${transactionNumber}.pdf`, {
-              type: 'application/pdf'
-            })
-          ],
+          files: [file],
         })
         toastSuccess(toast, '✅ Receipt shared successfully!')
         setData(null)
       } else {
+        const url = URL.createObjectURL(pdfBlob)
         const link = document.createElement('a')
-        link.href = URL.createObjectURL(pdfBlob)
+        link.href = url
         link.download = `Receipt-${transactionNumber}.pdf`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-        URL.revokeObjectURL(link.href)
+        URL.revokeObjectURL(url)
         toastSuccess(toast, '✅ PDF downloaded successfully!')
         setData(null)
       }
@@ -676,19 +773,15 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
       if (error instanceof Error && error.name === 'AbortError') {
         toastErrors(toast, 'Share was cancelled', 'Share Cancelled')
       } else {
-        toastErrors(toast, 'Failed to share receipt. Please try again.', 'Share Error')
+        toastErrors(
+          toast,
+          'Failed to share receipt. Please try again.',
+          'Share Error'
+        )
       }
     } finally {
       setIsSharing(false)
     }
-  }
-
-  if (!isWebUSBSupported) {
-    return (
-      <div className="p-4 bg-yellow-100 text-yellow-800 rounded-lg max-w-md mx-auto mt-8">
-        ⚠️ WebUSB is not supported in this browser. Please use Chrome or Edge for POS printing.
-      </div>
-    )
   }
 
   if (!qrCode && !transactionNumber && items.length === 0 && !uniqueCount) {
@@ -707,9 +800,11 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
 
   return (
     <div className="bg-gray-100 flex flex-col items-center w-fit">
-      <div className=''>
-        {items?.length == 0 && (
-          <div className=" flex flex-col items-center justify-between bg-card p-5 py-2">
+      <div className="">
+        {/* ✅ Stocking-code number — shown whenever a uniqueCount is supplied,
+            regardless of whether the receipt also has items. */}
+        {uniqueCount !== undefined && uniqueCount !== null && (
+          <div className="flex flex-col items-center justify-between bg-card p-5 py-2">
             <div className="w-full text-center">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Stocking Code
@@ -726,8 +821,18 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
           </div>
         )}
         {
-          <div ref={receiptRef} className={`bg-white shadow-lg rounded-lg p-4 mb-4 max-w-[${showQRCode ? config.qrCodePrinterSize : config.receiptPrinterSize}mm]`}>
-            <div className="w-full bg-white text-black text-xs" style={{ fontFamily: 'var(--font-courier-prime), Courier New, monospace' }}>
+          <div
+            ref={receiptRef}
+            className={`bg-white shadow-lg rounded-lg p-4 mb-4 max-w-[${
+              settings?.posPrinterSize < 80 ? 58 : 80
+            }mm]`}
+          >
+            <div
+              className="w-full bg-white text-black text-xs"
+              style={{
+                fontFamily: 'var(--font-courier-prime), Courier New, monospace',
+              }}
+            >
               <div className="text-center border-b border-dashed border-gray-300 pb-2 mb-2">
                 <h2 className="text-base font-bold uppercase">{merchantName}</h2>
                 <p className="text-[10px] text-gray-600">POS Receipt</p>
@@ -736,7 +841,16 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
 
               <div className="mb-3 text-center">
                 <p className="text-[10px] text-gray-500">Transaction #</p>
-                <p className={(showQRCode && ((config?.qrCodePrinterSize || 0)) < 80) || (!showQRCode && (config.receiptPrinterSize || 0) < 80) ? "text-xs font-bold tracking-wide" : "text-sm font-bold tracking-wide"}>{transactionNumber}</p>
+                <p
+                  className={
+                    (showQRCode && (settings?.posPrinterSize || 0) < 80) ||
+                    (!showQRCode && (settings?.posPrinterSize || 0) < 80)
+                      ? 'text-xs font-bold tracking-wide'
+                      : 'text-sm font-bold tracking-wide'
+                  }
+                >
+                  {transactionNumber}
+                </p>
               </div>
 
               {customerName && (
@@ -779,10 +893,19 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
                   </div>
 
                   {items.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-1 text-[10px]">
-                      <span className="col-span-7 truncate">{item.name}</span>
-                      <span className="col-span-2 text-center">{item.quantity}</span>
-                      <span className="col-span-3 text-right">{item.price.toFixed(2)}</span>
+                    <div
+                      key={index}
+                      className="grid grid-cols-12 gap-1 text-[10px]"
+                    >
+                      <span className="col-span-7 truncate">
+                        {item.name ?? ''}
+                      </span>
+                      <span className="col-span-2 text-center">
+                        {safeQuantity(item.quantity)}
+                      </span>
+                      <span className="col-span-3 text-right">
+                        {safePrice(item.price).toFixed(2)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -791,7 +914,10 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
               {amount > 0 && (
                 <div className="flex justify-between text-sm font-bold border-t border-dashed border-gray-300 pt-2 mt-2">
                   <span>TOTAL</span>
-                  <span>{`${config.currency} `}{amount.toFixed(2)}</span>
+                  <span>
+                    {`${settings?.currency} `}
+                    {amount.toFixed(2)}
+                  </span>
                 </div>
               )}
 
@@ -804,13 +930,22 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
         }
       </div>
 
-      {/* Action Buttons — always visible, as before */}
+      {/* Action Buttons — always visible */}
       <div className="flex gap-3">
         <button
           onClick={handleDirectPrint}
           disabled={isPrinting}
+          title={
+            !isWebUSBSupported
+              ? 'Direct printing requires Chrome or Edge. Use Share to export a PDF.'
+              : 'Print to a paired POS printer'
+          }
           className={`p-2 md:p-3 text-white rounded-md transition-colors text-sm ${
-            isPrinting ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+            isPrinting
+              ? 'bg-gray-400 cursor-not-allowed'
+              : !isWebUSBSupported
+                ? 'bg-green-600/60 hover:bg-green-600/70'
+                : 'bg-green-600 hover:bg-green-700'
           }`}
         >
           {isPrinting ? '⏳ Printing...' : '🖨️ Print Receipt'}
@@ -820,32 +955,52 @@ const POSReceipt: React.FC<POSReceiptUi> = ({
           onClick={handleShare}
           disabled={isSharing}
           className={`p-2 md:p-3 text-white rounded-md transition-colors text-md ${
-            isSharing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            isSharing
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
           {isSharing ? '⏳ Sharing...' : '📤 Share'}
         </button>
 
         <button
-          onClick={() => { setData(null) }}
+          onClick={() => {
+            setData(null)
+          }}
           disabled={isSharing || isPrinting}
           className={`p-2 md:p-3 text-white rounded-md transition-colors text-md ${
-            isSharing || isPrinting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            isSharing || isPrinting
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
           Back
         </button>
       </div>
 
-      {/* Printer status — always visible, as before */}
-      {savedDevice && (
+      {/* Footer hints */}
+      {!isWebUSBSupported && (
+        <div className="mt-2 max-w-md text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 text-center">
+          ℹ️ Direct POS printing needs Chrome or Edge. Use <b>Share</b> to
+          export a PDF instead.
+        </div>
+      )}
+
+      {isWebUSBSupported && savedDevice && (
         <div className="mt-2 text-sm text-green-600">
           ✅ Printer saved - will print automatically
         </div>
       )}
-      {!savedDevice && (
+
+      {isWebUSBSupported && !savedDevice && (
         <div className="mt-2 text-sm text-gray-500">
           ℹ️ First time - you'll need to select your printer once
+        </div>
+      )}
+
+      {printError && (
+        <div className="mt-2 max-w-md text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 text-center">
+          ⚠️ {printError}
         </div>
       )}
     </div>

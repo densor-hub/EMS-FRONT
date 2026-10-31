@@ -20,6 +20,7 @@ import DeliveryTransactionUI from '@/components/util/DeliveryTransactionUI';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import TransactionDetailsTabs from '@/components/util/TransactionDetailsTabs';
 import { sessionStore } from '@/helpers/formatStrings';
+import { config } from '@/components/util/AppConfig';
 // import TransactionDetailsTabs from '@/components/util/TransactionItemSelectionUi';
 // Dynamic imports
 const Modal = dynamic(() => import('@/components/dashboard/modal').then(mod => mod.Modal), { ssr: false });
@@ -28,13 +29,7 @@ const TransactionUI = dynamic(() => import("@/components/util/SaleTransactionUi"
   ssr: false
 });
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 }
-];
+const paymentMethods = config?.paymentMethods
 
 export default function PurcahsePage() {
   const toast = useToaster()
@@ -146,7 +141,7 @@ export default function PurcahsePage() {
         setLoading(true);
 
         const paymentObj = {
-          transationId: selectedTransaction?.transactionId,
+          transactionId: selectedTransaction?.transactionId,
           amount: removeCommasFromNumbers(amountPaid),
           paymentDate: date,
           paymentMethod: Number(paymentMethod)

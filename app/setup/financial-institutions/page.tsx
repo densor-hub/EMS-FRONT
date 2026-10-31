@@ -88,11 +88,6 @@ export default function FinancialServiceProviderPage() {
   const [status, setStatus] = useState('1');    // default Active
   const [contactPersons, setContactPersons] = useState<ContactPerson[]>([{ ...emptyContact }]);
 
-  // ---------- Load list ----------
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     try {
       const loc = selectedShop || sessionShop;
@@ -374,6 +369,12 @@ export default function FinancialServiceProviderPage() {
   ];
 
   const isEditing = !!editingProvider;
+
+  
+  // ---------- Load list ----------
+  useEffect(() => {
+    loadData();
+  }, [selectedShop]);
 
   return (
     <div className="min-h-screen">

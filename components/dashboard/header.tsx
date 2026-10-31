@@ -58,7 +58,7 @@ export function Header({ title, description }: HeaderProps) {
     setSelectedShop(id);
     sessionStorage.setItem('selectedShop', id);
 
-    window.location.reload();
+   // window.location.reload();
   };
 
   return (
@@ -158,8 +158,8 @@ export function Header({ title, description }: HeaderProps) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                {/* <DropdownMenuItem>Profile</DropdownMenuItem> */}
+                {/* <DropdownMenuItem>Settings</DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {

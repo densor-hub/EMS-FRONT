@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react';
 import { CartItem } from '@/lib/types';
 import { formatNumberWithCommas } from '@/helpers/formatStrings';
 import { Dispatch, SetStateAction } from 'react';
+import { config } from './AppConfig';
 
 export interface CartProps {
     dataSource: CartItem[];
@@ -44,7 +45,7 @@ const CartTable = ({
     ];
 
     // Default labels
-    const isSale = transactionActionType === "SALE";
+    const isSale = transactionActionType === config.transactionTypes.SALE;
     const deliveredLabel = isSale ? "Delivered" : "Received";
     const receivingLabel = isSale ? "Delivering" : "Receiving";
 

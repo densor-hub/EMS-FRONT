@@ -30,13 +30,7 @@ const Modal = dynamic(
   { ssr: false }
 );
 
-const paymentMethods = [
-  { name: "Mobile Money", id: 1 },
-  { name: "Cash", id: 2 },
-  { name: "Cheque", id: 3 },
-  { name: "Bank Transfer", id: 4 },
-  { name: "Other", id: 5 },
-];
+const paymentMethods = config?.paymentMethods;
 
 type TabKey = 'items' | 'payments' | 'deliveries' | 'reversals';
 
@@ -200,7 +194,7 @@ export default function PurchasePage() {
     try {
       setLoading(true);
       const paymentObj = {
-        transationId: selectedTransaction?.transactionId,
+        transactionId: selectedTransaction?.transactionId,
         amount: removeCommasFromNumbers(amountPaid),
         paymentDate: date,
         paymentMethod: Number(paymentMethod),
@@ -435,7 +429,7 @@ export default function PurchasePage() {
                         : "—"}
                     </td>
                     <td className="px-2 sm:px-3 py-1.5 sm:py-2">
-                      {paymentMethods.find(m => m.id === p.paymentMethod)?.name ?? "—"}
+                      {paymentMethods?.find(m => m.id === p.paymentMethod)?.name ?? "—"}
                     </td>
                     <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-right font-medium">
                       {formatNumberWithCommas((p.amount ?? 0).toFixed(2))}

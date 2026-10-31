@@ -153,7 +153,7 @@ export function StockFilterBar({
 
           {/* Clear Filters Button */}
           <Button 
-            onClick={onClear}
+            onClick={(e) => {e.preventDefault(); if(onClear) onClear()}}
             variant="outline"
             className="shrink-0 mb-[2px]"
           >

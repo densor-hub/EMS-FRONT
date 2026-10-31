@@ -7,19 +7,23 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
 import { Company, User } from './types';
-import {
+import axiosInstance, {
   performInitialAuthCheck,
   getAuthState,
   registerAuthSetters,
   logout,
   readCachedAuthSnapshot,
   setSelectedShopPersisted,
-  getSelectedShop,
+  onForcedLogout,
 } from './customAxios';
 import { useRouter } from 'next/navigation';
 import { publicPaths } from '@/components/util/AppConfig';
+import { SystemSettings } from '@/app/settings/page';
+import { sessionStore, SETTINGS_CACHE_KEY, toastErrors } from '@/helpers/formatStrings';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -31,7 +35,6 @@ interface AuthContextType {
   setSelectedShop: React.Dispatch<React.SetStateAction<string>>;
   isLoading: boolean;
   userLogOut: () => Promise<void>;
-  // ✅ NEW: atomic post-login hydration.
   loginSuccess: (user: Partial<User>, company: Partial<Company>) => void;
 }
 
@@ -39,9 +42,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
+  const routerRef = useRef(router);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
 
   const snapshot = useMemo(() => readCachedAuthSnapshot(), []);
-
+  
   const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
   const [company, setCompany] = useState<Partial<Company>>(
     () => snapshot.company ?? {}
@@ -50,65 +57,83 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => snapshot.selectedShop ?? ''
   );
 
-  // isAuthenticated is the single source of truth for the React tree.
-  // True only when (a) performInitialAuthCheck succeeded on mount, or
-  // (b) loginSuccess() was called after a successful login.
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-
   const [isLoading, setIsLoading] = useState<boolean>(
     () => Object.keys(snapshot.user ?? {}).length === 0
   );
 
-  // Persist shop when it changes. Empty value removes the key
-  // (handled by setSelectedShopPersisted).
+  
+  const loadSettings = async (): Promise<void> => {
+
+    try{
+      const res = await axiosInstance.get(`/System/Settings/${sessionStore.get("selectedShop")}`);
+      const body = res?.data?.data ?? res?.data ?? {};
+
+      // Trust the API. Coerce only for type-safety, do NOT inject defaults.
+      const settings: SystemSettings = {
+        locationId: body.locationId?? selectedShop,
+        saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
+        recordingOldTransactions: Boolean(body.recordingOldTransactions),
+        minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
+        posPrinterSize: Number(body.posPrinterSize),
+        defaultPageSize: Number(body.defaultPageSize),
+        currency: String(body.currency ?? ""),
+      };
+
+      // setSystemSettings(settings);
+      sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings))
+    } catch (err: any) {
+      console.error("Error loading settings:", err);
+      //toastErrors(err?.response?.data?.message );
+      // setSystemSettings(null);
+    }
+  };
+
   useEffect(() => {
     setSelectedShopPersisted(selectedShop);
   }, [selectedShop]);
 
-  // ✅ NEW: single atomic entry point for login success.
   const loginSuccess = useCallback(
     (u: Partial<User>, c: Partial<Company>) => {
       setUser(u);
       setCompany(c);
       setIsAuthenticated(true);
-      // Do NOT touch selectedShop here. /select-shop decides it.
     },
     []
   );
 
-  // ✅ Logout: clear React state, then storage, then module state.
   const userLogOut = useCallback(async () => {
-    // 1. Clear React state (triggers persistence effect with '').
     setUser({});
     setCompany({});
     setSelectedShop('');
     setIsAuthenticated(false);
 
-    // 2. Clear storage immediately.
     sessionStorage.clear();
     localStorage.clear();
 
-    // 3. Clear module state + server logout.
     await logout();
 
-    // 4. Defensive: re-remove shop keys after async clears.
     sessionStorage.removeItem('selectedShop');
     localStorage.removeItem('selectedShop');
 
-    // 5. Navigate away from protected pages.
     const path = window.location.pathname?.toLowerCase() || '/';
     const normalized = path.startsWith('/') ? path.slice(1) : path;
     if (!publicPaths.includes(normalized)) {
-      router.replace('/auth/login');
+      routerRef.current.replace('/auth/login');
     }
-  }, [router]);
+  }, []);
 
-  // Register axios-side setters once.
+  useEffect(() => {
+    const unsubscribe = onForcedLogout(userLogOut);
+    return () => {
+      unsubscribe();
+    };
+  }, [userLogOut]);
+
   useEffect(() => {
     registerAuthSetters(setUser, setCompany);
   }, []);
 
-  // Mount-time server reconciliation.
   useEffect(() => {
     let isMounted = true;
 
@@ -118,13 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       try {
-        let authResult = await performInitialAuthCheck();
-
-        if (!authResult && isMounted) {
-          await new Promise((r) => setTimeout(r, 400));
-          if (!isMounted) return;
-          authResult = await performInitialAuthCheck(true);
-        }
+        const authResult = await performInitialAuthCheck();
 
         if (!isMounted) return;
 
@@ -136,16 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setCompany(authState.company);
         }
 
-        // ✅ REMOVED: auto-select-shop block. /select-shop is now the
-        // mandatory entry point when no shop is persisted.
-
-        if (!authResult) {
-          const path = window.location.pathname?.toLowerCase() || '/';
-          const normalized = path.startsWith('/') ? path.slice(1) : path;
-          if (!publicPaths.includes(normalized)) {
-          //  router.replace('/auth/login');
-          }
-        }
+        loadSettings();
       } catch (error) {
         console.error('[auth] initialization error:', error);
         if (isMounted) setIsAuthenticated(false);
@@ -162,6 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  
   return (
     <AuthContext.Provider
       value={{
@@ -177,7 +188,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginSuccess,
       }}
     >
-      {children}
+      {/* ✅ Gate children on isLoading so no page fires an API call
+          before the initial auth check has decided a token exists.
+          Without this, every page's first GET fires with the old
+          token, 401s, triggers a refresh, and the sequence becomes
+          refresh → GET 200 → refresh → GET 200 → refresh. */}
+      {isLoading ? (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

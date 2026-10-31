@@ -23,6 +23,7 @@ export interface ReusableCartProps<T = any> {
   className?: string;
   height?: string;
   keyExtractor?: (item: T, index: number) => string | number;
+  allowEdits?: boolean
 }
 
 const getAlignClass = (align?: string) => {
@@ -45,6 +46,7 @@ function ReusableCartInner<T extends Record<string, any>>({
   className = '',
   height = '',
   keyExtractor,
+  allowEdits
 }: ReusableCartProps<T>) {
   const itemCount = dataSource.length;
 
@@ -58,7 +60,7 @@ function ReusableCartInner<T extends Record<string, any>>({
               {itemCount} {itemCount === 1 ? "item" : "items"}
             </CardTitle>
           </div>
-          {itemCount > 0 && onClear && (
+          {itemCount > 0 && allowEdits && onClear && (
             <Button
               variant="destructive"
               size="sm"
@@ -94,7 +96,7 @@ function ReusableCartInner<T extends Record<string, any>>({
                       {col.header}
                     </th>
                   ))}
-                  {showRemove && onRemove && (
+                  {showRemove && allowEdits && onRemove && (
                     <th className="text-center p-1.5 sm:p-2 text-[11px] sm:text-xs lg:text-sm font-medium text-muted-foreground w-10 sm:w-12">
                       Action
                     </th>
@@ -115,7 +117,7 @@ function ReusableCartInner<T extends Record<string, any>>({
                           {col.render ? col.render(item, index) : item[col.key as string]}
                         </td>
                       ))}
-                      {showRemove && onRemove && (
+                      {showRemove && allowEdits && onRemove && (
                         <td className="p-1.5 sm:p-2 text-center">
                           <button
                             type="button"

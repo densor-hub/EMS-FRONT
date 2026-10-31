@@ -1,6 +1,7 @@
 // helpers/formatStrings.ts
 import type { CartItem, TransactionItem } from '@/lib/types'
 import type { ToasterReturn } from '@/components/util/CustomToast'
+import { SystemSettings } from '@/app/settings/page'
 
 // ---------- Validation ----------
 
@@ -329,3 +330,46 @@ export const localStore = {
     } catch {}
   },
 };
+
+// 1. Replace unwrapItems with this exact version (matches your confirmed flat shape):
+export const unwrapItems = <T,>(response: any): { items: T[]; total: number; pages: number } => {
+  // axios response: response.data is the body
+  const body = response?.data ?? response;
+
+  // Flat paginated shape (your case):
+  // { items: [...], totalCount: 12, page: 1, pageSize: 10, totalPages: 2, ... }
+  if (body && Array.isArray(body.items)) {
+    const items = body.items as T[];
+    const total =
+      typeof body.totalCount === "number" ? body.totalCount : items.length;
+    const pages =
+      typeof body.totalPages === "number" ? body.totalPages : 1;
+    return { items, total, pages };
+  }
+
+  // Legacy plain array
+  if (Array.isArray(body)) {
+    return { items: body as T[], total: body.length, pages: 1 };
+  }
+
+  // Double-wrapped (future-proof, just in case)
+  if (body && body.data) {
+    return unwrapItems({ data: body.data });
+  }
+
+  return { items: [], total: 0, pages: 0 };
+};
+
+export const SETTINGS_CACHE_KEY = "locationSettigs";
+
+export function readCachedSettings(locationId: string): SystemSettings | null {
+  try {
+    const raw = sessionStore.get(SETTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SystemSettings;
+    //if (parsed?.locationId !== locationId && parsed.locationId != "") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}

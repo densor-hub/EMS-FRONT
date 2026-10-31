@@ -72,7 +72,7 @@ export default function CustomDatePicker({
       {/* Visible field — now guaranteed to fill the wrapper */}
       <div
         className={[
-          'flex h-8 sm:h-9 w-full min-w-[150px] items-center justify-between',
+          'flex h-8 sm:h-9 w-full min-w-[120px] items-center justify-between',
           'px-2',                                    // 👈 internal padding for the field
           'border-2 border-[#cad1d7] text-sm',
           !readOnly || showBorder ? 'rounded-md' : 'rounded-none',

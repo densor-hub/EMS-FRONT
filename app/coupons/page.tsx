@@ -12,12 +12,12 @@ import { Switch } from '@/components/ui/switch';
 import { Ticket, Hash, Calendar, Lock, Unlock, Copy } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
-import { formatNumberWithCommas, removeCommasFromNumbers, numericCurrentDate, numericDate, lastDayOfYear } from '@/helpers/formatStrings';
+import { formatNumberWithCommas, removeCommasFromNumbers, numericCurrentDate, numericDate, lastDayOfYear, currency } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
 import { sessionStore } from '@/helpers/formatStrings';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
-import { config } from '@/components/util/AppConfig';
+import { config, settings } from '@/components/util/AppConfig';
 
 interface GeneratedCoupon {
   id: string;
@@ -237,12 +237,6 @@ export default function CouponsPage() {
 
   const isExpired = (date: string) => new Date(date) < new Date();
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: config.currency,
-    }).format(value);
-
   const columns = [
     {
       key: 'code' as keyof GeneratedCoupon,
@@ -272,11 +266,11 @@ export default function CouponsPage() {
     },
     {
       key: 'amount' as keyof GeneratedCoupon,
-      label: 'Amount',
+      label: `Amount ${settings?.currency}`,
       sortable: true,
       render: (coupon: GeneratedCoupon) => (
         <span className="font-medium text-foreground">
-          {formatCurrency(coupon.amount)}
+          {currency(coupon?.amount?.toString())}
         </span>
       ),
     },
@@ -367,7 +361,7 @@ export default function CouponsPage() {
        <form onSubmit={handleSubmit} className="space-y-4">
   <div className="space-y-2">
     <Label htmlFor="amount" className="text-foreground">
-      Coupon Amount ({config.currency}) *
+      Coupon Amount ({settings?.currency}) *
     </Label>
     <div className="relative">
       <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

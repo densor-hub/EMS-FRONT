@@ -1,7 +1,7 @@
 // app/transactions/delivery/page.tsx
 'use client'
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import QRScanner from '@/components/util/QRScanner'
 import { Header } from '@/components/dashboard/header'
 import { Transaction } from '@/lib/types'
@@ -14,7 +14,20 @@ import { LoadingOverlay } from '@/components/SkeletonLoading'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Calendar, RefreshCw, ScanLine, Package, Hash } from 'lucide-react'
+import {
+  Calendar,
+  RefreshCw,
+  ScanLine,
+  Package,
+  Hash,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from 'lucide-react'
+import SalePage from '../sale/page'
+import SaleTransactionUIWithErrorBoundary from '@/components/util/SaleTransactionUi'
+import DashboardLayout from '../layout'
+import { config, settings } from '@/components/util/AppConfig'
 
 // ---- Matches the API schema ----
 interface SaleDeliveryBacklog {
@@ -24,6 +37,8 @@ interface SaleDeliveryBacklog {
   saleDeliveryRequestId: string
   createdAt: string
   isDelivered: boolean
+  isFullyPaid: boolean
+  hasSystemCustomer: boolean
 }
 
 // ---- Helpers ----
@@ -81,10 +96,15 @@ export default function DeliveryPage() {
   const [backlogs, setBacklogs] = useState<SaleDeliveryBacklog[]>([])
   const [isLoadingBacklogs, setIsLoadingBacklogs] = useState(false)
   const [backlogError, setBacklogError] = useState<string | null>(null)
+  const [showSaleUI, setShowSaleUI] = useState(false)
+  const [showPOSReceipt, setShowPOSReceipt] = useState(false)
 
   // ---- Daily count number filter ----
   const [dailyCount, setDailyCount] = useState<string>('')
   const [notFoundNumber, setNotFoundNumber] = useState<string | null>(null)
+
+  // ✅ When true, skip the Sale UI and go straight to POS receipt (auto-print).
+  const autoReceiptRef = useRef(false)
 
   // ---- Fetch backlogs on shop / date change ----
   useEffect(() => {
@@ -132,38 +152,56 @@ export default function DeliveryPage() {
     try {
       const response = await axiosInstance.get(`/Sales/Generate-Receipt/${qrCode}`)
 
-      if (response.data) {
-        const transactionData = response.data as Transaction
-        setTransaction(transactionData)
-        toastSuccess(
-          toast,
-          `✅ Transaction found: ${
-            transactionData.transactionId ||
-            transactionData.id ||
-            transactionData.transactionCode
-          }`
-        )
-
-        setReceiptData({
-          qrCode: '',
-          transactionNumber: transactionData?.transactionCode || '',
-          showQRCode: false,
-          customerName: transactionData?.customerName,
-          date: transactionData?.transactionDate,
-          merchantName: user?.locations?.find((x) => x.id === currentShopId)?.name,
-          items: transactionData?.items?.map((x) => ({
-            name: x.itemName || x.name,
-            quantity: x.quantity,
-            price: x.unitPrice,
-            total: x.quantity * x.unitPrice,
-          })),
-        })
-
-        refreshBacklogs();
-      } else {
+      if (!response.data) {
         setQrScannerError('Transaction not found')
         toastErrors(toast, 'No transaction found with this QR code.', 'Not Found')
+        return
       }
+
+      const transactionData = response.data as Transaction
+      setTransaction(transactionData)
+
+      toastSuccess(
+        toast,
+        `✅ Transaction found: ${
+          transactionData.transactionId ||
+          transactionData.id ||
+          transactionData.transactionCode
+        }`
+      )
+
+      // ✅ Build receipt data once — reused by both flows
+      const builtReceipt: POSReceiptProps = {
+        qrCode: '',
+        transactionNumber: transactionData?.transactionCode || '',
+        showQRCode: false,
+        customerName: transactionData?.customerName,
+        date: transactionData?.transactionDate,
+        merchantName: user?.locations?.find((x) => x.id === currentShopId)?.name,
+        items: transactionData?.items?.map((x) => ({
+          id: x.id,
+          name: x.itemName || x.name,
+          quantity: x.quantity,
+          price: x.unitPrice,
+          total: x.quantity * x.unitPrice,
+        })),
+      }
+
+      setReceiptData(builtReceipt)
+      setShowScanner(false)
+      setScannerInitialValue(null)
+
+      // ✅ Auto-receipt path: skip Sale UI entirely.
+      if (autoReceiptRef.current) {
+        setShowSaleUI(false)
+        setShowPOSReceipt(true)
+        refreshBacklogs()
+        return
+      }
+
+      // Normal flow: Sale UI first.
+      setShowSaleUI(true)
+      refreshBacklogs()
     } catch (error: any) {
       console.error('Error fetching transaction:', error)
       setQrScannerError(
@@ -180,6 +218,8 @@ export default function DeliveryPage() {
   }
 
   const handleOpenBacklog = (item: SaleDeliveryBacklog) => {
+    // ✅ Fully paid OR system customer → skip Sale UI, print POS receipt.
+    autoReceiptRef.current = !!item.isFullyPaid || !!item.hasSystemCustomer
     setScannerInitialValue(item?.saleDeliveryRequestId || item?.transactionNumber)
     setShowScanner(true)
   }
@@ -188,7 +228,6 @@ export default function DeliveryPage() {
   const trimmedDailyCount = dailyCount.trim()
   const hasFilter = trimmedDailyCount.length > 0
 
-  // Match on dailyCountNumber (numeric comparison, tolerant of leading zeros)
   const visibleBacklogs = useMemo(() => {
     if (!hasFilter) return backlogs
     const target = Number(trimmedDailyCount)
@@ -220,6 +259,7 @@ export default function DeliveryPage() {
   // Clickable only when a filter is active AND at least one match exists
   const isClickEnabled = hasFilter && visibleBacklogs.length > 0
 
+  // console.log({businessP:  !(transaction?.businessPartnerId !== undefined && transaction.businessPartnerId  !== null)})
   return (
     <Suspense fallback={<LoadingOverlay />}>
       {(isLoadingBacklogs || isScanning) && <LoadingOverlay />}
@@ -261,7 +301,6 @@ export default function DeliveryPage() {
                 autoComplete="off"
                 value={dailyCount}
                 onChange={(e) => {
-                  // digits only
                   const v = e.target.value.replace(/[^0-9]/g, '')
                   setDailyCount(v)
                 }}
@@ -300,7 +339,12 @@ export default function DeliveryPage() {
           <div className="w-full sm:ml-auto sm:w-auto">
             <Button
               type="button"
-              onClick={() => setShowScanner(true)}
+              onClick={() => {
+                // ✅ Toolbar scan → always use the normal Sale UI flow.
+                autoReceiptRef.current = false
+                setScannerInitialValue(null)
+                setShowScanner(true)
+              }}
               className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 w-full sm:w-auto"
             >
               <ScanLine className="w-4 h-4 mr-2" />
@@ -389,6 +433,7 @@ export default function DeliveryPage() {
           onClose={() => {
             setShowScanner(false)
             setScannerInitialValue(null)
+            autoReceiptRef.current = false
           }}
           isLoading={isScanning}
           fetchTransaction={fetchTransaction}
@@ -399,12 +444,63 @@ export default function DeliveryPage() {
         />
       )}
 
-      {/* ---- Receipt overlay ---- */}
-      {transaction && receiptData && (
+      {/* ─── Sale UI overlay (only when not in auto-receipt mode) ───── */}
+      {transaction && receiptData && showSaleUI && !autoReceiptRef.current && (
         <div className="fixed inset-0 z-50 bg-gray-100 p-2 sm:p-4 flex justify-center overflow-auto">
-          <div className="w-full max-w-2xl">
-            <POSReceipt data={receiptData} setData={setReceiptData} />
-          </div>
+          <DashboardLayout>
+            <SaleTransactionUIWithErrorBoundary
+              instantSale={!(transaction?.businessPartnerId !== undefined && transaction.businessPartnerId  !== null)}
+              allowItemSelection={settings?.saleToDeliveryMode}
+              submitUrl="/Transactions/Payment"
+              setOpen={setShowSaleUI}
+              cartItems={receiptData?.items}
+              transactionNumber={receiptData?.transactionNumber}
+              transactionActionType={config.transactionTypes.SALE}
+
+              onSubmitted={(response) => {
+                setReceiptData((prev) => ({
+                  ...(prev ?? { qrCode: '', transactionNumber: '' }),
+                  qrCode: response?.qrCode ?? prev?.qrCode ?? '',
+                  transactionNumber:
+                    response?.transactionNumber ?? prev?.transactionNumber ?? '',
+                  showQRCode: true,
+                  date: new Date().toISOString(),
+                  merchantName: user?.locations?.find((x) => x.id === currentShopId)?.name,
+                  customerName: transaction?.customerName,
+                  items: transaction?.items?.map((x) => ({
+                    id: x.id,
+                    name: x.itemName || x.name,
+                    quantity: x.quantity,
+                    price: x.unitPrice,
+                    total: x.quantity * x.unitPrice,
+                  })),
+                }))
+                setShowSaleUI(false)
+                setShowPOSReceipt(true)
+              }}
+            />
+          </DashboardLayout>
+        </div>
+      )}
+
+      {/* ─── POS receipt overlay (auto-prints if printer is paired) ─── */}
+      {showPOSReceipt && receiptData && (
+        <div className="fixed inset-0 z-[60] bg-gray-100 p-2 sm:p-4 flex justify-center overflow-auto">
+          <POSReceipt
+            data={receiptData}
+            setData={(value) => {
+              if (value === null) {
+                setShowPOSReceipt(false)
+                setShowSaleUI(false)
+                setTransaction(null)
+                setReceiptData(null)
+                autoReceiptRef.current = false
+                refreshBacklogs()
+              } else {
+                setReceiptData(value)
+              }
+            }}
+          />
         </div>
       )}
     </Suspense>
@@ -424,23 +520,24 @@ function BacklogCard({
   highlighted?: boolean
 }) {
   const isDelivered = item.isDelivered
+  const isCancelled = !!item?.hasSystemCustomer
 
-  // Base look depends ONLY on delivered state — never on clickability.
-  // Delivered → greyed. Not delivered → lively.
-  const baseLook = isDelivered
-    ? 'border-border bg-muted/70 opacity-70 grayscale'
-    : 'border-border bg-card shadow-sm'
+  // ✅ Cancelled takes precedence over delivered styling.
+  const baseLook = isCancelled
+    ? 'border-dashed border-border bg-muted/40'
+    : isDelivered
+      ? 'border-border bg-muted/70'
+      : 'border-border bg-card shadow-sm'
 
-  // Hover / cursor behavior depends on whether clicks are enabled.
+  // ✅ Cancelled cards are clickable (to reprint receipt) when a filter is active.
   const interactive = clickable
-    ? isDelivered
+    ? isDelivered || isCancelled
       ? 'cursor-pointer hover:opacity-90 hover:scale-[1.03]'
       : 'cursor-pointer hover:shadow-lg hover:border-primary/40 hover:scale-[1.03]'
     : 'cursor-not-allowed'
 
-  // Extra emphasis when the user searched and this is the match.
   const highlightLook = highlighted
-    ? isDelivered
+    ? isDelivered || isCancelled
       ? 'ring-2 ring-primary/40'
       : 'ring-2 ring-primary shadow-xl border-primary/60 scale-[1.03]'
     : ''
@@ -461,20 +558,46 @@ function BacklogCard({
       <div className="flex items-center justify-center py-1 sm:py-2">
         <div
           className={[
-            'flex items-center justify-center rounded-full',
+            'relative flex items-center justify-center rounded-full',
             'w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20',
-            isDelivered ? 'bg-muted' : 'bg-primary/10',
+            isCancelled || isDelivered ? 'bg-muted' : 'bg-primary/10',
           ].join(' ')}
         >
           <span
             className={[
               'font-bold leading-none',
               'text-xl sm:text-2xl lg:text-3xl',
-              isDelivered ? 'text-muted-foreground' : 'text-primary',
+              isCancelled
+                ? 'text-muted-foreground'
+                : isDelivered
+                  ? 'text-muted-foreground'
+                  : 'text-primary',
             ].join(' ')}
           >
             {item.dailyCountNumber}
           </span>
+
+          {/* Diagonal cancellation line (top-right → bottom-left) */}
+          {isCancelled && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <line
+                x1="100"
+                y1="0"
+                x2="0"
+                y2="100"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                className="text-muted-foreground/50"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
         </div>
       </div>
 
@@ -486,7 +609,10 @@ function BacklogCard({
         <p
           className={[
             'mt-0.5 text-[11px] sm:text-[12px] font-medium truncate',
-            isDelivered ? 'text-muted-foreground' : 'text-foreground',
+            isCancelled || isDelivered
+              ? 'text-muted-foreground'
+              : 'text-foreground',
+            isCancelled ? 'line-through' : '',
           ].join(' ')}
         >
           {item.transactionNumber}
@@ -500,14 +626,37 @@ function BacklogCard({
         <p>{formatTime(item.createdAt)}</p>
       </div>
 
-      {/* Delivered tag */}
-      {isDelivered && (
-        <div className="mt-1.5 sm:mt-2 text-center">
-          <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">
-            Delivered
+      {/* Status tags */}
+      <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center justify-center gap-1">
+        {isCancelled ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[9px] sm:text-[10px] uppercase tracking-wider text-yellow-700">
+            <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+            N/A
           </span>
-        </div>
-      )}
+        ) : (
+          <>
+            {isDelivered && (
+              <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">
+                Delivered
+              </span>
+            )}
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] uppercase tracking-wider ${
+                item.isFullyPaid
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-red-100 text-red-700'
+              }`}
+            >
+              {item.isFullyPaid ? (
+                <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              ) : (
+                <XCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              )}
+              {item.isFullyPaid ? 'Paid' : 'Unpaid'}
+            </span>
+          </>
+        )}
+      </div>
     </button>
   )
 }

@@ -27,10 +27,16 @@ export interface Option {
   fitness?: string[];
   priority?: number;
   enabledBy?: string[];
+  modes?: string[];
+}
+
+export interface ConditionalRoute {
+  when: string[];
+  next: string;
+  mode?: string;
 }
 
 export interface Node {
-  conditionalNext?: { when: string[]; next: string }[];
   id: string;
   title: string;
   type: NodeType;
@@ -38,8 +44,10 @@ export interface Node {
   note?: string;
   message?: string;
   checks?: Check[];
+  conditionalChecks?: Record<string, Check[]>;
   options?: Option[];
   extraQuestions?: ExtraQuestion[];
+  conditionalNext?: ConditionalRoute[];
   onYes?: string;
   onNo?: string;
   onPass?: string;
@@ -60,4 +68,5 @@ export interface PathEntry {
   result: string;
   at: number;
   checked: { id: string; label: string }[];
+  mode?: string;
 }
