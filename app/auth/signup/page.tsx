@@ -26,9 +26,9 @@ import {
   ArrowRight,
   Check,
 } from 'lucide-react';
-import Loading from '@/app/dashboard/loading';
 import { toastErrors } from '@/helpers/formatStrings';
 import axiosInstance from '@/lib/customAxios';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
 
 type Step = 'company' | 'user';
 
@@ -123,7 +123,7 @@ export default function SignupPage() {
 
   return (
     <>
-      {isLoading && <Loading/>}
+      {isLoading && <LoadingOverlay/>}
     <div className="bg-background flex  justify-center p-4 h-auto overflow-y-hidden">
       <div className="w-full max-w-lg" >
         {/* Logo */}

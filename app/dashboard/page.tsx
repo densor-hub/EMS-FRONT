@@ -21,7 +21,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import axiosInstance from '@/lib/customAxios'
+import { useRouter } from 'next/navigation';
 import { LoadingOverlay } from '@/components/SkeletonLoading'
+import { AuthGuard } from '@/routes/auth-guard'
 
 interface SaleDeliveryBacklog {
   transactionNumber: string
@@ -96,6 +98,7 @@ function SkeletonBarRow() {
 
 function DashboardContent() {
   const { user, selectedShop } = useAuth()
+   const router = useRouter();
   const sessionShop =
     typeof window !== 'undefined' ? sessionStorage.getItem('selectedShop') : null
   const currentShopId = selectedShop || sessionShop || ''
@@ -103,6 +106,10 @@ function DashboardContent() {
   const [pendingDeliveries, setPendingDeliveries] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+useEffect(() => {
+  if (!user) router.push("/login")
+})
 
   useEffect(() => {
     if (!currentShopId) return
@@ -297,14 +304,16 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      }
-    >
-      <DashboardContent />
-    </Suspense>
+    <AuthGuard>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <DashboardContent />
+      </Suspense>
+    </AuthGuard>
   )
 }

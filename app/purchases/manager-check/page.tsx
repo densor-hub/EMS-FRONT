@@ -23,6 +23,7 @@ import { DataTable } from '@/components/dashboard/data-table';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import { config, settings } from '@/components/util/AppConfig';
 import SweetAlert from '@/components/util/SweetAlert';
+import { AuthGuard } from '@/routes/auth-guard';
 
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
@@ -544,7 +545,7 @@ export default function PurchasePage() {
   ];
 
   return (
-    <>
+    <AuthGuard>
       {(loading || submitting) &&  <LoadingOverlay />}
       <div className=" w-full overflow-x-hidden">
         <Header title="Purchases from suppliers" />
@@ -758,6 +759,6 @@ export default function PurchasePage() {
           />
         {toast.ToastComponent}
       </div>
-    </>
+    </AuthGuard>
   );
 }

@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { TruckIcon, X } from 'lucide-react';
 import type { Transaction, CartItem, ItemStockLevelDTO } from "@/lib/types";
-import Loading from "@/app/dashboard/loading";
 import axiosInstance from "@/lib/customAxios";
 import { useAuth } from "@/lib/auth-context";
 import { formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
@@ -18,6 +17,7 @@ import CartUi from "./DeliveryCart";
 import { POSReceiptProps } from "./POSReceipt";
 import { sessionStore } from "@/helpers/formatStrings";
 import { config } from "./AppConfig";
+import { LoadingOverlay } from "../SkeletonLoading";
 
 interface TransactionUI {
   setOpen: (isOpen: boolean) => void;
@@ -227,7 +227,7 @@ export default function DeliveryTransactionUI(prop: TransactionUI) {
   }, []);
 
   if (loading) {
-    return <Loading />;
+    return <LoadingOverlay />;
   }
 
   return (

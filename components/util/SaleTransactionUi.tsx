@@ -23,8 +23,8 @@ import type {
   ItemStockLevelDTO,
   CouponResponse,
 } from "@/lib/types";
-import Loading from "@/app/dashboard/loading";
 import axiosInstance from "@/lib/customAxios";
+import { LoadingOverlay } from "../SkeletonLoading";
 import { useAuth } from "@/lib/auth-context";
 import {
   currency,
@@ -936,7 +936,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
   }
 
   if (loading || submitting) {
-    return <Loading />;
+    return <LoadingOverlay />;
   }
 
   const isControlledCart = !!(prop.cartItems && prop.cartItems.length > 0);

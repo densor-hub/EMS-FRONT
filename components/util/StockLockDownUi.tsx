@@ -14,7 +14,7 @@ import {
   X
 } from 'lucide-react';
 import type { Item, ItemStockLevelDTO, CartItem } from "@/lib/types";
-import Loading from "@/app/dashboard/loading";
+import { LoadingOverlay } from "../SkeletonLoading";
 import axiosInstance from "@/lib/customAxios";
 import { useAuth } from "@/lib/auth-context";
 import { formatNumberWithCommas, alphaNumericDate, removeCommasFromNumbers } from "@/helpers/formatStrings";
@@ -434,7 +434,7 @@ export default function StockLockDownUI({ setOpen, reloadUrl, reloadSetterFuncti
 
   // Render loading state
   if (loading || submitting) {
-    return <Loading />;
+    return <LoadingOverlay />;
   }
 
   return (

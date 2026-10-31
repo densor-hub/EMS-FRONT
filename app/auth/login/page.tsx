@@ -35,53 +35,57 @@ export default function LoginPage() {
     router.replace(persistedShop ? '/dashboard' : '/select-shop');
   }, [isAuthenticated, selectedShop, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setIsLoading(true);
 
-    try {
-      const response = await login(email, password);
-      if (response?.status !== 200) {
-        setError('Unexpected response from server. Please try again.');
-        return;
-      }
+  try {
+    // login() returns the raw AuthResponseDTO, not an axios response.
+    const data = await login(email, password);
 
-      const data = response.data;
-
-      const user: User = {
-        id: data?.id,
-        firstName: data?.fullName?.split(' ')[0],
-        lastName: data?.fullName?.slice(data?.fullName?.split(' ')[0]?.length),
-        companyId: data?.company?.id,
-        email: data?.email,
-        phone: data?.phone,
-        role: data?.role,
-        locations: data?.locations,
-        routes: data?.routes,
-      };
-
-      const company: Company = {
-        address: '',
-        createdAt: '',
-        email: '',
-        id: data?.company?.id,
-        name: data?.company?.name,
-        phone: '',
-        logo: '',
-      };
-
-      // ✅ Atomic hydration. Flips isAuthenticated → true, which
-      //    triggers the effect above to navigate.
-      loginSuccess(user, company);
-    } catch (err) {
-      console.error(err);
-      setError('Invalid email or password. Please try again.');
-    } finally {
-      setIsLoading(false);
+    // Guard the shape — a 200 with a malformed body throws inside login()
+    // before we get here (with a descriptive error).
+    if (!data?.id || !data?.accessToken) {
+      setError('Unexpected response from server. Please try again.');
+      return;
     }
-  };
 
+    const fullName = data.fullName ?? '';
+    const nameParts = fullName.split(' ').filter(Boolean);
+
+    const user: User = {
+      id: data.id,
+      firstName: nameParts[0] ?? '',
+      lastName: nameParts.slice(1).join(' '),
+      companyId: data.company?.id,
+      email: data.email,
+      phone: data.phoneNumber ?? data.phone,
+      role: data.role,
+      locations: data.locations,
+      routes: data.routes,
+    };
+
+    const company: Company = {
+      address: '',
+      createdAt: '',
+      email: '',
+      id: data.company?.id,
+      name: data.company?.name,
+      phone: '',
+      logo: '',
+    };
+
+    loginSuccess(user, company);
+  } catch (err) {
+    console.error(err);
+    const message =
+      err instanceof Error ? err.message : 'Invalid email or password. Please try again.';
+    setError(message);
+  } finally {
+    setIsLoading(false);
+  }
+};
   return (
     <>
       {isLoading && <LoadingOverlay />}

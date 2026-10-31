@@ -37,10 +37,10 @@ import { format } from 'date-fns';
 import axiosInstance from "@/lib/customAxios";
 import { useAuth } from "@/lib/auth-context";
 import { useToaster } from '@/components/util/CustomToast';
-import Loading from "@/app/dashboard/loading";
 import { DataTable } from '@/components/dashboard/data-table';
 import StockFilterBar from "./StockFilterBar";
 import { sessionStore } from '@/helpers/formatStrings';
+import { LoadingOverlay } from "../SkeletonLoading";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -550,7 +550,7 @@ export default function StockVerificationUi() {
   }
 
   if (loading || isVerifying) {
-    return <Loading />;
+    return <LoadingOverlay />;
   }
 
   // -------------------- Render --------------------

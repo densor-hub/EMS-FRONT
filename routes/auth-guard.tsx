@@ -5,8 +5,21 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 
-// Paths that are allowed without a selected shop / without auth
-const PUBLIC_PREFIXES = ['/select-shop', '/setup', '/auth'];
+// Routes that are accessible without authentication.
+// Everything NOT in this list is protected by default.
+const PUBLIC_PREFIXES = [
+  '/auth',       // /auth/login, /auth/signup, /auth/forgot-password, ...
+  '/terms',
+  '/privacy',
+  '/' // if your root page is a public landing page.
+  // Add any other public routes here.
+];
+
+// Routes that require auth but not a selected shop.
+const SHOP_EXEMPT_PREFIXES = [
+  '/select-shop',
+  '/setup',
+];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,28 +27,37 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, selectedShop, isLoading } = useAuth();
 
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const isShopExempt = SHOP_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
-    // 1. Wait for auth hydration to finish.
     if (isLoading) return;
 
-    // 2. Auth failures are handled by ProtectedRoute / PublicRoute.
-    //    AuthGuard's only job is the shop-selection check.
-    if (!isAuthenticated) return;
-
-    // 3. Public paths (login, select-shop, setup) don't need a shop.
+    // 1. Public pages always allowed.
     if (isPublic) return;
 
-    // 4. ✅ Single source of truth: context state only.
-    //    Do NOT also read sessionStorage — that's a second source of
-    //    truth that can be stale mid-logout and cause redirect loops.
+    // 2. Not authenticated → login.
+    if (!isAuthenticated) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    // 3. Authenticated + shop-exempt pages → allowed without a shop.
+    if (isShopExempt) return;
+
+    // 4. Authenticated + protected + no shop → shop picker.
     if (!selectedShop) {
       router.replace('/select-shop');
     }
-  }, [isLoading, isAuthenticated, selectedShop, isPublic, router]);
+  }, [
+    isLoading,
+    isAuthenticated,
+    selectedShop,
+    isPublic,
+    isShopExempt,
+    router,
+    pathname,
+  ]);
 
-  // Block render during initial hydration, but only when we don't yet
-  // know who the user is. Not tied to user?.id.
   if (isLoading) {
     return <LoadingOverlay />;
   }

@@ -41,6 +41,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // console.log('[AuthProvider] MOUNT');
+
   const router = useRouter();
   const routerRef = useRef(router);
   useEffect(() => {
@@ -48,30 +50,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [router]);
 
   const snapshot = useMemo(() => readCachedAuthSnapshot(), []);
-  
-  const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
-  const [company, setCompany] = useState<Partial<Company>>(
-    () => snapshot.company ?? {}
-  );
-  const [selectedShop, setSelectedShop] = useState<string>(
-    () => snapshot.selectedShop ?? ''
-  );
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
+  const [company, setCompany] = useState<Partial<Company>>(() => snapshot.company ?? {});
+  const [selectedShop, setSelectedShop] = useState<string>(() => snapshot.selectedShop ?? '');
+
+  const [isAuthenticated, setIsAuthenticatedRaw] = useState<boolean>(
+    () => snapshot.isAuthenticated === true
+  );
   const [isLoading, setIsLoading] = useState<boolean>(
     () => Object.keys(snapshot.user ?? {}).length === 0
   );
 
-  
-  const loadSettings = async (): Promise<void> => {
+  // ─── Traced setter — logs the exact call stack of every flip ───
+  const setIsAuthenticated = useCallback((value: boolean) => {
+    // console.trace('[setIsAuthenticated]', value);
+    setIsAuthenticatedRaw(value);
+  }, []);
 
-    try{
-      const res = await axiosInstance.get(`/System/Settings/${sessionStore.get("selectedShop")}`);
+  const loadSettings = async (): Promise<void> => {
+    try {
+      const res = await axiosInstance.get(
+        `/System/Settings/${sessionStore.get("selectedShop")}`
+      );
       const body = res?.data?.data ?? res?.data ?? {};
 
-      // Trust the API. Coerce only for type-safety, do NOT inject defaults.
       const settings: SystemSettings = {
-        locationId: body.locationId?? selectedShop,
+        locationId: body.locationId ?? selectedShop,
         saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
         recordingOldTransactions: Boolean(body.recordingOldTransactions),
         minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
@@ -80,12 +85,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         currency: String(body.currency ?? ""),
       };
 
-      // setSystemSettings(settings);
-      sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings))
+      sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings));
     } catch (err: any) {
       console.error("Error loading settings:", err);
-      //toastErrors(err?.response?.data?.message );
-      // setSystemSettings(null);
     }
   };
 
@@ -95,39 +97,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loginSuccess = useCallback(
     (u: Partial<User>, c: Partial<Company>) => {
+      // console.trace('[loginSuccess] CALLED');
       setUser(u);
       setCompany(c);
       setIsAuthenticated(true);
     },
-    []
+    [setIsAuthenticated]
   );
 
   const userLogOut = useCallback(async () => {
+    // console.log('[userLogOut] START');
+
+    const path = window.location.pathname?.toLowerCase() || '/';
+    const normalized = path.startsWith('/') ? path.slice(1) : path;
+
+    if (!publicPaths.includes(normalized)) {
+      routerRef.current.replace('/auth/login');
+    }
+
     setUser({});
     setCompany({});
     setSelectedShop('');
     setIsAuthenticated(false);
-
     sessionStorage.clear();
     localStorage.clear();
 
-    await logout();
-
-    sessionStorage.removeItem('selectedShop');
-    localStorage.removeItem('selectedShop');
-
-    const path = window.location.pathname?.toLowerCase() || '/';
-    const normalized = path.startsWith('/') ? path.slice(1) : path;
-    if (!publicPaths.includes(normalized)) {
-      routerRef.current.replace('/auth/login');
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('[auth] logout failed (ignored):', err);
     }
-  }, []);
+
+    // console.log('[userLogOut] END');
+  }, [setIsAuthenticated]);
 
   useEffect(() => {
     const unsubscribe = onForcedLogout(userLogOut);
-    return () => {
-      unsubscribe();
-    };
+    return () => { unsubscribe(); };
   }, [userLogOut]);
 
   useEffect(() => {
@@ -138,12 +144,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let isMounted = true;
 
     const initializeApp = async () => {
+      // console.log('[initializeApp] START', {
+      //   snapshotUserKeys: Object.keys(snapshot.user ?? {}).length,
+      // });
+
       if (Object.keys(snapshot.user ?? {}).length === 0) {
         setIsLoading(true);
       }
 
       try {
         const authResult = await performInitialAuthCheck();
+        // console.log('[initializeApp] performInitialAuthCheck returned', authResult, {
+        //   isMounted,
+        // });
 
         if (!isMounted) return;
 
@@ -155,24 +168,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setCompany(authState.company);
         }
 
-        loadSettings();
+        if (authResult && selectedShop) {
+          loadSettings();
+        }
       } catch (error) {
         console.error('[auth] initialization error:', error);
         if (isMounted) setIsAuthenticated(false);
       } finally {
         if (isMounted) setIsLoading(false);
+        console.log('[initializeApp] END');
       }
     };
 
     initializeApp();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  
   return (
     <AuthContext.Provider
       value={{
@@ -188,11 +201,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginSuccess,
       }}
     >
-      {/* ✅ Gate children on isLoading so no page fires an API call
-          before the initial auth check has decided a token exists.
-          Without this, every page's first GET fires with the old
-          token, 401s, triggers a refresh, and the sequence becomes
-          refresh → GET 200 → refresh → GET 200 → refresh. */}
       {isLoading ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

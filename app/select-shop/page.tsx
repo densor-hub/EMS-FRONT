@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Store } from 'lucide-react';
+import { AuthGuard } from '@/routes/auth-guard';
 
 export default function SelectShopPage() {
   const router = useRouter();
@@ -46,7 +47,8 @@ export default function SelectShopPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+   <AuthGuard>
+       <div className="min-h-screen bg-background">
       <Header title="Select Shop" />
 
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-8">
@@ -103,5 +105,6 @@ export default function SelectShopPage() {
         </div>
       </div>
     </div>
+   </AuthGuard>
   );
 }
