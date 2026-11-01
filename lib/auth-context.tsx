@@ -22,8 +22,7 @@ import axiosInstance, {
 import { useRouter } from 'next/navigation';
 import { publicPaths } from '@/components/util/AppConfig';
 import { SystemSettings } from '@/app/settings/page';
-import { sessionStore, SETTINGS_CACHE_KEY, toastErrors } from '@/helpers/formatStrings';
-import { toast } from 'sonner';
+import { sessionStore, SETTINGS_CACHE_KEY } from '@/helpers/formatStrings';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -41,14 +40,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // console.log('[AuthProvider] MOUNT');
-
   const router = useRouter();
   const routerRef = useRef(router);
+  
   useEffect(() => {
     routerRef.current = router;
   }, [router]);
 
+  // Read cache synchronously on first render
   const snapshot = useMemo(() => readCachedAuthSnapshot(), []);
 
   const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
@@ -58,13 +57,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticatedRaw] = useState<boolean>(
     () => snapshot.isAuthenticated === true
   );
+  
+  // Only start loading if we have no cached user data
   const [isLoading, setIsLoading] = useState<boolean>(
     () => Object.keys(snapshot.user ?? {}).length === 0
   );
 
-  // ─── Traced setter — logs the exact call stack of every flip ───
   const setIsAuthenticated = useCallback((value: boolean) => {
-    // console.trace('[setIsAuthenticated]', value);
     setIsAuthenticatedRaw(value);
   }, []);
 
@@ -97,17 +96,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loginSuccess = useCallback(
     (u: Partial<User>, c: Partial<Company>) => {
-      // console.trace('[loginSuccess] CALLED');
       setUser(u);
       setCompany(c);
       setIsAuthenticated(true);
+      setIsLoading(false); // Stop loading immediately on manual login
     },
     [setIsAuthenticated]
   );
 
   const userLogOut = useCallback(async () => {
-    // console.log('[userLogOut] START');
-
     const path = window.location.pathname?.toLowerCase() || '/';
     const normalized = path.startsWith('/') ? path.slice(1) : path;
 
@@ -127,8 +124,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err) {
       console.warn('[auth] logout failed (ignored):', err);
     }
-
-    // console.log('[userLogOut] END');
   }, [setIsAuthenticated]);
 
   useEffect(() => {
@@ -144,19 +139,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let isMounted = true;
 
     const initializeApp = async () => {
-      // console.log('[initializeApp] START', {
-      //   snapshotUserKeys: Object.keys(snapshot.user ?? {}).length,
-      // });
-
       if (Object.keys(snapshot.user ?? {}).length === 0) {
         setIsLoading(true);
       }
 
       try {
         const authResult = await performInitialAuthCheck();
-        // console.log('[initializeApp] performInitialAuthCheck returned', authResult, {
-        //   isMounted,
-        // });
 
         if (!isMounted) return;
 
@@ -176,7 +164,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (isMounted) setIsAuthenticated(false);
       } finally {
         if (isMounted) setIsLoading(false);
-        console.log('[initializeApp] END');
       }
     };
 
@@ -201,13 +188,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginSuccess,
       }}
     >
-      {isLoading ? (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      ) : (
-        children
-      )}
+      {/* Render children immediately! No full-screen blocking spinner here anymore */}
+      {children}
     </AuthContext.Provider>
   );
 };

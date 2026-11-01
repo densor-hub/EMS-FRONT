@@ -1,5 +1,5 @@
 // helpers/formatStrings.ts
-import type { CartItem, TransactionItem } from '@/lib/types'
+import type { CartItem, Transaction, TransactionItem, TransactionPayment } from '@/lib/types'
 import type { ToasterReturn } from '@/components/util/CustomToast'
 import { SystemSettings } from '@/app/settings/page'
 
@@ -372,4 +372,246 @@ export function readCachedSettings(locationId: string): SystemSettings | null {
   } catch {
     return null;
   }
+}
+
+export function defaultDateRange(): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 6);
+  return {
+    startDate: start.toISOString().split('T')[0],
+    endDate: end.toISOString().split('T')[0],
+  };
+}
+
+export function filterByDateRange(
+  transactions: Transaction[],
+  startDate: string,
+  endDate: string
+): Transaction[] {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1;
+
+  return transactions.filter((t) => {
+    const d = new Date(t.transactionDate).getTime();
+    return d >= start && d <= end;
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// Normalization — your backend types vs your TS union
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Map the backend's transaction type to a canonical bucket.
+ * Adjust this once you know what the backend actually returns.
+ */
+export function normalizeType(type: string): 'sale' | 'purchase' | 'transfer' | 'deposit' | 'other' {
+  const t = (type || '').toUpperCase();
+  if (t === 'SALE' || t === 'CREDIT_SALE') return 'sale';
+  if (t === 'PURCH' || t === 'PURCHASE' || t === 'CREDIT_PURCHASE') return 'purchase';
+  if (t === 'TRAN' || t === 'TRANSFER') return 'transfer';
+  if (t === 'DEPO' || t === 'DEPOSIT') return 'deposit';
+  return 'other';
+}
+
+export function partnerName(t: Transaction): string {
+  const bucket = normalizeType(t.type);
+  if (bucket === 'sale') return t.customerName ?? '';
+  if (bucket === 'purchase') return t.supplierName ?? '';
+  return '';
+}
+
+export function partnerId(t: Transaction): string {
+  const bucket = normalizeType(t.type);
+  if (bucket === 'sale') return t.customerId ?? '';
+  if (bucket === 'purchase') return t.supplierId ?? '';
+  return '';
+}
+
+// ─────────────────────────────────────────────────────────
+// Payment helpers
+// ─────────────────────────────────────────────────────────
+
+function paymentsOf(t: Transaction): TransactionPayment[] {
+  return t.payments ?? [];
+}
+
+export function sumCoupon(t: Transaction): number {
+  return paymentsOf(t).reduce((s, p) => s + (p.coupon?.amount ?? 0), 0);
+}
+
+export function sumPayments(t: Transaction): number {
+  return paymentsOf(t).reduce((s, p) => s + p.amount, 0);
+}
+
+export function sumItems(t: Transaction): number {
+  return (t.items ?? []).reduce((s, i) => s + i.quantity, 0);
+}
+
+// ─────────────────────────────────────────────────────────
+// Status buckets
+// ─────────────────────────────────────────────────────────
+
+export type StatusBucket = 'pending' | 'approved' | 'declined';
+
+export function statusBucket(status?: number): StatusBucket | null {
+  if (status === 1) return 'pending';
+  if (status === 3) return 'approved';
+  if (status === -1 || status === -2) return 'declined';
+  return null;
+}
+
+export interface StatusBreakdown {
+  pending: { count: number; amount: number };
+  approved: { count: number; amount: number };
+  declined: { count: number; amount: number };
+}
+
+export function buildStatusBreakdown(transactions: Transaction[]): StatusBreakdown {
+  const result: StatusBreakdown = {
+    pending: { count: 0, amount: 0 },
+    approved: { count: 0, amount: 0 },
+    declined: { count: 0, amount: 0 },
+  };
+
+  for (const t of transactions) {
+    const bucket = statusBucket(t.statusNumber);
+    if (!bucket) continue;
+    result[bucket].count += 1;
+    result[bucket].amount += t.totalAmount;
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────
+// SALE delivery split
+// ─────────────────────────────────────────────────────────
+
+export function salesDeliverySplit(transactions: Transaction[]): {
+  delivered: { count: number; amount: number };
+  pending: { count: number; amount: number };
+} {
+  const result = {
+    delivered: { count: 0, amount: 0 },
+    pending: { count: 0, amount: 0 },
+  };
+
+  for (const t of transactions) {
+    if (normalizeType(t.type) !== 'sale') continue;
+
+    const deliveries = (t.items ?? []).flatMap((i) =>
+      (i.itemsDelivered ?? []).filter(
+        (d) => d.transactionDeliveryRequestId && d.transactionDeliveryRequestId !== ''
+      )
+    );
+
+    if (deliveries.length === 0) {
+      result.pending.count += 1;
+      result.pending.amount += t.totalAmount;
+      continue;
+    }
+
+    const allDelivered = deliveries.every((d) => d.isDelivered === true);
+    if (allDelivered) {
+      result.delivered.count += 1;
+      result.delivered.amount += t.totalAmount;
+    } else {
+      result.pending.count += 1;
+      result.pending.amount += t.totalAmount;
+    }
+  }
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────
+// Payment methods
+// ─────────────────────────────────────────────────────────
+
+export interface NameValue {
+  name: string;
+  value: number;
+}
+
+export function paymentMethodBreakdown(transactions: Transaction[]): NameValue[] {
+  const map = new Map<string, number>();
+
+  for (const t of transactions) {
+    for (const p of paymentsOf(t)) {
+      const key = p.paymentMethodName || `Method ${p.paymentMethod}`;
+      map.set(key, (map.get(key) ?? 0) + p.amount);
+    }
+  }
+
+  return Array.from(map.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+// ─────────────────────────────────────────────────────────
+// Bar chart aggregators
+// ─────────────────────────────────────────────────────────
+
+export interface PartnerStat {
+  id: string;
+  name: string;
+  value: number;
+}
+
+function aggregateByPartner(
+  transactions: Transaction[],
+  bucket: 'sale' | 'purchase',
+  valueOf: (t: Transaction) => number,
+  limit = 20
+): PartnerStat[] {
+  const map = new Map<string, { name: string; value: number }>();
+
+  for (const t of transactions) {
+    if (normalizeType(t.type) !== bucket) continue;
+    const v = valueOf(t);
+    if (!Number.isFinite(v) || v <= 0) continue;
+
+    const id = partnerId(t);
+    const name = partnerName(t);
+    if (!id) continue;
+
+    const existing = map.get(id);
+    if (existing) existing.value += v;
+    else map.set(id, { name, value: v });
+  }
+
+  return Array.from(map.entries())
+    .map(([id, v]) => ({ id, name: v.name, value: v.value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit);
+}
+
+export function topCustomersNetSales(t: Transaction[], limit = 20) {
+  return aggregateByPartner(t, 'sale', (x) => x.totalAmount - sumCoupon(x), limit);
+}
+
+export function topCustomersCoupons(t: Transaction[], limit = 20) {
+  return aggregateByPartner(t, 'sale', sumCoupon, limit);
+}
+
+export function topCustomersPendingDebts(t: Transaction[], limit = 20) {
+  return aggregateByPartner(
+    t, 'sale',
+    (x) => x.totalAmount - (sumPayments(x) + sumCoupon(x)),
+    limit
+  );
+}
+
+export function topSuppliersPurchases(t: Transaction[], limit = 20) {
+  return aggregateByPartner(t, 'purchase', (x) => x.totalAmount, limit);
+}
+
+export function topSuppliersDebts(t: Transaction[], limit = 20) {
+  return aggregateByPartner(
+    t, 'purchase',
+    (x) => x.totalAmount - (sumPayments(x) + sumCoupon(x)),
+    limit
+  );
 }

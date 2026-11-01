@@ -175,7 +175,12 @@ export interface TransactionPayment {
   paymentDate : string,
   amount : number,
   id : string,
-  paymentMethod: number
+  paymentMethod: number,
+  paymentMethodName?: string;    // ← add — needed for payment-method pie
+  coupon?: {                     // ← add — needed for coupon metrics
+    code: string;
+    amount: number;
+  }
 }
 
 
@@ -234,6 +239,8 @@ export interface TransactionItemsDelivered {
   itemReversals:TransactionItemReversals[];
   name?: string;
   status? : string
+  isDelivered?: boolean;                       // ← add
+  transactionDeliveryRequestId?: string; 
 }
 
 export interface TransactionItemReversals {
@@ -300,3 +307,4 @@ export interface StockTakePayload {
   items: StockTakeItem[];
 }
 
+//dash

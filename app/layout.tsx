@@ -1,10 +1,12 @@
 import { Inter, Courier_Prime } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
-import { AuthGuard } from '@/routes/auth-guard';    // adjust path if different
-import { LoadingOverlay } from '@/components/SkeletonLoading';
-import './globals.css';
+import { AuthGuard } from '@/routes/auth-guard';
 import { Suspense } from 'react';
 import IdleTimer from '@/components/util/IdleTimer';
+import './globals.css';
+
+// Optional: Use a lightweight skeleton for Suspense instead of a heavy overlay
+import { AppInitializationSkeleton } from '@/components/SkeletonLoading';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -29,7 +31,11 @@ export default function RootLayout({
         <AuthProvider>
           <AuthGuard>
             <IdleTimer />
-            <Suspense fallback={<LoadingOverlay />}>
+            {/* 
+              Use a lighter fallback. If you want absolutely no wait here, 
+              you can replace the fallback with null or a simple div. 
+            */}
+            <Suspense fallback={<AppInitializationSkeleton />}>
               {children}
             </Suspense>
           </AuthGuard>

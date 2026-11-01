@@ -1,319 +1,307 @@
-// app/dashboard/page.tsx
-'use client'
+'use client';
 
-import React, { Suspense, useEffect, useState } from 'react'
-import { Header } from '@/components/dashboard/header'
-import { StatsCard } from '@/components/dashboard/stats-card'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Truck,
-  AlertCircle,
-  Loader2,
-  Store,
-  Bell,
-  Activity,
-  Sparkles,
-  Construction,
-  TrendingUp,
-  Users,
-  DollarSign,
-  Package,
-} from 'lucide-react'
-import { useAuth } from '@/lib/auth-context'
-import axiosInstance from '@/lib/customAxios'
-import { useRouter } from 'next/navigation';
-import { LoadingOverlay } from '@/components/SkeletonLoading'
-import { AuthGuard } from '@/routes/auth-guard'
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
+import axiosInstance from '@/lib/customAxios';
+import { Transaction } from '@/lib/types';
+import {
+  defaultDateRange,
+  filterByDateRange,
+  sumItems,
+  buildStatusBreakdown,
+  salesDeliverySplit,
+  paymentMethodBreakdown,
+  topCustomersNetSales,
+  topCustomersCoupons,
+  topCustomersPendingDebts,
+  topSuppliersPurchases,
+  topSuppliersDebts,
+  normalizeType,
+} from '@/helpers/formatStrings';
 
-interface SaleDeliveryBacklog {
-  transactionNumber: string
-  dailyCountNumber: number
-  saleDate: string
-  saleDeliveryRequestId: string
-  createdAt: string
-  isDelivered: boolean
-}
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, CartesianGrid,
+} from 'recharts';
 
-function todayISO(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
+const COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16',
+];
 
-// ────────────────────────────────────────────────
-// Skeleton primitives
-// ────────────────────────────────────────────────
-function Skeleton({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`animate-pulse rounded-md bg-muted ${className}`}
-      aria-hidden="true"
-    />
-  )
-}
-
-function SkeletonStatCard() {
-  return (
-    <Card className="border-border">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 space-y-3">
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-7 w-20" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <Skeleton className="h-10 w-10 rounded-lg" />
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function SkeletonListRow() {
-  return (
-    <div className="flex items-center gap-3 py-3">
-      <Skeleton className="h-9 w-9 rounded-full shrink-0" />
-      <div className="flex-1 space-y-2 min-w-0">
-        <Skeleton className="h-3.5 w-3/5" />
-        <Skeleton className="h-3 w-2/5" />
-      </div>
-      <Skeleton className="h-3 w-12 shrink-0" />
-    </div>
-  )
-}
-
-function SkeletonBarRow() {
-  return (
-    <div className="space-y-2 py-2">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-3 w-10" />
-      </div>
-      <Skeleton className="h-2 w-full rounded-full" />
-    </div>
-  )
-}
-
-function DashboardContent() {
-  const { user, selectedShop } = useAuth()
-   const router = useRouter();
-  const sessionShop =
-    typeof window !== 'undefined' ? sessionStorage.getItem('selectedShop') : null
-  const currentShopId = selectedShop || sessionShop || ''
-
-  const [pendingDeliveries, setPendingDeliveries] = useState<number | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-useEffect(() => {
-  if (!user) router.push("/login")
-})
+export default function AnalyticsPage() {
+  const initial = defaultDateRange();
+  const [startDate, setStartDate] = useState(initial.startDate);
+  const [endDate, setEndDate] = useState(initial.endDate);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!currentShopId) return
-    void loadPendingDeliveries(currentShopId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentShopId])
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    axiosInstance
+      .get('/Transactions')
+      .then((res) => {
+        if (cancelled) return;
+        const data = res?.data?.data ?? res?.data ?? [];
+        setTransactions(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err?.response?.data?.message ?? 'Failed to load transactions.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
-  const loadPendingDeliveries = async (shopId: string) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const { data } = await axiosInstance.get(
-        `/Sales/SaleDeliveryBackLogs/${shopId}`,
-        { params: { SaleDate: todayISO() } }
-      )
-      const list: SaleDeliveryBacklog[] = Array.isArray(data) ? data : []
-      setPendingDeliveries(list.filter((b) => !b.isDelivered).length)
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.message ||
-          (typeof err?.response?.data === 'string' ? err.response.data : null) ||
-          'Could not load dashboard data.'
-      )
-      setPendingDeliveries(null)
-    } finally {
-      setIsLoading(false)
+  const filtered = useMemo(
+    () => filterByDateRange(transactions, startDate, endDate),
+    [transactions, startDate, endDate]
+  );
+
+  // Cards
+  const salesMetrics = useMemo(() => {
+    const sales = filtered.filter((t) => normalizeType(t.type) === 'sale');
+    return {
+      count: sales.length,
+      items: sales.reduce((s, t) => s + sumItems(t), 0),
+      amount: sales.reduce((s, t) => s + t.totalAmount, 0),
+    };
+  }, [filtered]);
+
+  const purchaseBreakdown = useMemo(
+    () => buildStatusBreakdown(filtered.filter((t) => normalizeType(t.type) === 'purchase')),
+    [filtered]
+  );
+
+  const transferBreakdown = useMemo(
+    () => buildStatusBreakdown(filtered.filter((t) => normalizeType(t.type) === 'transfer')),
+    [filtered]
+  );
+
+  const couponMetrics = useMemo(() => {
+    let count = 0;
+    let amount = 0;
+    for (const t of filtered) {
+      for (const p of t.payments ?? []) {
+        if (p.coupon && p.coupon.amount > 0) {
+          count++;
+          amount += p.coupon.amount;
+        }
+      }
     }
+    return { count, amount };
+  }, [filtered]);
+
+  // Pies
+  const deliverySplit = useMemo(() => salesDeliverySplit(filtered), [filtered]);
+  const paymentMethods = useMemo(() => paymentMethodBreakdown(filtered), [filtered]);
+
+  const deliveryPie = [
+    { name: 'Delivered', value: deliverySplit.delivered.amount, count: deliverySplit.delivered.count },
+    { name: 'Pending', value: deliverySplit.pending.amount, count: deliverySplit.pending.count },
+  ];
+
+  const purchasePie = [
+    { name: 'Pending', value: purchaseBreakdown.pending.amount, count: purchaseBreakdown.pending.count },
+    { name: 'Approved', value: purchaseBreakdown.approved.amount, count: purchaseBreakdown.approved.count },
+    { name: 'Declined', value: purchaseBreakdown.declined.amount, count: purchaseBreakdown.declined.count },
+  ];
+
+  const transferPie = [
+    { name: 'Pending', value: transferBreakdown.pending.amount, count: transferBreakdown.pending.count },
+    { name: 'Approved', value: transferBreakdown.approved.amount, count: transferBreakdown.approved.count },
+    { name: 'Declined', value: transferBreakdown.declined.amount, count: transferBreakdown.declined.count },
+  ];
+
+  const paymentPie = paymentMethods.map((p) => ({ name: p.name, value: p.value }));
+
+  // Bars
+  const topCustNet = useMemo(() => topCustomersNetSales(filtered), [filtered]);
+  const topCustCoupons = useMemo(() => topCustomersCoupons(filtered), [filtered]);
+  const topCustDebts = useMemo(() => topCustomersPendingDebts(filtered), [filtered]);
+  const topSuppPurchases = useMemo(() => topSuppliersPurchases(filtered), [filtered]);
+  const topSuppDebts = useMemo(() => topSuppliersDebts(filtered), [filtered]);
+
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (loading) return <LoadingOverlay />;
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="py-8 text-center text-destructive">{error}</CardContent>
+        </Card>
+      </div>
+    );
   }
 
-  const firstName = user?.firstName || 'there'
-  const shopName = user?.locations?.find((l) => l.id === currentShopId)?.name
-
-  // console.log(user)
   return (
-    <div className="p-4 sm:p-6 pb-16">
-      <Header
-        title={`Welcome, ${firstName}`}
-        description={shopName ? `Signed in at ${shopName}` : 'Dashboard'}
-      />
-
-      {/* ──────────────────────────────────────────── */}
-      {/* Under construction banner */}
-      {/* ──────────────────────────────────────────── */}
-      <div className="mt-6 relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/[0.02] to-transparent p-5 sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="shrink-0 w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Construction className="w-5 h-5 text-primary" />
+    <div className="p-4 md:p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics Dashboard</CardTitle>
+          <CardDescription>Insights across sales, purchases, transfers, and deposits.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <Label htmlFor="startDate">Start date</Label>
+              <Input id="startDate" type="date" value={startDate}
+                onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="endDate">End date</Label>
+              <Input id="endDate" type="date" value={endDate}
+                onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={() => {
+              const d = defaultDateRange();
+              setStartDate(d.startDate);
+              setEndDate(d.endDate);
+            }}>Last 7 days</Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-base sm:text-lg font-semibold text-foreground">
-                We&apos;re building something great
-              </h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] sm:text-xs font-medium">
-                <Sparkles className="w-3 h-3" />
-                Coming Soon
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              More widgets, insights, and analytics are on the way. In the
-              meantime, here&apos;s a preview of what&apos;s coming.
-            </p>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* ──────────────────────────────────────────── */}
-      {/* Real stats */}
-      {/* ──────────────────────────────────────────── */}
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Pending Deliveries"
-          value={isLoading ? '…' : pendingDeliveries ?? '—'}
-          icon={<Truck className="w-5 h-5" />}
-          description="Today"
-          variant={
-            pendingDeliveries && pendingDeliveries > 0 ? 'warning' : 'success'
-          }
-        />
-
-        {/* Skeleton stat cards for upcoming metrics */}
-        <SkeletonStatCard />
-        <SkeletonStatCard />
-        <SkeletonStatCard />
-      </div>
-
-      {/* ──────────────────────────────────────────── */}
-      {/* Error */}
-      {/* ──────────────────────────────────────────── */}
-      {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* ──────────────────────────────────────────── */}
-      {/* Skeleton widget grid */}
-      {/* ──────────────────────────────────────────── */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity */}
-        <Card className="border-border">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              Recent Activity
-              <span className="ml-auto text-[10px] font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                Soon
-              </span>
-            </CardTitle>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Sales</CardDescription>
+            <CardTitle className="text-3xl">{salesMetrics.count}</CardTitle>
           </CardHeader>
-          <CardContent className="p-5">
-            <div className="divide-y divide-border">
-              <SkeletonListRow />
-              <SkeletonListRow />
-              <SkeletonListRow />
-              <SkeletonListRow />
-            </div>
+          <CardContent className="text-sm text-muted-foreground space-y-1">
+            <div>Items: <span className="text-foreground font-medium">{salesMetrics.items.toLocaleString()}</span></div>
+            <div>Amount: <span className="text-foreground font-medium">{fmt(salesMetrics.amount)}</span></div>
           </CardContent>
         </Card>
 
-        {/* Alerts */}
-        <Card className="border-border">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Bell className="w-5 h-5 text-amber-500" />
-              Alerts
-              <span className="ml-auto text-[10px] font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                Soon
-              </span>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Purchases</CardDescription>
+            <CardTitle className="text-3xl">
+              {purchaseBreakdown.pending.count + purchaseBreakdown.approved.count + purchaseBreakdown.declined.count}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-5">
-            <div className="divide-y divide-border">
-              <SkeletonListRow />
-              <SkeletonListRow />
-              <SkeletonListRow />
-            </div>
+          <CardContent className="text-sm space-y-1">
+            <div className="flex justify-between"><span>Pending</span><span>{purchaseBreakdown.pending.count} · {fmt(purchaseBreakdown.pending.amount)}</span></div>
+            <div className="flex justify-between"><span>Approved</span><span>{purchaseBreakdown.approved.count} · {fmt(purchaseBreakdown.approved.amount)}</span></div>
+            <div className="flex justify-between"><span>Declined</span><span>{purchaseBreakdown.declined.count} · {fmt(purchaseBreakdown.declined.amount)}</span></div>
           </CardContent>
         </Card>
 
-        {/* Sales Overview */}
-        <Card className="border-border">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-500" />
-              Sales Overview
-              <span className="ml-auto text-[10px] font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                Soon
-              </span>
-            </CardTitle>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Coupons</CardDescription>
+            <CardTitle className="text-3xl">{couponMetrics.count}</CardTitle>
           </CardHeader>
-          <CardContent className="p-5">
-            <SkeletonBarRow />
-            <SkeletonBarRow />
-            <SkeletonBarRow />
-            <SkeletonBarRow />
+          <CardContent className="text-sm text-muted-foreground">
+            Amount: <span className="text-foreground font-medium">{fmt(couponMetrics.amount)}</span>
           </CardContent>
         </Card>
 
-        {/* Top Items */}
-        <Card className="border-border">
-          <CardHeader className="border-b border-border">
-            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Package className="w-5 h-5 text-purple-500" />
-              Top Items
-              <span className="ml-auto text-[10px] font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                Soon
-              </span>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Stock Transfers</CardDescription>
+            <CardTitle className="text-3xl">
+              {transferBreakdown.pending.count + transferBreakdown.approved.count + transferBreakdown.declined.count}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-5">
-            <div className="divide-y divide-border">
-              <SkeletonListRow />
-              <SkeletonListRow />
-              <SkeletonListRow />
-              <SkeletonListRow />
-            </div>
+          <CardContent className="text-sm space-y-1">
+            <div className="flex justify-between"><span>Pending</span><span>{transferBreakdown.pending.count} · {fmt(transferBreakdown.pending.amount)}</span></div>
+            <div className="flex justify-between"><span>Approved</span><span>{transferBreakdown.approved.count} · {fmt(transferBreakdown.approved.amount)}</span></div>
+            <div className="flex justify-between"><span>Declined</span><span>{transferBreakdown.declined.count} · {fmt(transferBreakdown.declined.amount)}</span></div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ──────────────────────────────────────────── */}
-      {/* Footer note */}
-      {/* ──────────────────────────────────────────── */}
-      <p className="mt-8 text-center text-xs text-muted-foreground">
-        Widgets shown above are placeholders and will light up as features ship.
-      </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SimplePie title="Sales — Delivery status" data={deliveryPie} />
+        <SimplePie title="Purchases — Status" data={purchasePie} />
+        <SimplePie title="Stock Transfers — Status" data={transferPie} />
+        <SimplePie title="Payment methods — Amount" data={paymentPie} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <SimpleBar title="Top 20 Customers — Net sales (total − coupon)" data={topCustNet} color="#3b82f6" />
+        <SimpleBar title="Top 20 Customers — Coupons" data={topCustCoupons} color="#10b981" />
+        <SimpleBar title="Top 20 Customers — Outstanding debt" data={topCustDebts} color="#ef4444" />
+        <SimpleBar title="Top 20 Suppliers — Purchases" data={topSuppPurchases} color="#8b5cf6" />
+        <SimpleBar title="Top 20 Suppliers — Outstanding debt" data={topSuppDebts} color="#f97316" />
+      </div>
     </div>
-  )
+  );
 }
 
-export default function DashboardPage() {
+function SimplePie({
+  title,
+  data,
+}: {
+  title: string;
+  data: { name: string; value: number; count?: number }[];
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
   return (
-    <AuthGuard>
-      <Suspense
-        fallback={
-          <div className="flex min-h-screen items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        }
-      >
-        <DashboardContent />
-      </Suspense>
-    </AuthGuard>
-  )
+    <Card>
+      <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
+      <CardContent>
+        {total === 0 ? (
+          <div className="text-sm text-muted-foreground py-8 text-center">No data</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={data.filter((d) => d.value > 0)} dataKey="value" nameKey="name"
+                cx="50%" cy="50%" outerRadius={90} label={(e: any) => e.name}>
+                {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(value: any, _n: any, entry: any) => [
+                `${Number(value).toLocaleString()}${entry?.payload?.count != null ? ` (${entry.payload.count})` : ''}`,
+                entry?.payload?.name,
+              ]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SimpleBar({
+  title, data, color,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  color: string;
+}) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-8 text-center">No data</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(260, data.length * 26)}>
+            <BarChart data={data} layout="vertical" margin={{ left: 120, right: 20, top: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(v: any) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} />
+              <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

@@ -3,19 +3,16 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { LoadingOverlay } from '@/components/SkeletonLoading';
+// Import the lightweight skeleton instead of the heavy LoadingOverlay
+import { AppInitializationSkeleton } from '@/components/SkeletonLoading';
 
-// Routes that are accessible without authentication.
-// Everything NOT in this list is protected by default.
 const PUBLIC_PREFIXES = [
-  '/auth',       // /auth/login, /auth/signup, /auth/forgot-password, ...
+  '/auth',
   '/terms',
   '/privacy',
-  '/' // if your root page is a public landing page.
-  // Add any other public routes here.
+  '/' 
 ];
 
-// Routes that require auth but not a selected shop.
 const SHOP_EXEMPT_PREFIXES = [
   '/select-shop',
   '/setup',
@@ -58,9 +55,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     pathname,
   ]);
 
-  if (isLoading) {
-    return <LoadingOverlay />;
+  // FIX: If it's a public path (like /auth/login), render it IMMEDIATELY. 
+  // Don't show a loading screen while checking a token we don't need yet.
+  if (isPublic) {
+    return <>{children}</>;
   }
 
+  // FIX: For protected routes, show the lightweight skeleton instead of the blurring overlay.
+  if (isLoading) {
+    return <AppInitializationSkeleton />;
+  }
+
+  // Once loaded, render the app.
   return <>{children}</>;
 }
