@@ -14,12 +14,16 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { Store } from 'lucide-react';
 import { AuthGuard } from '@/routes/auth-guard';
+import { sessionStore, SETTINGS_CACHE_KEY } from '@/helpers/formatStrings';
+import { SystemSettings } from '../settings/page';
+import axiosInstance from '@/lib/customAxios';
+import { LoadingOverlay } from '@/components/SkeletonLoading';
 
 export default function SelectShopPage() {
   const router = useRouter();
   const { user, setSelectedShop, selectedShop, isLoading } = useAuth();
   const [selected, setSelected] = useState<string>('');
-
+ const [loading, setLoading] = useState<boolean>(false)
   const locations = user?.locations ?? [];
   const hasLocations = locations.length > 0;
 
@@ -31,10 +35,37 @@ export default function SelectShopPage() {
   //   // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, []);
 
+  const loadSettings = async (): Promise<void> => {
+      try {
+        const res = await axiosInstance.get(
+          `/System/Settings/${sessionStore.get("selectedShop")}`
+        );
+        const body = res?.data?.data ?? res?.data ?? {};
+  
+        const settings: SystemSettings = {
+          locationId: body.locationId ?? selectedShop,
+          saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
+          recordingOldTransactions: Boolean(body.recordingOldTransactions),
+          minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
+          posPrinterSize: Number(body.posPrinterSize),
+          defaultPageSize: Number(body.defaultPageSize),
+          currency: String(body.currency ?? ""),
+        };
+  
+        sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings));
+      } catch (err: any) {
+        console.error("Error loading settings:", err);
+      }
+    };
+    
   const handleSelect = (id: string) => {
+    setLoading(true);
     setSelected(id);
     setSelectedShop(id);
-    router.replace('/dashboard');
+    loadSettings().then(() => {
+      setLoading(false)
+      router.replace('/dashboard');
+    })
   };
 
   // Guard: don't mount against a half-hydrated user
@@ -48,6 +79,7 @@ export default function SelectShopPage() {
 
   return (
    <AuthGuard>
+    {loading && <LoadingOverlay/>}
        <div className="min-h-screen bg-background">
       <Header title="Select Shop" />
 

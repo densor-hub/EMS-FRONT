@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import axiosInstance from '@/lib/customAxios';
+import { useAuth } from '@/lib/auth-context';
 import { Transaction } from '@/lib/types';
 import {
   defaultDateRange,
@@ -29,6 +30,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, CartesianGrid,
 } from 'recharts';
+import { Header } from '@/components/dashboard/header';
 
 const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -37,6 +39,7 @@ const COLORS = [
 
 export default function AnalyticsPage() {
   const initial = defaultDateRange();
+  const {selectedShop} = useAuth();
   const [startDate, setStartDate] = useState(initial.startDate);
   const [endDate, setEndDate] = useState(initial.endDate);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -48,7 +51,7 @@ export default function AnalyticsPage() {
     setLoading(true);
     setError('');
     axiosInstance
-      .get('/Transactions')
+      .get(`/Transactions?locationId=${selectedShop}`)
       .then((res) => {
         if (cancelled) return;
         const data = res?.data?.data ?? res?.data ?? [];
@@ -147,8 +150,10 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className=" space-y-2">
+      <Header title='Dashboard'/>
       <Card>
+        
         <CardHeader>
           <CardTitle>Analytics Dashboard</CardTitle>
           <CardDescription>Insights across sales, purchases, transfers, and deposits.</CardDescription>
