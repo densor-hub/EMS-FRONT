@@ -49,6 +49,7 @@ export interface POSReceiptProps {
   qrCode: string
   transactionNumber: string
   merchantName?: string
+  companyName?: string
   date?: string
   items?: CartItem[]
   customerName?: string
@@ -76,7 +77,7 @@ const USB_PRINTER_FILTERS = [
 var sessionShop = sessionStore.get('selectedShop')
 
 const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
-  const { user, selectedShop } = useAuth()
+  const { user, selectedShop, company } = useAuth()
   const toast = useToaster()
   const [isPrinting, setIsPrinting] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
@@ -92,13 +93,32 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
     merchantName =
       user?.locations?.find((x) => x.id == (selectedShop || sessionShop))?.name ||
       'SHOP NAME',
+    companyName = company?.name || 'Company',
     date = new Date().toLocaleString(),
     items = [],
     customerName = '',
-    // ✅ Show QR only if one was actually provided (unless explicitly overridden).
     showQRCode = Boolean(qrCode),
     uniqueCount,
   } = data
+
+  // ---- Format date to seconds only (no milliseconds) ----
+  const formatDateToSeconds = (dateStr: string): string => {
+    try {
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return dateStr
+      const yyyy = d.getFullYear()
+      const MM = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      const ss = String(d.getSeconds()).padStart(2, '0')
+      return `${yyyy}-${MM}-${dd} ${hh}:${mm}:${ss}`
+    } catch {
+      return dateStr
+    }
+  }
+
+  const displayDate = formatDateToSeconds(date)
 
   // ---- Helpers ----
   const safePrice = (value: any): number => {
@@ -200,21 +220,33 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
         .initialize()
         .align('center')
         .bold(true)
+        .line(fit(companyName, LINE_WIDTH, 'center').trim())
         .line(fit(merchantName, LINE_WIDTH, 'center').trim())
         .bold(false)
-        .line(fit('POS Receipt', LINE_WIDTH, 'center').trim())
-        .line(fit(date, LINE_WIDTH, 'center').trim())
+        .line(fit(displayDate, LINE_WIDTH, 'center').trim())
         .newline()
 
-      receipt = receipt
-        .align('left')
-        .line(fit(`Transaction: ${transactionNumber}`, LINE_WIDTH))
-
-      if (customerName) {
-        receipt = receipt.line(fit(`Customer: ${customerName}`, LINE_WIDTH))
+      // Unique count (large, centered)
+      if (uniqueCount !== undefined && uniqueCount !== null) {
+        receipt = receipt
+          .align('center')
+          .bold(true)
+          .line(fit(`(${uniqueCount})`, LINE_WIDTH, 'center').trim())
+          .bold(false)
+          .newline()
       }
 
-      receipt = receipt.newline()
+      receipt = receipt
+        .align('center')
+        .line(fit(`TXN # : ${transactionNumber}`, LINE_WIDTH, 'center').trim())
+        .newline()
+
+      if (customerName) {
+        receipt = receipt
+          .align('center')
+          .line(fit(`Customer: ${customerName}`, LINE_WIDTH, 'center').trim())
+          .newline()
+      }
 
       if (showQRCode && qrCode) {
         try {
@@ -226,14 +258,14 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
         } catch (error) {
           console.error('QR code generation failed:', error)
           receipt = receipt
-            .align('left')
-            .line(fit('[QR Code Unavailable]', LINE_WIDTH))
+            .align('center')
+            .line(fit('[QR Code Unavailable]', LINE_WIDTH, 'center'))
             .newline()
         }
       } else if (showQRCode && !qrCode) {
         receipt = receipt
-          .align('left')
-          .line(fit('[No QR Code]', LINE_WIDTH))
+          .align('center')
+          .line(fit('[No QR Code]', LINE_WIDTH, 'center'))
           .newline()
       }
 
@@ -598,47 +630,47 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
       pdf.setFont(FONT, 'bold')
       pdf.setFontSize(12)
       pdf.setTextColor('#000000')
-      yPos = centerText(merchantName, yPos, 12, 'bold')
+      yPos = centerText(companyName, yPos, 12, 'bold')
       yPos += 4
 
-      pdf.setFont(FONT, 'normal')
-      pdf.setFontSize(9)
-      yPos = centerText('POS Receipt', yPos, 9)
-      yPos += 3
+      pdf.setFont(FONT, 'bold')
+      pdf.setFontSize(11)
+      yPos = centerText(merchantName, yPos, 11, 'bold')
+      yPos += 4
 
-      yPos = centerText(date, yPos, 7, 'normal', '#666666')
+      yPos = centerText(displayDate, yPos, 7, 'normal', '#666666')
       yPos += 5
 
-      pdf.setFont(FONT, 'normal')
-      pdf.setFontSize(7)
-      pdf.setTextColor('#666666')
-      const transLabel = 'Transaction #'
-      const transLabelWidth =
-        (pdf.getStringUnitWidth(transLabel) * 7) / pdf.internal.scaleFactor
-      const transLabelX = (pageWidth - transLabelWidth) / 2
-      pdf.text(transLabel, transLabelX, yPos)
-      yPos += 4
+      // Unique count — large, circled
+      if (uniqueCount !== undefined && uniqueCount !== null) {
+        pdf.setFont(FONT, 'bold')
+        pdf.setFontSize(20)
+        pdf.setTextColor('#000000')
+        const countText = String(uniqueCount)
+        const countWidth =
+          (pdf.getStringUnitWidth(countText) * 20) / pdf.internal.scaleFactor
+        const countX = (pageWidth - countWidth) / 2
+        const countY = yPos + 8
+
+        const radius = Math.max(countWidth / 2 + 3, 8)
+        pdf.setDrawColor('#000000')
+        pdf.setLineWidth(0.6)
+        pdf.circle(pageWidth / 2, countY - 3, radius, 'S')
+
+        pdf.text(countText, countX, countY)
+        yPos = countY + radius + 2
+      }
 
       pdf.setFont(FONT, 'bold')
       pdf.setFontSize(10)
       pdf.setTextColor('#000000')
-      const transNum = transactionNumber
-      const transNumWidth =
-        (pdf.getStringUnitWidth(transNum) * 10) / pdf.internal.scaleFactor
-      const transNumX = (pageWidth - transNumWidth) / 2
-      pdf.text(transNum, transNumX, yPos)
+      yPos = centerText(`TXN # : ${transactionNumber}`, yPos, 10, 'bold')
       yPos += 5
 
       if (customerName) {
         pdf.setFont(FONT, 'normal')
-        pdf.setFontSize(7)
-        pdf.setTextColor('#666666')
-        pdf.text('Customer', margin, yPos)
-        yPos += 4
-        pdf.setFont(FONT, 'bold')
         pdf.setFontSize(9)
-        pdf.setTextColor('#000000')
-        pdf.text(customerName, margin, yPos)
+        yPos = centerText(`Customer: ${customerName}`, yPos, 9)
         yPos += 5
       }
 
@@ -802,25 +834,6 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
   return (
     <div className="bg-gray-100 flex flex-col items-center w-fit">
       <div className="">
-        {/* ✅ Stocking-code number — shown whenever a uniqueCount is supplied,
-            regardless of whether the receipt also has items. */}
-        {uniqueCount !== undefined && uniqueCount !== null && (
-          <div className="flex flex-col items-center justify-between bg-card p-5 py-2">
-            <div className="w-full text-center">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Stocking Code
-              </p>
-            </div>
-
-            <div className="flex flex-1 items-center justify-center">
-              <div className="rounded-lg bg-primary/10 px-6 py-3">
-                <span className="font-mono text-3xl font-bold tracking-widest text-primary">
-                  {uniqueCount}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
         {
           <div
             ref={receiptRef}
@@ -834,30 +847,40 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
                 fontFamily: 'var(--font-courier-prime), Courier New, monospace',
               }}
             >
+              {/* Header: Company Name, Merchant Name, Date — centered */}
               <div className="text-center border-b border-dashed border-gray-300 pb-2 mb-2">
-                <h2 className="text-base font-bold uppercase">{merchantName}</h2>
-                <p className="text-[10px] text-gray-600">POS Receipt</p>
-                <p className="text-[10px] text-gray-600">{date}</p>
+                <h2 className="text-base font-bold uppercase">{companyName}</h2>
+                <p className="text-sm font-semibold uppercase">{merchantName}</p>
+                <p className="text-[10px] text-gray-600">{displayDate}</p>
               </div>
 
+              {/* Unique count — large, circled */}
+              {uniqueCount !== undefined && uniqueCount !== null && (
+                <div className="flex justify-center my-4">
+                  <div className="flex items-center justify-center w-24 h-24 rounded-full border-2 border-black">
+                    <span className="font-mono text-4xl font-bold tracking-wider text-black">
+                      {uniqueCount}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* TXN # — centered */}
               <div className="mb-3 text-center">
-                <p className="text-[10px] text-gray-500">Transaction #</p>
                 <p
                   className={
-                    (showQRCode && (readCachedSettings()?.posPrinterSize || 0) < 80) ||
-                    (!showQRCode && (readCachedSettings()?.posPrinterSize || 0) < 80)
+                    (readCachedSettings()?.posPrinterSize || 0) < 80
                       ? 'text-xs font-bold tracking-wide'
                       : 'text-sm font-bold tracking-wide'
                   }
                 >
-                  {transactionNumber}
+                  TXN # : {transactionNumber}
                 </p>
               </div>
 
               {customerName && (
                 <div className="mb-3 text-center border-b border-dashed border-gray-300 pb-2">
-                  <p className="text-[10px] text-gray-500">Customer</p>
-                  <p className="text-sm font-semibold">{customerName}</p>
+                  <p className="text-sm font-semibold">Customer: {customerName}</p>
                 </div>
               )}
 
