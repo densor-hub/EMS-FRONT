@@ -19,6 +19,30 @@ import { SystemSettings } from '../settings/page';
 import axiosInstance from '@/lib/customAxios';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 
+
+export const loadSettings = async (id: string): Promise<void> => {
+      try {
+        const res = await axiosInstance.get(
+          `/System/Settings/${id}`
+        );
+        const body = res?.data?.data ?? res?.data ?? {};
+  
+        const settings: SystemSettings = {
+          locationId: body.locationId ?? id,
+          saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
+          recordingOldTransactions: Boolean(body.recordingOldTransactions),
+          minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
+          posPrinterSize: Number(body.posPrinterSize),
+          defaultPageSize: Number(body.defaultPageSize),
+          currency: String(body.currency ?? ""),
+        };
+  
+        sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings));
+      } catch (err: any) {
+        console.error("Error loading settings:", err);
+      }
+    };
+
 export default function SelectShopPage() {
   const router = useRouter();
   const { user, setSelectedShop, selectedShop, isLoading } = useAuth();
@@ -35,34 +59,13 @@ export default function SelectShopPage() {
   //   // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, []);
 
-  const loadSettings = async (): Promise<void> => {
-      try {
-        const res = await axiosInstance.get(
-          `/System/Settings/${sessionStore.get("selectedShop")}`
-        );
-        const body = res?.data?.data ?? res?.data ?? {};
   
-        const settings: SystemSettings = {
-          locationId: body.locationId ?? selectedShop,
-          saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
-          recordingOldTransactions: Boolean(body.recordingOldTransactions),
-          minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
-          posPrinterSize: Number(body.posPrinterSize),
-          defaultPageSize: Number(body.defaultPageSize),
-          currency: String(body.currency ?? ""),
-        };
-  
-        sessionStore.set(SETTINGS_CACHE_KEY, JSON.stringify(settings));
-      } catch (err: any) {
-        console.error("Error loading settings:", err);
-      }
-    };
     
   const handleSelect = (id: string) => {
     setLoading(true);
     setSelected(id);
     setSelectedShop(id);
-    loadSettings().then(() => {
+    loadSettings(id).then(() => {
       setLoading(false)
       router.replace('/dashboard');
     })

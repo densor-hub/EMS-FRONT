@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { LoadingOverlay } from '../SkeletonLoading';
 import {DynamicBreadcrumb} from '../util/Breadcrumb';
 import { BreadcrumbPage } from '../ui/breadcrumb';
+import { loadSettings } from '@/app/select-shop/page';
 
 interface HeaderProps {
   title: string;
@@ -56,6 +57,7 @@ export function Header({ title, description }: HeaderProps) {
 
     setActiveShopId(id);
     setSelectedShop(id);
+    loadSettings(id);
     sessionStorage.setItem('selectedShop', id);
 
    // window.location.reload();
