@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, CreditCard, Truck, RotateCcw, Plus } from 'lucide-react';
-import { alphaNumericDate, formatNumberWithCommas } from '@/helpers/formatStrings';
+import { alphaNumericDate, formatNumberWithCommas, readCachedSettings } from '@/helpers/formatStrings';
 import { IdAndName, TransactionItem } from '@/lib/types';
 import TransactionItemsTable from './TransactionItemsTable';
 import { config, settings } from './AppConfig';
@@ -253,7 +253,7 @@ export function TransactionDetailsTabs({
 
             <div className="flex items-start justify-between gap-2">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                Amount {settings?.currency}
+                Amount {readCachedSettings()?.currency}
               </span>
               <span className="text-xs text-right font-semibold">
                 {formatNumberWithCommas(payment.amount.toFixed(2))}
@@ -262,7 +262,7 @@ export function TransactionDetailsTabs({
 
             <div className="flex items-start justify-between gap-2">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                Discount {settings?.currency}
+                Discount {readCachedSettings()?.currency}
               </span>
               <span className="text-xs text-right font-semibold text-blue-600">
                 {formatNumberWithCommas(payment.coupon?.amount?.toFixed(2) || '0.00')}
@@ -307,10 +307,10 @@ export function TransactionDetailsTabs({
               Remarks
             </th>
             <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
-              Amount {settings?.currency}
+              Amount {readCachedSettings()?.currency}
             </th>
             <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">
-              Discount {settings?.currency}
+              Discount {readCachedSettings()?.currency}
             </th>
           </tr>
         </thead>
@@ -764,7 +764,7 @@ export function TransactionDetailsTabs({
           <div className="flex justify-between sm:justify-start gap-2">
             <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total</span>
             <span className="text-lg font-bold text-primary">
-              {settings?.currency} {formatNumberWithCommas((details.totalAmount || 0).toFixed(2))}
+              {readCachedSettings()?.currency} {formatNumberWithCommas((details.totalAmount || 0).toFixed(2))}
             </span>
           </div>
            <div className="flex justify-between sm:justify-start gap-2">

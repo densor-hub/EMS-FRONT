@@ -8,7 +8,7 @@ import { Transaction } from '@/lib/types'
 import POSReceipt, { POSReceiptProps } from '@/components/util/POSReceipt'
 import { useAuth } from '@/lib/auth-context'
 import axiosInstance from '@/lib/customAxios'
-import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
+import { readCachedSettings, toastErrors, toastSuccess } from '@/helpers/formatStrings'
 import { useToaster } from '@/components/util/CustomToast'
 import { LoadingOverlay } from '@/components/SkeletonLoading'
 import { Button } from '@/components/ui/button'
@@ -450,7 +450,7 @@ export default function DeliveryPage() {
           <DashboardLayout>
             <SaleTransactionUIWithErrorBoundary
               instantSale={!(transaction?.businessPartnerId !== undefined && transaction.businessPartnerId  !== null)}
-              allowItemSelection={settings?.saleToDeliveryMode}
+              allowItemSelection={readCachedSettings()?.saleToDeliveryMode}
               submitUrl="/Transactions/Payment"
               setOpen={setShowSaleUI}
               cartItems={receiptData?.items}

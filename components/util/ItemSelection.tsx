@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import type { Item, ItemStockLevelDTO } from "@/lib/types";
-import { formatNumberWithCommas } from "@/helpers/formatStrings";
+import { formatNumberWithCommas, readCachedSettings } from "@/helpers/formatStrings";
 import { CustomSelect } from "./CustomSelect";
 import { config, settings } from "./AppConfig";
 
@@ -66,7 +66,7 @@ export function ItemSelection({
     } else {
       // ✅ For sales: show the selling price
       return selectedItemDetails 
-        ? `${settings?.currency} ${formatNumberWithCommas(selectedItemDetails.sellingPrice.toString())}` 
+        ? `${readCachedSettings()?.currency} ${formatNumberWithCommas(selectedItemDetails.sellingPrice.toString())}` 
         : '';
     }
   };
@@ -172,7 +172,7 @@ export function ItemSelection({
               options={items?.map((x) => ({
                 value: x.id.toString(),
                 label: x.name,
-                discriptionLabel: `${settings?.currency} ${formatNumberWithCommas(x.sellingPrice.toString())}`
+                discriptionLabel: `${readCachedSettings()?.currency} ${formatNumberWithCommas(x.sellingPrice.toString())}`
               }))}
               value={selectedItem}
               onValueChange={setSelectedItem}
@@ -217,7 +217,7 @@ export function ItemSelection({
             {/* ✅ Price Input - col-span-1 */}
             <div className="space-y-2 md:col-span-1 w-full">
               <Label className="text-foreground">
-                Price <span className="text-muted-foreground">{settings?.currency}</span>
+                Price <span className="text-muted-foreground">{readCachedSettings()?.currency}</span>
                 {(isPurchase || isStockAdjustment) && <span className="text-destructive">*</span>}
               </Label>
               <Input

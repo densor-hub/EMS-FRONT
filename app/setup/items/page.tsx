@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, MultiSelectComponent } from '@/components/ui/select';
 import type { Item, Shop } from '@/lib/types';
 import { Edit, Trash2, Package, DollarSign, Hash, Tag, FileText, Layers, Flag, LockIcon, UnlockIcon, UnlockKeyhole, LockOpenIcon, LockKeyholeOpenIcon } from 'lucide-react';
-import { currency, formatNumberWithCommas, removeCommasFromNumbers, toastErrors, toastSuccess, volume } from '@/helpers/formatStrings';
+import { currency, formatNumberWithCommas, readCachedSettings, removeCommasFromNumbers, toastErrors, toastSuccess, volume } from '@/helpers/formatStrings';
 import { useAuth } from '@/lib/auth-context';
 import axiosInstance from '@/lib/customAxios';
 import { useToaster } from '@/components/util/CustomToast';
@@ -239,7 +239,7 @@ export default function ItemsPage() {
    
     {
       key: 'sellingPrice' as keyof Item,
-      label: `Selling Price  ${settings?.currency}`,
+      label: `Selling Price  ${readCachedSettings()?.currency}`,
       sortable: true,
       render: (item: Item) => (
         <span className="font-medium text-foreground text-center">{currency(item.sellingPrice?.toString())}</span>
@@ -424,7 +424,7 @@ export default function ItemsPage() {
               <Label htmlFor="costPrice" className="text-foreground">Unit Cost Price *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {settings?.currency}
+                 {readCachedSettings()?.currency}
                 </span>
                 <Input
                   id="costPrice"
@@ -442,7 +442,7 @@ export default function ItemsPage() {
               <Label htmlFor="sellingPrice" className="text-foreground">Unit Selling Price *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {settings?.currency}
+                 {readCachedSettings()?.currency}
                 </span>
                 <Input
                   id="sellingPrice"
@@ -460,7 +460,7 @@ export default function ItemsPage() {
               <Label htmlFor="reorderLevel" className="text-foreground">Reorder Level * <span className='text-xs'>(Pieces)</span></Label>
               <div className="relative">
                 {/* <span className="absolute left-3 top-1/3 -translate-y-1/3 mr-2 h-4 text-muted-foreground tex:xs">
-                 {settings?.currency}
+                 {readCachedSettings()?.currency}
                 </span> */}
                 <Input
                   id="reorderLevel"

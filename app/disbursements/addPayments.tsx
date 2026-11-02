@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "lucide-react";
 import { config, settings } from "@/components/util/AppConfig";
+import { readCachedSettings } from "@/helpers/formatStrings";
 
 const paymentMethods  = config.paymentMethods
 
@@ -24,7 +25,7 @@ const AddPayment = ({ amountPaid, setAmountPaid, date, setDate, paymentMethod, s
   return <div className="md:flex space-between space-x-2">
       {/* Amount Paid Input */}
                   <div className="space-y-2 md:w=[58%]">
-                    <Label htmlFor="quantity" className="text-foreground">Amount Paid {`(${settings?.currency})`}<span className="text-destructive">*</span></Label> 
+                    <Label htmlFor="quantity" className="text-foreground">Amount Paid {`(${readCachedSettings()?.currency})`}<span className="text-destructive">*</span></Label> 
                     <Input
                       id="quantity"
                       value={amountPaid}

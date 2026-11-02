@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Ticket, CheckCircle, X, Calendar } from 'lucide-react';
-import { currency, formatNumberWithCommas } from '@/helpers/formatStrings';
+import { currency, formatNumberWithCommas, readCachedSettings } from '@/helpers/formatStrings';
 import { config, paymentMethods, settings } from './AppConfig';
 import { CustomSelect } from './CustomSelect';
 
@@ -124,14 +124,17 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = memo(({
   );
 
   return (
-    <div className={`space-y-2 p-0 ${className}`} style={{ height }}>
+    !readCachedSettings()?.locationId ? <div>
+      Failed to load system configurations. Please refresh page to try again later
+    </div>
+    : <div className={`space-y-2 p-0 ${className}`} style={{ height }}>
       <Card className="border-border h-full">
         <CardContent className="px-2 sm:px-3 space-y-3 sm:space-y-4">
           {/* TOTAL */}
           {!isTransfer && (
             <div className="text-center">
               <div className="font-bold text-xl sm:text-2xl lg:text-3xl">
-                <span className="text-sm sm:text-md lg:text-lg">{settings?.currency} </span>
+                <span className="text-sm sm:text-md lg:text-lg">{readCachedSettings()?.currency} </span>
                 {couponApplied ? (
                   <>
                     <span className="text-muted-foreground line-through text-base sm:text-lg lg:text-xl mr-2">
@@ -191,7 +194,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = memo(({
                     {amountPaidError}
                   </p>
                 )}
-              {showMinPaymentThreshold && <span className='text-xs'>Minimum payment : {settings?.minimumSalePaymentPercentage}% <span className='fond-bold text-blue-900'>({settings?.currency} {finalTotal > 0 ? formatNumberWithCommas(Math.round(((settings?.minimumSalePaymentPercentage || 0)/100) * finalTotal).toString()) : "" })</span> </span>}
+              {showMinPaymentThreshold && <span className='text-xs'>Minimum payment : {readCachedSettings()?.minimumSalePaymentPercentage}% <span className='fond-bold text-blue-900'>({readCachedSettings()?.currency} {finalTotal > 0 ? formatNumberWithCommas(Math.round(((readCachedSettings()?.minimumSalePaymentPercentage || 0)/100) * finalTotal).toString()) : "" })</span> </span>}
 
               </div>
             )}

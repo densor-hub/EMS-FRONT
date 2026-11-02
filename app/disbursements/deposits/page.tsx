@@ -22,6 +22,7 @@ import { DataTable } from '@/components/dashboard/data-table';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import { CustomSelect } from '@/components/util/CustomSelect';
 import { config, settings } from '@/components/util/AppConfig';
+import { readCachedSettings } from '@/helpers/formatStrings';
 
 const Modal = dynamic(
   () => import('@/components/dashboard/modal').then(mod => mod.Modal),
@@ -311,7 +312,7 @@ export default function DisbursementPage() {
         date: new Date(date).toISOString(),
         totalAmount: totalAmount ? Number(removeCommasFromNumbers(totalAmount)) : 0,
         paymentMethod: Number(paymentMethod),
-        currencyCode: settings?.currency || "GHS",
+        currencyCode: readCachedSettings()?.currency || "GHS",
         transactionType: 1,
         remarks: remarks || "",
         contactPersons: recipients.map(r => ({

@@ -362,7 +362,7 @@ export const unwrapItems = <T,>(response: any): { items: T[]; total: number; pag
 
 export const SETTINGS_CACHE_KEY = "locationSettigs";
 
-export function readCachedSettings(locationId: string): SystemSettings | null {
+export function readCachedSettings (): SystemSettings | null {
   try {
     const raw = sessionStore.get(SETTINGS_CACHE_KEY);
     if (!raw) return null;

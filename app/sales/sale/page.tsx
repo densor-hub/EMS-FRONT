@@ -1,19 +1,20 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Header } from '@/components/dashboard/header';
 import { 
   Transaction,
 } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import SaleTransactionUi from "@/components/util/SaleTransactionUi";
-import { config, settings } from "@/components/util/AppConfig";
-
+import { config } from "@/components/util/AppConfig";
+import { readCachedSettings } from "@/helpers/formatStrings";
 
 
 export default function SalePage() {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
-  return (
+
+return (
     <Suspense fallback>
 
       <div className=" min-h-screen w-[100%] ">
@@ -34,7 +35,7 @@ export default function SalePage() {
                    // reloadUrl={`/Sales/LocationId=${selectedShop}`}
                     submitUrl="/Sales/General"
                     transactionActionType={config.transactionTypes.SALE}
-                    allowItemSelection={settings?.saleToDeliveryMode}
+                    allowItemSelection={readCachedSettings()?.saleToDeliveryMode}
                   />
               </div>
           </div>

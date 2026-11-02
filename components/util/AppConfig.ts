@@ -85,7 +85,7 @@ export const config: AppConfiguration = {
   transactionTypes: TransactionTypes,
 };
 
-export const settings: SystemSettings | null = readCachedSettings(sessionStore.get("selectedShop") || "")
+export const settings = {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public (unauthenticated) routes

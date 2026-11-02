@@ -13,7 +13,7 @@ import { MultiSelectComponent, Select, SelectContent, SelectItem, SelectTrigger,
 import type { Employee, Shop, Role } from '@/lib/types';
 import { Edit, Trash2, User, Mail, Phone, DollarSign, Calendar } from 'lucide-react';
 import axiosInstance from '@/lib/customAxios';
-import { alphaNumericDate, currency, formatNumberWithCommas, removeCommasFromNumbers } from '@/helpers/formatStrings';
+import { alphaNumericDate, currency, formatNumberWithCommas, readCachedSettings, removeCommasFromNumbers } from '@/helpers/formatStrings';
 import { useToaster } from '@/components/util/CustomToast';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import { config, settings } from '@/components/util/AppConfig';
@@ -248,7 +248,7 @@ export default function EmployeesPage() {
     },
     {
       key: 'salary' as keyof Employee,
-      label: `Salary ${settings?.currency}`,
+      label: `Salary ${readCachedSettings()?.currency}`,
       sortable: true,
       render: (employee: Employee) => (
         <span className="font-medium text-foreground">
@@ -443,7 +443,7 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="salary" className="text-foreground">
-                Monthly Salary ({settings?.currency})
+                Monthly Salary ({readCachedSettings()?.currency})
               </Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

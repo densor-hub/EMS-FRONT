@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { formatNumberWithCommas } from '@/helpers/formatStrings';
+import { formatNumberWithCommas, readCachedSettings } from '@/helpers/formatStrings';
 import { TransactionItem, TransactionItemsDelivered } from '@/lib/types';
 import { config, settings } from './AppConfig';
 
@@ -98,7 +98,7 @@ export function TransactionItemsTable({
             <div className="flex justify-between items-center pt-1 border-t">
               <span className="text-xs font-medium text-muted-foreground">Total</span>
               <span className="text-sm font-bold text-primary">
-                {settings?.currency}{' '}
+                {readCachedSettings()?.currency}{' '}
                 {formatNumberWithCommas(
                   ((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)
                 )}
@@ -171,7 +171,7 @@ export function TransactionItemsTable({
                 Total
               </td>
               <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                {`${settings?.currency}`}{' '}
+                {`${readCachedSettings()?.currency}`}{' '}
                 {formatNumberWithCommas(totalAmount?.toFixed(2) || '0.00')}
               </td>
             </tr>

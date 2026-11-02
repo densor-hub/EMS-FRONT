@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<Partial<User>>(() => snapshot.user ?? {});
   const [company, setCompany] = useState<Partial<Company>>(() => snapshot.company ?? {});
   const [selectedShop, setSelectedShop] = useState<string>(() => snapshot.selectedShop ?? '');
+  
 
   const [isAuthenticated, setIsAuthenticatedRaw] = useState<boolean>(
     () => snapshot.isAuthenticated === true
@@ -148,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  console.log(settings)
+
   return (
     <AuthContext.Provider
       value={{

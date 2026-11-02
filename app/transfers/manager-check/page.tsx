@@ -14,7 +14,7 @@ import { useToaster } from '@/components/util/CustomToast';
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
 import { handlePrint } from "@/lib/utils";
-import { alphaNumericDate, currency, formatNumberWithCommas, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
+import { alphaNumericDate, currency, formatNumberWithCommas, readCachedSettings, removeCommasFromNumbers, toastErrors } from "@/helpers/formatStrings";
 import {Item, Shop, Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
 import PaymentsFooter from '../../purchases/paymentFooter';
@@ -250,8 +250,8 @@ export default function PurcahsePage() {
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Request Qty</th>
                 <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Available Qty</th>
                   <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Actual Qty</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Unit Price {`${settings?.currency}`}</th>
-                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Total {`${settings?.currency}`}</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Unit Price {`${readCachedSettings()?.currency}`}</th>
+                <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-semibold">Total {`${readCachedSettings()?.currency}`}</th>
               </tr>
             </thead>
             <tbody>
@@ -272,7 +272,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  {`${settings?.currency}`} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {`${readCachedSettings()?.currency}`} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>

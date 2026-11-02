@@ -16,6 +16,7 @@ import {
   toastErrors,
   sessionStore,
   unwrapItems,
+  readCachedSettings,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
@@ -63,7 +64,7 @@ export default function PurchasePage() {
 
   // ── Backend pagination state ──
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(settings?.defaultPageSize || 10);
+  const [pageSize] = useState<number>(readCachedSettings()?.defaultPageSize || 10);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>("");

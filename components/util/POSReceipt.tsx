@@ -2,13 +2,14 @@
 import React, { useState, useEffect, Dispatch, SetStateAction, useRef } from 'react'
 // @ts-ignore
 import EscPosEncoder from 'esc-pos-encoder'
-import { toastErrors, toastSuccess } from '@/helpers/formatStrings'
+import { readCachedSettings, toastErrors, toastSuccess } from '@/helpers/formatStrings'
 import { useAuth } from '@/lib/auth-context'
 import jsPDF from 'jspdf'
-import { config, settings } from './AppConfig'
+import { config } from './AppConfig'
 import { useToaster } from './CustomToast'
 import { sessionStore } from '@/helpers/formatStrings'
 import { CartItem } from '@/lib/types'
+
 
 // Add WebUSB type definitions
 declare global {
@@ -262,7 +263,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
 
       if (amount > 0) {
         const totalLabel = 'TOTAL'
-        const totalValue = `${settings?.currency}${amount.toFixed(2)}`
+        const totalValue = `${readCachedSettings()?.currency}${amount.toFixed(2)}`
         receipt = receipt
           .align('left')
           .bold(true)
@@ -719,7 +720,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
         pdf.setTextColor('#000000')
 
         const totalText = 'TOTAL'
-        const totalAmount = `${settings?.currency} ${amount.toFixed(2)}`
+        const totalAmount = `${readCachedSettings()?.currency} ${amount.toFixed(2)}`
 
         pdf.text(totalText, margin, yPos)
 
@@ -824,7 +825,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
           <div
             ref={receiptRef}
             className={`bg-white shadow-lg rounded-lg p-4 mb-4 max-w-[${
-              settings?.posPrinterSize < 80 ? 58 : 80
+              readCachedSettings()?.posPrinterSize < 80 ? 58 : 80
             }mm]`}
           >
             <div
@@ -843,8 +844,8 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
                 <p className="text-[10px] text-gray-500">Transaction #</p>
                 <p
                   className={
-                    (showQRCode && (settings?.posPrinterSize || 0) < 80) ||
-                    (!showQRCode && (settings?.posPrinterSize || 0) < 80)
+                    (showQRCode && (readCachedSettings()?.posPrinterSize || 0) < 80) ||
+                    (!showQRCode && (readCachedSettings()?.posPrinterSize || 0) < 80)
                       ? 'text-xs font-bold tracking-wide'
                       : 'text-sm font-bold tracking-wide'
                   }
@@ -915,7 +916,7 @@ const POSReceipt: React.FC<POSReceiptUi> = ({ data, setData }) => {
                 <div className="flex justify-between text-sm font-bold border-t border-dashed border-gray-300 pt-2 mt-2">
                   <span>TOTAL</span>
                   <span>
-                    {`${settings?.currency} `}
+                    {`${readCachedSettings()?.currency} `}
                     {amount.toFixed(2)}
                   </span>
                 </div>

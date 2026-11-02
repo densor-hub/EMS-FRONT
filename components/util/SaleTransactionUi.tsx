@@ -33,6 +33,7 @@ import {
   toastErrors,
   toastSuccess,
   sessionStore,
+  readCachedSettings,
 } from "@/helpers/formatStrings";
 import { useRouter } from 'next/navigation';
 import POSReceipt, { POSReceiptProps } from "./POSReceipt";
@@ -289,14 +290,14 @@ const columns: CartColumn<CartItem>[] = [
   },
   {
     key: 'price',
-    header: `Price (${settings?.currency?.toUpperCase()})`,
+    header: `Price (${readCachedSettings()?.currency?.toUpperCase()})`,
     align: 'right',
     width: '20%',
     render: (item) => `${currency(item.price.toFixed(2)?.toString())}`,
   },
   {
     key: 'total',
-    header: `Total (${settings?.currency?.toUpperCase()})`,
+    header: `Total (${readCachedSettings()?.currency?.toUpperCase()})`,
     align: 'right',
     width: '25%',
     render: (item) => `${currency((item.quantity * item.price).toFixed(2).toString())}`,
@@ -419,32 +420,32 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
     //  console.log({hasItems})
 
     const hasAmount = isTrans || isPurchase  
-                      || (isInstantSale && settings?.saleToDeliveryMode === true && !isInstantSaleDelivery) 
-                      || (isInstantSale && settings?.saleToDeliveryMode === false &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)) 
-                      || (isInstantSaleDelivery && settings?.saleToDeliveryMode ===  true && (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon))
-                      || (isCustomerSale && ((settings?.minimumSalePaymentPercentage || 0) > 0) && Number(removeCommasFromNumbers(amountPaid)) >= (((settings?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))
-                      || (isCustomerSale && ((settings?.minimumSalePaymentPercentage === 0) &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)))
+                      || (isInstantSale && readCachedSettings()?.saleToDeliveryMode === true && !isInstantSaleDelivery) 
+                      || (isInstantSale && readCachedSettings()?.saleToDeliveryMode === false &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)) 
+                      || (isInstantSaleDelivery && readCachedSettings()?.saleToDeliveryMode ===  true && (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon))
+                      || (isCustomerSale && ((readCachedSettings()?.minimumSalePaymentPercentage || 0) > 0) && Number(removeCommasFromNumbers(amountPaid)) >= (((readCachedSettings()?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))
+                      || (isCustomerSale && ((readCachedSettings()?.minimumSalePaymentPercentage === 0) &&  (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon)))
 
     //  isSale ? 
     //   (
     //    (prop.instantSale && (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon))  || //sale that requires only one person
     //    (Number(removeCommasFromNumbers(amountPaid)) >= totalWithCoupon && isSale)  || // sale that requires 2 persons, sesnond person that generates receipt for taking out items
-    //    (!!prop?.businessPartnerValue && !!prop?.businessPartnerName && isSale && Number(removeCommasFromNumbers(amountPaid)) >= (((settings?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))) // customer sale
+    //    (!!prop?.businessPartnerValue && !!prop?.businessPartnerName && isSale && Number(removeCommasFromNumbers(amountPaid)) >= (((readCachedSettings()?.minimumSalePaymentPercentage || 0)/100) * totalWithCoupon))) // customer sale
     //   : !isSale
 
 
     //  console.log({hasAmount})
  
     const hasPaymentMethod =  ((isPurchase && !!selectedPaymentMethod) || (isTrans && !selectedPaymentMethod) ||
-                 (isInstantSale && !isInstantSaleDelivery && settings?.saleToDeliveryMode === true && !selectedPaymentMethod) ||
-                 (isInstantSale && settings?.saleToDeliveryMode === false && !!selectedPaymentMethod) ||
-                 (isInstantSaleDelivery && settings?.saleToDeliveryMode === true && !!selectedPaymentMethod) ||
+                 (isInstantSale && !isInstantSaleDelivery && readCachedSettings()?.saleToDeliveryMode === true && !selectedPaymentMethod) ||
+                 (isInstantSale && readCachedSettings()?.saleToDeliveryMode === false && !!selectedPaymentMethod) ||
+                 (isInstantSaleDelivery && readCachedSettings()?.saleToDeliveryMode === true && !!selectedPaymentMethod) ||
                   (isCustomerSale  &&  !!selectedPaymentMethod)|| isCustomerDelivery ) //&& !!selectedPaymentMethod;
       
     
               // console.log({hasPaymentMethod})
 
-      const hasDate =   (isInstantSale && !isInstantSaleDelivery  && settings?.saleToDeliveryMode === true) || !!date
+      const hasDate =   (isInstantSale && !isInstantSaleDelivery  && readCachedSettings()?.saleToDeliveryMode === true) || !!date
       //isSale || !!date;
     // console.log({hasDate})
 
@@ -833,7 +834,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
         deliveredQuantity: prop.instantSale ? c.quantity : 0,
       }));
 
-      const postData =  isInstantSaleDelivery && settings?.saleToDeliveryMode === true ?
+      const postData =  isInstantSaleDelivery && readCachedSettings()?.saleToDeliveryMode === true ?
          {
             transactionId: prop?.transactionNumber,
             amount: totalWithCoupon,
@@ -841,7 +842,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
             paymentMethod: Number(selectedPaymentMethod),
             remarks: "",
             couponCode: couponCode,
-            currencyCode: settings?.currency,
+            currencyCode: readCachedSettings()?.currency,
           }
           : {
             locationId: locId,
@@ -856,7 +857,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
             items: saleItems,
             transactionCode: "",
             couponCode: couponData?.code || "",
-            currencyCode: settings?.currency,
+            currencyCode: readCachedSettings()?.currency,
             transactionType: 1,
           }
         ;
@@ -1009,7 +1010,7 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
               date={date}
               onDateChange={setDate}
               showDate = {
-                isPurchase || isTrans ||   (isInstantSale && settings?.saleToDeliveryMode === false) || isInstantSaleDelivery || isCustomerSale
+                isPurchase || isTrans ||   (isInstantSale && readCachedSettings()?.saleToDeliveryMode === false) || isInstantSaleDelivery || isCustomerSale
               }
               dateError={errors.date}
               datePlaceholder="Select date"
@@ -1018,16 +1019,16 @@ function SaleTransactionUIComponent(prop: TransactionUI) {
               onAmountPaidChange={setAmountPaid}
               amountPaidError={errors.amountPaid}
               showMinPaymentThreshold={
-                (isCustomerSale || isCustomerDelivery) && ((settings?.minimumSalePaymentPercentage || 0)> 0)
+                (isCustomerSale || isCustomerDelivery) && ((readCachedSettings()?.minimumSalePaymentPercentage || 0)> 0)
               }
               showPayment={
                 isPurchase ||
-                 (isInstantSale && settings?.saleToDeliveryMode === false) ||
-                 (isInstantSaleDelivery && settings?.saleToDeliveryMode === true) ||
+                 (isInstantSale && readCachedSettings()?.saleToDeliveryMode === false) ||
+                 (isInstantSaleDelivery && readCachedSettings()?.saleToDeliveryMode === true) ||
                   isCustomerSale || isCustomerDelivery 
               }
               showCoupon={
-                 (isInstantSale && settings?.saleToDeliveryMode === false)  || isCustomerSale
+                 (isInstantSale && readCachedSettings()?.saleToDeliveryMode === false)  || isCustomerSale
                 // (  isSale && prop.instantSale ||
                 // !!prop.businessPartnerValue && !!prop?.businessPartnerName) // purchase, stock adjustment, sale and business partners 
                 // || (!prop.instantSale && !prop?.businessPartnerName && !prop?.businessPartnerValue)

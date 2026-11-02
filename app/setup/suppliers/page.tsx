@@ -190,7 +190,7 @@ export default function SuppliersPage() {
   // const formatCurrency = (amount: number) =>
   //   new Intl.NumberFormat('en-US', {
   //     style: 'currency',
-  //     currency: settings?.currency,
+  //     currency: readCachedSettings()?.currency,
   //   }).format(amount);
 
   const columns = [

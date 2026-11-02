@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from "@/lib/auth-context";
 import axiosInstance from "@/lib/customAxios";
-import { alphaNumericDate, formatNumberWithCommas, removeCommasFromNumbers } from "@/helpers/formatStrings";
+import { alphaNumericDate, formatNumberWithCommas, readCachedSettings, removeCommasFromNumbers } from "@/helpers/formatStrings";
 import { Shop,  Transaction, TransactionItem } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -227,7 +227,7 @@ export default function PurcahsePage() {
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td colSpan={4} className="p-2 sm:p-3 text-right font-bold text-xs sm:text-sm">Total</td>
                 <td className="p-2 sm:p-3 text-right font-bold text-primary text-xs sm:text-sm">
-                  {settings?.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
+                  {readCachedSettings()?.currency} {formatNumberWithCommas(details.totalAmount?.toFixed(2) || '0.00')}
                 </td>
               </tr>
             </tfoot>
@@ -307,7 +307,7 @@ export default function PurcahsePage() {
                 options={transactionDetails?.items?.map((x) => ({
                   value: x.id.toString(),
                   label: x.name
-                  // discriptionLabel: `${settings?.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
+                  // discriptionLabel: `${readCachedSettings()?.currency} ${formatNumberWithCommas(x?.costPrice?.toString())}`
                 })) || []}
                 value={filterItem}
                 onValueChange={setFilterItem}

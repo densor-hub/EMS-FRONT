@@ -17,7 +17,9 @@ import { useToaster } from '@/components/util/CustomToast';
 import { sessionStore } from '@/helpers/formatStrings';
 import { LoadingOverlay } from '@/components/SkeletonLoading';
 import SweetAlert from '@/components/util/SweetAlert';
-import { config, settings } from '@/components/util/AppConfig';
+import { config } from '@/components/util/AppConfig';
+import { readCachedSettings } from '@/helpers/formatStrings';
+
 
 interface GeneratedCoupon {
   id: string;
@@ -266,7 +268,7 @@ export default function CouponsPage() {
     },
     {
       key: 'amount' as keyof GeneratedCoupon,
-      label: `Amount ${settings?.currency}`,
+      label: `Amount ${readCachedSettings()?.currency}`,
       sortable: true,
       render: (coupon: GeneratedCoupon) => (
         <span className="font-medium text-foreground">
@@ -361,7 +363,7 @@ export default function CouponsPage() {
        <form onSubmit={handleSubmit} className="space-y-4">
   <div className="space-y-2">
     <Label htmlFor="amount" className="text-foreground">
-      Coupon Amount ({settings?.currency}) *
+      Coupon Amount ({readCachedSettings()?.currency}) *
     </Label>
     <div className="relative">
       <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

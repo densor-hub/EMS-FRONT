@@ -17,6 +17,7 @@ import {
   toastErrors,
   sessionStore,
   unwrapItems,
+  readCachedSettings,
 } from "@/helpers/formatStrings";
 import { Supplier, Transaction } from "@/lib/types";
 import { DataTable } from '@/components/dashboard/data-table';
@@ -34,7 +35,7 @@ const paymentMethods = config.paymentMethods;
 
 type TabKey = 'items' | 'payments' | 'deliveries' | 'reversals';
 
-const DEFAULT_PAGE_SIZE = settings?.defaultPageSize;
+const DEFAULT_PAGE_SIZE = readCachedSettings()?.defaultPageSize;
 
 export default function PurchasePage() {
   const toast = useToaster();
