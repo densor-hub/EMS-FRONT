@@ -24,13 +24,13 @@ export const loadSettings = async (id: string): Promise<boolean> => {
     const res = await axiosInstance.get(`/System/Settings/${id}`);
     
     // Debugging: Check what the API actually returns
-    console.log("RAW API SETTINGS:", res?.data); 
+    // console.log("RAW API SETTINGS:", res?.data); 
 
     const body = res?.data?.data ?? res?.data ?? {};
 
     const settingValue: SystemSettings = {
       // Force the locationId to be the one we passed in, not what the API returned
-      locationId: "",//body.locationId || id, 
+      locationId: body.locationId || id, 
       saleToDeliveryMode: Boolean(body.saleToDeliveryMode),
       recordingOldTransactions: Boolean(body.recordingOldTransactions),
       minimumSalePaymentPercentage: Number(body.minimumSalePaymentPercentage),
